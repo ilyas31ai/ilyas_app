@@ -1,32 +1,101 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 
 class DiscussionPage extends StatefulWidget {
-  final String nom;
+  final String name;
 
-  const DiscussionPage({super.key, required this.nom});
+  const DiscussionPage({super.key, required this.name});
 
   @override
   State<DiscussionPage> createState() => _DiscussionPageState();
 }
 
 class _DiscussionPageState extends State<DiscussionPage> {
-  TextEditingController controller = TextEditingController();
+  final TextEditingController controller = TextEditingController();
+  final List<Map<String, dynamic>> messages = [];
 
-  // ✉️ ENVOYER MESSAGE
+  // 📩 envoyer texte
   void sendMessage() {
     if (controller.text.trim().isEmpty) return;
 
-    FirebaseFirestore.instance
-        .collection("chats")
-        .doc(widget.nom)
-        .collection("messages")
-        .add({
-      "text": controller.text.trim(),
-      "time": DateTime.now(),
+    setState(() {
+      messages.add({
+        "text": controller.text,
+        "isMe": true,
+        "time": TimeOfDay.now().format(context),
+      });
     });
 
     controller.clear();
+  }
+
+  // 📸 envoyer image
+  Future<void> pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile =
+        await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        messages.add({
+          "image": File(pickedFile.path),
+          "isMe": true,
+          "time": TimeOfDay.now().format(context),
+        });
+      });
+    }
+  }
+
+  // 💬 afficher message
+  Widget buildMessage(Map msg) {
+    final isMe = msg["isMe"];
+
+    return Align(
+      alignment:
+          isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          gradient: isMe
+              ? const LinearGradient(
+                  colors: [Colors.blue, Colors.cyan])
+              : const LinearGradient(
+                  colors: [Colors.grey, Colors.black54]),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            // 🖼 image
+            if (msg["image"] != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.file(
+                  msg["image"],
+                  width: 150,
+                ),
+              ),
+
+            // 💬 texte
+            if (msg["text"] != null)
+              Text(
+                msg["text"],
+                style: const TextStyle(color: Colors.white),
+              ),
+
+            const SizedBox(height: 5),
+
+            Text(
+              msg["time"],
+              style: const TextStyle(
+                  fontSize: 10, color: Colors.white70),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -35,115 +104,96 @@ class _DiscussionPageState extends State<DiscussionPage> {
       backgroundColor: const Color(0xFF0F172A),
 
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text("Discussion avec ${widget.nom} 💬"),
+        backgroundColor: Colors.blue,
+        title: Row(
+          children: [
+            const CircleAvatar(
+              child: Icon(Icons.person),
+            ),
+            const SizedBox(width: 10),
+            Text(widget.name),
+          ],
+        ),
       ),
 
       body: Column(
         children: [
-          // 📜 LISTE DES MESSAGES (TEMPS RÉEL)
+          // 💬 messages
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection("chats")
-                  .doc(widget.nom)
-                  .collection("messages")
-                  .orderBy("time", descending: false)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
-
-                final messages = snapshot.data!.docs;
-
-                return ListView.builder(
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final msg =
-                        messages[index].data() as Map<String, dynamic>;
-
-                    return Align(
-                      alignment: Alignment.centerRight,
-                      child: Container(
-                        margin: const EdgeInsets.all(8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.pink, Colors.orange],
-                          ),
-                          borderRadius: BorderRadius.circular(15),
+            child: messages.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Image.asset(
+                          'assets/logo.png',
+                          width: 120,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              msg["text"] ?? "",
-                              style:
-                                  const TextStyle(color: Colors.white),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              msg["time"] != null
-                                  ? TimeOfDay.fromDateTime(
-                                          (msg["time"] as Timestamp)
-                                              .toDate())
-                                      .format(context)
-                                  : "",
-                              style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 10),
-                            ),
-                          ],
+                        const SizedBox(height: 20),
+                        const Text(
+                          "Aucun message",
+                          style: TextStyle(
+                              color: Colors.white54, fontSize: 16),
                         ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(10),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      return buildMessage(messages[index]);
+                    },
+                  ),
           ),
 
-          // ✍️ INPUT MESSAGE
+          // ✍️ input
           Container(
             padding: const EdgeInsets.all(10),
+            color: Colors.black26,
             child: Row(
               children: [
+                // 📸 bouton image
+                IconButton(
+                  icon: const Icon(Icons.image,
+                      color: Colors.white),
+                  onPressed: pickImage,
+                ),
+
+                // champ texte
                 Expanded(
                   child: TextField(
                     controller: controller,
-                    style: const TextStyle(color: Colors.white),
+                    style:
+                        const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       hintText: "Écrire un message...",
-                      hintStyle:
-                          const TextStyle(color: Colors.white54),
+                      hintStyle: const TextStyle(
+                          color: Colors.white54),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
+                      fillColor: Colors.white10,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius:
+                            BorderRadius.circular(25),
                         borderSide: BorderSide.none,
                       ),
                     ),
                   ),
                 ),
+
                 const SizedBox(width: 10),
 
-                // 🔥 BOUTON ENVOYER
+                // bouton envoyer
                 GestureDetector(
                   onTap: sendMessage,
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: const BoxDecoration(
+                      color: Colors.cyan,
                       shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [Colors.pink, Colors.orange],
-                      ),
                     ),
-                    child:
-                        const Icon(Icons.send, color: Colors.white),
+                    child: const Icon(Icons.send,
+                        color: Colors.white),
                   ),
                 ),
               ],

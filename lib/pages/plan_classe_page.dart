@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 class PlanClassePage extends StatefulWidget {
   const PlanClassePage({super.key});
@@ -10,117 +8,66 @@ class PlanClassePage extends StatefulWidget {
 }
 
 class _PlanClassePageState extends State<PlanClassePage> {
-  List<Map<String, String>> eleves = [];
+  List<String> eleves = [];
 
-  @override
-  void initState() {
-    super.initState();
-    loadEleves();
-  }
-
-  // 🎨 Couleur aléatoire
-  Color getColor(String name) {
-    return Colors.primaries[name.hashCode % Colors.primaries.length];
-  }
-
-  // 💾 SAVE
-  Future<void> saveEleves() async {
-    final prefs = await SharedPreferences.getInstance();
-    prefs.setString("eleves", jsonEncode(eleves));
-  }
-
-  // 📂 LOAD
-  Future<void> loadEleves() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? data = prefs.getString("eleves");
-
-    if (data != null) {
-      setState(() {
-        eleves = List<Map<String, String>>.from(
-          jsonDecode(data),
-        );
-      });
-    } else {
-      eleves = [
-        {"nom": "Ali"},
-        {"nom": "Sara"},
-        {"nom": "Jean"},
-        {"nom": "Fatou"},
-      ];
-    }
-  }
-
-  // ➕ AJOUTER
   void ajouterEleve() {
-    TextEditingController ctrl = TextEditingController();
+    TextEditingController controller = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (_) {
+      builder: (context) {
         return AlertDialog(
-          title: const Text("Ajouter élève"),
-          content: TextField(controller: ctrl),
+          title: const Text("Ajouter un élève"),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: "Nom de l'élève",
+            ),
+          ),
           actions: [
             TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Annuler"),
+            ),
+            ElevatedButton(
               onPressed: () {
-                setState(() {
-                  eleves.add({"nom": ctrl.text});
-                });
-                saveEleves();
+                if (controller.text.isNotEmpty) {
+                  setState(() {
+                    eleves.add(controller.text);
+                  });
+                }
                 Navigator.pop(context);
               },
               child: const Text("Ajouter"),
-            )
+            ),
           ],
         );
       },
     );
   }
 
-  // ✏️ MODIFIER
-  void modifierEleve(int index) {
-    TextEditingController ctrl =
-        TextEditingController(text: eleves[index]["nom"]);
-
+  void supprimerEleve(int index) {
     showDialog(
       context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text("Modifier"),
-          content: TextField(controller: ctrl),
-          actions: [
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  eleves[index]["nom"] = ctrl.text;
-                });
-                saveEleves();
-                Navigator.pop(context);
-              },
-              child: const Text("OK"),
-            )
-          ],
-        );
-      },
+      builder: (_) => AlertDialog(
+        title: const Text("Supprimer cet élève ?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Non"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                eleves.removeAt(index);
+              });
+              Navigator.pop(context);
+            },
+            child: const Text("Oui"),
+          ),
+        ],
+      ),
     );
-  }
-
-  // ❌ DELETE
-  void supprimerEleve(int index) {
-    setState(() {
-      eleves.removeAt(index);
-    });
-    saveEleves();
-  }
-
-  // 🔁 DRAG
-  void reorder(int oldIndex, int newIndex) {
-    setState(() {
-      if (newIndex > oldIndex) newIndex--;
-      final item = eleves.removeAt(oldIndex);
-      eleves.insert(newIndex, item);
-    });
-    saveEleves();
   }
 
   @override
@@ -128,69 +75,106 @@ class _PlanClassePageState extends State<PlanClassePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Plan de classe"),
-        backgroundColor: Colors.black,
-      ),
-
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
-          ),
-        ),
-
-        child: ReorderableListView(
-          onReorder: reorder,
-
-          children: List.generate(eleves.length, (index) {
-            final nom = eleves[index]["nom"] ?? "";
-
-            return Container(
-              key: ValueKey(nom),
-              margin: const EdgeInsets.all(10),
-
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(20),
-              ),
-
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: getColor(nom),
-                  child: Text(
-                    nom.isNotEmpty ? nom[0] : "?",
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-
-                title: Text(
-                  nom,
-                  style: const TextStyle(color: Colors.white),
-                ),
-
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.white),
-                      onPressed: () => modifierEleve(index),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => supprimerEleve(index),
-                    ),
-                    const Icon(Icons.drag_handle, color: Colors.white),
-                  ],
-                ),
-              ),
-            );
-          }),
-        ),
       ),
 
       floatingActionButton: FloatingActionButton(
         onPressed: ajouterEleve,
         child: const Icon(Icons.add),
       ),
+
+      body: eleves.isEmpty
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Center(
+                  child: Image.asset(
+                    'assets/logo.png',
+                    width: 90,
+                  ),
+                ),
+                const SizedBox(height: 15),
+                const Text(
+                  "Aucun élève",
+                  style: TextStyle(fontSize: 18),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  "Ajoute des élèves avec le bouton +",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ],
+            )
+
+          : GridView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: eleves.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemBuilder: (context, index) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey[800],
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black54,
+                        blurRadius: 4,
+                      )
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+
+                      /// CONTENU
+                      Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              'assets/logo.png',
+                              width: 30,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              eleves[index],
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      /// BOUTON SUPPRIMER
+                      Positioned(
+                        top: 5,
+                        right: 5,
+                        child: GestureDetector(
+                          onTap: () => supprimerEleve(index),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: const EdgeInsets.all(5),
+                            child: const Icon(
+                              Icons.close,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 }

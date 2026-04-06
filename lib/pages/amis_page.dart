@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'discussion_page.dart';
 
 class AmisPage extends StatefulWidget {
   const AmisPage({super.key});
@@ -11,152 +8,235 @@ class AmisPage extends StatefulWidget {
 }
 
 class _AmisPageState extends State<AmisPage> {
-  List<String> amis = [];
-  TextEditingController controller = TextEditingController();
+  List<Map<String, dynamic>> amis = [
+    {"name": "Ali", "phone": "0612345678", "online": true},
+    {"name": "Sara", "phone": "0623456789", "online": false},
+    {"name": "Yassine", "phone": "0634567890", "online": true},
+    {"name": "Fatima", "phone": "0645678901", "online": false},
+  ];
 
-  @override
-  void initState() {
-    super.initState();
-    loadAmis();
-  }
+  String search = "";
 
-  // 💾 SAVE
-  Future<void> saveAmis() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("amis", jsonEncode(amis));
-  }
+  // ➕ Ajouter ami
+  void ajouterAmi() {
+    TextEditingController nameController = TextEditingController();
+    TextEditingController phoneController = TextEditingController();
 
-  // 📥 LOAD
-  Future<void> loadAmis() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString("amis");
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.black87,
+          title: const Text("Ajouter un ami",
+              style: TextStyle(color: Colors.white)),
 
-    if (data != null) {
-      setState(() {
-        amis = List<String>.from(jsonDecode(data));
-      });
-    }
-  }
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: "Nom",
+                  hintStyle: TextStyle(color: Colors.white54),
+                ),
+              ),
+              TextField(
+                controller: phoneController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: "Téléphone",
+                  hintStyle: TextStyle(color: Colors.white54),
+                ),
+              ),
+            ],
+          ),
 
-  // ➕ AJOUTER AMI
-  void addAmi() {
-    if (controller.text.isEmpty) return;
-
-    setState(() {
-      amis.add(controller.text);
-    });
-
-    controller.clear();
-    saveAmis();
-  }
-
-  // ❌ SUPPRIMER AMI
-  void deleteAmi(int index) {
-    setState(() {
-      amis.removeAt(index);
-    });
-
-    saveAmis();
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Annuler"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (nameController.text.isNotEmpty &&
+                    phoneController.text.isNotEmpty) {
+                  setState(() {
+                    amis.add({
+                      "name": nameController.text,
+                      "phone": phoneController.text,
+                      "online": false,
+                    });
+                  });
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text("Ajouter"),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final filtered = amis
+        .where((a) =>
+            a["name"].toLowerCase().contains(search.toLowerCase()) ||
+            a["phone"].contains(search))
+        .toList();
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF0F2027),
 
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text("Mes amis 👥"),
+        title: const Text("Mes Amis"),
+        backgroundColor: Colors.blueAccent,
       ),
 
       body: Column(
         children: [
-          // 🔍 INPUT AJOUT
+          const SizedBox(height: 10),
+
+          // 🔥 LOGO
+          Image.asset(
+            "assets/logo.png",
+            height: 60,
+          ),
+
+          const SizedBox(height: 10),
+
+          // 🔍 RECHERCHE
           Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: "Ajouter un ami...",
-                      hintStyle:
-                          const TextStyle(color: Colors.white54),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
+            padding: const EdgeInsets.all(10),
+            child: TextField(
+              onChanged: (value) {
+                setState(() => search = value);
+              },
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: "Rechercher un ami...",
+                hintStyle: const TextStyle(color: Colors.white54),
+                prefixIcon: const Icon(Icons.search, color: Colors.white),
+                filled: true,
+                fillColor: Colors.black45,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none,
                 ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: addAmi,
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [Colors.pink, Colors.orange],
-                      ),
-                    ),
-                    child:
-                        const Icon(Icons.add, color: Colors.white),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
 
-          // 📜 LISTE AMIS
+          // 👥 LISTE
           Expanded(
             child: ListView.builder(
-              itemCount: amis.length,
+              itemCount: filtered.length,
               itemBuilder: (context, index) {
-                final nom = amis[index];
+                final ami = filtered[index];
 
-                return ListTile(
-                  // 👤 AVATAR
-                  leading: CircleAvatar(
-                    radius: 25,
-                    backgroundColor: Colors.pink,
-                    child: Text(
-                      nom[0].toUpperCase(),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-
-                  title: Text(
-                    nom,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete,
-                        color: Colors.red),
-                    onPressed: () => deleteAmi(index),
-                  ),
-
-                  // 💬 OUVRIR CHAT
+                return InkWell(
                   onTap: () {
-                    Navigator.push(
+                    Navigator.pushNamed(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            DiscussionPage(nom: nom),
-                      ),
+                      '/discussion',
+                      arguments: ami["name"],
                     );
                   },
+
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.all(12),
+
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
+                      ),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+
+                    child: Row(
+                      children: [
+                        // 👤 AVATAR + ONLINE
+                        Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 25,
+                              backgroundColor: Colors.white,
+                              child: Text(
+                                ami["name"][0],
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: ami["online"]
+                                      ? Colors.green
+                                      : Colors.grey,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: Colors.white, width: 2),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(width: 15),
+
+                        // 📄 INFOS
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ami["name"],
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              ami["phone"],
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const Spacer(),
+
+                        const Icon(Icons.chat, color: Colors.white),
+                      ],
+                    ),
+                  ),
                 );
               },
             ),
           ),
         ],
+      ),
+
+      // ➕ AJOUT AMI
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.blueAccent,
+        onPressed: ajouterAmi,
+        child: const Icon(Icons.person_add),
       ),
     );
   }

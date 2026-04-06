@@ -10,221 +10,181 @@ class EmploiPage extends StatefulWidget {
 }
 
 class _EmploiPageState extends State<EmploiPage> {
-  List<Map<String, String>> cours = [];
-  String selectedJour = "Lundi";
+  List<String> heures = [
+    "08h","09h","10h","11h","12h",
+    "13h","14h","15h","16h","17h"
+  ];
 
-  @override
-  void initState() {
-    super.initState();
-    loadCours();
-  }
+  List<String> jours = [
+    "Lundi","Mardi","Mercredi","Jeudi","Vendredi"
+  ];
 
-  // 💾 Sauvegarde
-  Future<void> saveCours() async {
+  Map<String, String> emploi = {};
+
+  final TextEditingController controller = TextEditingController();
+
+  // 🔥 LOAD DATA
+  Future<void> loadData() async {
     final prefs = await SharedPreferences.getInstance();
-    prefs.setString("cours", jsonEncode(cours));
-  }
-
-  // 📥 Charger
-  Future<void> loadCours() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? data = prefs.getString("cours");
+    String? data = prefs.getString("emploi");
 
     if (data != null) {
       setState(() {
-        cours = List<Map<String, String>>.from(jsonDecode(data));
+        emploi = Map<String, String>.from(json.decode(data));
       });
     }
   }
 
-  // 🎨 Couleurs
-  Color getColor(String matiere) {
-    switch (matiere.toLowerCase()) {
-      case "maths":
-        return Colors.blue;
-      case "français":
-        return Colors.red;
-      case "informatique":
-        return Colors.green;
-      default:
-        return Colors.grey;
-    }
+  // 🔥 SAVE DATA
+  Future<void> saveData() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString("emploi", json.encode(emploi));
+  }
+
+  void ajouterCours(String jour, String heure) {
+    String key = "$jour-$heure";
+    controller.text = emploi[key] ?? "";
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF161B22),
+        title: Text("$jour • $heure"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: "Entrer matière",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Annuler"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                emploi[key] = controller.text;
+              });
+              saveData(); // 🔥 sauvegarde
+              Navigator.pop(context);
+            },
+            child: const Text("Valider"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    loadData(); // 🔥 chargement auto
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Emploi du temps")),
-
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Text(
-            "Mes cours",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
-
-          ...cours.map((c) => Dismissible(
-                key: Key(c.toString()),
-                onDismissed: (direction) {
-                  setState(() {
-                    cours.remove(c);
-                  });
-                  saveCours();
-                },
-                background: Container(color: Colors.red),
-
-                child: Card(
-                  color: getColor(c['matiere']!),
-                  child: ListTile(
-                    leading: const Icon(Icons.access_time, color: Colors.white),
-                    title: Text(
-                      "${c['jour']} - ${c['date']} - ${c['heure']}",
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      "${c['matiere']} | Salle ${c['salle']}",
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              )),
-        ],
+      appBar: AppBar(
+        title: const Text("Emploi du temps"),
       ),
 
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          TextEditingController dateController = TextEditingController();
-          TextEditingController heureController = TextEditingController();
-          TextEditingController matiereController = TextEditingController();
-          TextEditingController salleController = TextEditingController();
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            children: [
 
-          showDialog(
-            context: context,
-            builder: (context) {
-              return AlertDialog(
-                title: const Text("Ajouter un cours"),
-                content: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Jour
-                      DropdownButtonFormField<String>(
-                        value: selectedJour,
-                        items: [
-                          "Lundi",
-                          "Mardi",
-                          "Mercredi",
-                          "Jeudi",
-                          "Vendredi",
-                          "Samedi",
-                          "Dimanche"
-                        ].map((jour) {
-                          return DropdownMenuItem(
-                            value: jour,
-                            child: Text(jour),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          selectedJour = value!;
-                        },
-                        decoration:
-                            const InputDecoration(labelText: "Jour"),
-                      ),
+              Image.asset('assets/logo.png', height: 60),
+              const SizedBox(height: 10),
 
-                      // Date
-                      TextField(
-                        controller: dateController,
-                        readOnly: true,
-                        decoration:
-                            const InputDecoration(labelText: "Date"),
-                        onTap: () async {
-                          DateTime? pickedDate =
-                              await showDatePicker(
-                            context: context,
-                            initialDate: DateTime.now(),
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime(2100),
-                          );
+              const Text(
+                "Organisation hebdomadaire",
+                style: TextStyle(color: Colors.grey),
+              ),
 
-                          if (pickedDate != null) {
-                            dateController.text =
-                                "${pickedDate.day}/${pickedDate.month}/${pickedDate.year}";
-                          }
-                        },
-                      ),
+              const SizedBox(height: 20),
 
-                      // Heure
-                      TextField(
-                        controller: heureController,
-                        readOnly: true,
-                        decoration:
-                            const InputDecoration(labelText: "Heure"),
-                        onTap: () async {
-                          TimeOfDay? pickedTime =
-                              await showTimePicker(
-                            context: context,
-                            initialTime: TimeOfDay.now(),
-                          );
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
 
-                          if (pickedTime != null) {
-                            heureController.text =
-                                "${pickedTime.hour}h${pickedTime.minute.toString().padLeft(2, '0')}";
-                          }
-                        },
-                      ),
-
-                      TextField(
-                        controller: matiereController,
-                        decoration: const InputDecoration(
-                            labelText: "Matière"),
-                      ),
-
-                      TextField(
-                        controller: salleController,
-                        decoration:
-                            const InputDecoration(labelText: "Salle"),
-                      ),
-                    ],
-                  ),
-                ),
-
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text("Annuler"),
+                  // HEURES
+                  Column(
+                    children: heures.map((h) {
+                      return Container(
+                        height: 70,
+                        width: 60,
+                        alignment: Alignment.center,
+                        child: Text(h),
+                      );
+                    }).toList(),
                   ),
 
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        cours.add({
-                          "jour": selectedJour,
-                          "date": dateController.text,
-                          "heure": heureController.text,
-                          "matiere": matiereController.text,
-                          "salle": salleController.text,
-                        });
+                  // JOURS
+                  Expanded(
+                    child: Row(
+                      children: jours.map((jour) {
+                        return Expanded(
+                          child: Column(
+                            children: [
 
-                        // 📅 TRI
-                        cours.sort((a, b) =>
-                            a['date']!.compareTo(b['date']!));
-                      });
+                              // TITRE
+                              Container(
+                                height: 40,
+                                margin: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Colors.blue, Colors.cyan],
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(jour),
+                              ),
 
-                      saveCours();
-                      Navigator.pop(context);
-                    },
-                    child: const Text("Ajouter"),
+                              // CASES
+                              ...heures.map((heure) {
+                                String key = "$jour-$heure";
+
+                                return GestureDetector(
+                                  onTap: () {
+                                    ajouterCours(jour, heure);
+                                  },
+
+                                  onLongPress: () {
+                                    setState(() {
+                                      emploi.remove(key);
+                                    });
+                                    saveData(); // 🔥 suppression sauvegardée
+                                  },
+
+                                  child: Container(
+                                    height: 60,
+                                    margin: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF161B22),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      emploi[key] ?? "+",
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ],
-              );
-            },
-          );
-        },
-        child: const Icon(Icons.add),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
