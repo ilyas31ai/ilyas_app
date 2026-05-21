@@ -3,13 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
-
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -19,1329 +20,503 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
+  final _controller = TextEditingController();
+  final _scrollController = ScrollController();
+  final _picker = ImagePicker();
+  final _tts = FlutterTts();
+  final _speech = SpeechToText();
 
-  final TextEditingController controller =
-      TextEditingController();
+  List<Map<String, dynamic>> _messages = [];
+  String _niveau = "Collège";
+  String _matiere = "";
+  String _chapitre = "";
+  bool _isLoading = false;
+  bool _isListening = false;
+  bool _speechAvailable = false;
+  int? _speakingIndex;
 
-  final ScrollController scrollController =
-      ScrollController();
+  DatabaseReference? _dbRef;
 
-  final ImagePicker picker =
-      ImagePicker();
+  static const String _apiKey = String.fromEnvironment('OPENAI_API_KEY');
 
-  List<Map<String, dynamic>> messages = [];
+  // ─── Data tables ───────────────────────────────────────────────────────────
 
-  String niveau = "Collège";
-  String matiere = "";
-String chapitre = "";
+  static const _matieres = {
+    "Collège":    ["Maths", "Français", "Anglais", "Histoire", "SVT"],
+    "Lycée":      ["Maths", "Physique", "Français", "Philo", "SVT"],
+    "BAC":        ["Maths", "Physique", "SES", "Philo", "SVT"],
+    "Université": ["Algorithme", "Programmation", "Maths", "Réseaux"],
+    "DELF":       ["A1", "A2", "B1", "B2", "C1"],
+  };
 
+  static const _chapitres = {
+    "Collège/Maths":            ["Calcul", "Fractions", "Équations", "Géométrie", "Pythagore", "Pourcentages", "Volumes", "Aires"],
+    "Collège/Français":         ["Grammaire", "Conjugaison", "Orthographe", "Dictée", "Lecture", "Rédaction", "Poésie", "Vocabulaire"],
+    "Collège/Anglais":          ["Grammar", "Vocabulary", "Present Simple", "Past Simple", "Present Perfect", "Irregular Verbs"],
+    "Collège/Histoire":         ["Antiquité", "Moyen Âge", "Renaissance", "Révolution", "Guerres mondiales"],
+    "Collège/SVT":              ["Cellule", "Nutrition", "Reproduction", "Génétique", "Écosystèmes"],
+    "BAC/Maths":                ["Suites", "Fonctions", "Dérivées", "Probabilités", "Matrices", "Géométrie"],
+    "BAC/Physique":             ["Mécanique", "Électricité", "Ondes", "Chimie", "Forces"],
+    "Université/Algorithme":    ["Variables", "Boucles", "Conditions", "Fonctions", "Tableaux", "Tri"],
+    "Université/Programmation": ["Flutter", "Dart", "Python", "Java", "HTML/CSS", "API REST"],
+    "Université/Réseaux":       ["TCP/IP", "DNS", "HTTP", "Sécurité", "Routage"],
+  };
 
+  List<String> get _currentMatieres => _matieres[_niveau] ?? [];
 
-  // 🔊 TTS
-  final FlutterTts flutterTts =
-      FlutterTts();
+  List<String> get _currentChapitres {
+    final key = "$_niveau/$_matiere";
+    if (_chapitres.containsKey(key)) return _chapitres[key]!;
+    if (_niveau == "DELF") {
+      return ["Compréhension orale", "Compréhension écrite", "Production orale", "Production écrite", "Grammaire", "Vocabulaire"];
+    }
+    return [];
+  }
 
-  // 🔑 OPENAI — passed at build time via --dart-define=OPENAI_API_KEY=sk-...
-  static const String apiKey =
-      String.fromEnvironment('OPENAI_API_KEY');
+  // ─── Init / dispose ────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
-
-    
-
-    loadMessages();
-  }
-
-  // 🔊 VOIX
-Future speak(String text) async {
-
-  // 🇬🇧 Anglais seulement
-  if (matiere == "Anglais") {
-
-    await flutterTts.setLanguage(
-      "en-US",
-    );
-
-  } else {
-
-    // 🇫🇷 Tout le reste en français
-    await flutterTts.setLanguage(
-      "fr-FR",
-    );
-
-  }
-
-  await flutterTts.setPitch(1.0);
-
-  await flutterTts.setSpeechRate(0.45);
-
-  await flutterTts.speak(text);
-}
-
-
-  // 📷 IMAGE
-  Future<void> pickImage() async {
-
-    final XFile? image =
-        await picker.pickImage(
-      source: ImageSource.gallery,
-    );
-
-    if (image == null) return;
-
-    setState(() {
-
-      messages.add({
-        "type": "image",
-        "path": image.path,
-        "isUser": true,
-      });
-
-      messages.add({
-        "type": "text",
-        "text":
-            "📷 Image ajoutée",
-        "isUser": false,
-      });
-    });
-
-    scrollBottom();
-  }
-
-  // 🔽 SCROLL
-  void scrollBottom() {
-
-    Future.delayed(
-      const Duration(milliseconds: 300),
-      () {
-
-        if (scrollController
-            .hasClients) {
-
-          scrollController.animateTo(
-
-            scrollController.position
-                .maxScrollExtent,
-
-            duration:
-                const Duration(
-                    milliseconds: 300),
-
-            curve: Curves.easeOut,
-          );
-        }
-      },
-    );
-  }
-
-  // 💾 SAVE
-  Future<void> saveMessages() async {
-
-    final prefs =
-        await SharedPreferences
-            .getInstance();
-
-    List<String> encoded =
-        messages
-            .where((m) =>
-                m["text"] !=
-                    "⏳ L'IA réfléchit..." &&
-                m["text"] !=
-                    "⚠️ Choisis une matière 📚")
-            .map((m) => jsonEncode(m))
-            .toList();
-
-    await prefs.setStringList(
-      "messages",
-      encoded,
-    );
-  }
-
-  // 📂 LOAD
-  Future<void> loadMessages() async {
-
-    final prefs =
-        await SharedPreferences
-            .getInstance();
-
-    List<String>? data =
-        prefs.getStringList(
-            "messages");
-
-    if (data != null) {
-
-      setState(() {
-
-        messages = data
-            .map((e) =>
-                Map<String, dynamic>.from(
-                    jsonDecode(e)))
-            .toList();
-
-      });
-
-      scrollBottom();
-    }
-  }
-
-  // 🗑️ CLEAR
-  Future<void> clearMessages() async {
-
-    final prefs =
-        await SharedPreferences
-            .getInstance();
-
-    await prefs.remove("messages");
-
-    setState(() {
-      messages.clear();
-    });
-  }
-
-
-
-  // 📄 PDF
-  Future<void> generatePdf(
-      String text) async {
-String cleanText = text
-    .replaceAll(r'\times', '×')
-    .replaceAll(r'\pi', 'π')
-    .replaceAll(r'\euro', '€')
-    .replaceAll('π', 'pi')
-    .replaceAll('€', 'euros')
-    .replaceAll(r'\\times', 'x')
-    .replaceAll(r'\\frac', '')
-    .replaceAll(r'\\(', '')
-    .replaceAll(r'\\)', '')
-    .replaceAll(r'\frac', '')
-    .replaceAll(r'\(', '')
-    .replaceAll(r'\)', '')
-    .replaceAll(r'\[', '')
-    .replaceAll(r'\]', '')
-    .replaceAll('{', '')
-    .replaceAll('}', '')
-    .replaceAll(r'\\', '')
-    .replaceAll('\$', '');
-    final pdf = pw.Document();
-
-    final image =
-        await imageFromAssetBundle(
-      'assets/logo.png',
-    );
-
-    pdf.addPage(
-
-      pw.MultiPage(
-
-        build: (context) => [
-
-          pw.Row(
-
-            children: [
-
-              pw.Container(
-
-                width: 60,
-                height: 60,
-
-                child:
-                    pw.Image(image),
-              ),
-
-              pw.SizedBox(width: 20),
-
-              pw.Text(
-
-                "ILYAS31AI",
-
-                style:
-                    pw.TextStyle(
-
-                  fontSize: 28,
-
-                  fontWeight:
-                      pw.FontWeight
-                          .bold,
-                ),
-              ),
-            ],
-          ),
-
-          pw.SizedBox(height: 30),
-
-          pw.Text(
-  cleanText,
-  style: const pw.TextStyle(
-    fontSize: 16,
-  ),
-),
-        ],
-      ),
-    );
-
-    await Printing.layoutPdf(
-
-      onLayout: (format) async =>
-          pdf.save(),
-    );
-  }
-
-  // 📚 MATIÈRES
-  List<String> getMatieres() {
-
-    switch (niveau) {
-     
-      case "Collège":
-        return [
-          "Maths",
-          "Français",
-          "Anglais",
-          "Histoire",
-          "SVT"
-        ];
-
-      case "Lycée":
-        return [
-          "Maths",
-          "Physique",
-          "Français",
-          "Philo",
-          "SVT"
-        ];
-
-      case "BAC":
-        return [
-          "Maths",
-          "Physique",
-          "SES",
-          "Philo",
-          "SVT"
-        ];
-
-      case "Université":
-        return [
-          "Algorithme",
-          "Programmation",
-          "Maths",
-          "Réseaux"
-        ];
-
-      case "DELF":
-        return [
-          "A1",
-          "A2",
-          "B1",
-          "B2",
-          "C1"
-        ];
-
-      default:
-        return [];
-    }
-  }
-List<String> getChapitres() {
-
-  // 📘 COLLÈGE - MATHS
-  if (niveau == "Collège" &&
-      matiere == "Maths") {
-    return [
-      "Calcul",
-      "Fractions",
-      "Équations",
-      "Géométrie",
-      "Pythagore",
-      "Pourcentages",
-      "Volumes",
-      "Aires",
-    ];
-  }
-
-  // 🇫🇷 COLLÈGE - FRANÇAIS
-  if (niveau == "Collège" &&
-      matiere == "Français") {
-    return [
-      "Grammaire",
-      "Conjugaison",
-      "Orthographe",
-      "Dictée",
-      "Lecture",
-      "Rédaction",
-      "Poésie",
-      "Vocabulaire",
-    ];
-  }
-
-  // 🇬🇧 COLLÈGE - ANGLAIS
-  if (niveau == "Collège" &&
-      matiere == "Anglais") {
-    return [
-      "Grammar",
-      "Vocabulary",
-      "Present Simple",
-      "Past Simple",
-      "Present Perfect",
-      "Irregular Verbs",
-      "Listening",
-      "Pronunciation",
-    ];
-  }
-
-  // 🧠 BAC - MATHS
-  if (niveau == "BAC" &&
-      matiere == "Maths") {
-    return [
-      "Suites",
-      "Fonctions",
-      "Dérivées",
-      "Probabilités",
-      "Matrices",
-      "Géométrie",
-    ];
-  }
-
-  // ⚡ BAC - PHYSIQUE
-  if (niveau == "BAC" &&
-      matiere == "Physique") {
-    return [
-      "Mécanique",
-      "Électricité",
-      "Ondes",
-      "Chimie",
-      "Forces",
-    ];
-  }
-
-  // 🎓 UNIVERSITÉ - ALGORITHME
-  if (niveau == "Université" &&
-      matiere == "Algorithme") {
-    return [
-      "Variables",
-      "Boucles",
-      "Conditions",
-      "Fonctions",
-      "Tableaux",
-      "Algorithmes",
-    ];
-  }
-
-  // 💻 UNIVERSITÉ - PROGRAMMATION
-  if (niveau == "Université" &&
-      matiere == "Programmation") {
-    return [
-      "Flutter",
-      "Dart",
-      "Python",
-      "Java",
-      "HTML",
-      "API",
-    ];
-  }
-
-  // 🇫🇷 DELF
-  if (niveau == "DELF") {
-    return [
-      "Compréhension orale",
-      "Compréhension écrite",
-      "Production orale",
-      "Production écrite",
-      "Grammaire",
-      "Vocabulaire",
-    ];
-  }
-
-  return [];
-}
-  // 🤖 SEND
-  void sendMessage() async {
-
-    String userText =
-        controller.text.trim();
-
-    if (userText.isEmpty) return;
-
-    controller.clear();
-
-    setState(() {
-
-      messages.add({
-        "type": "text",
-        "text": userText,
-        "isUser": true,
-      });
-
-    });
-
-    saveMessages();
-
-    scrollBottom();
-
-    if (matiere.isEmpty) {
-
-      setState(() {
-
-        messages.add({
-          "type": "text",
-          "text":
-              "⚠️ Choisis une matière 📚",
-          "isUser": false,
-        });
-
-      });
-
-      scrollBottom();
-
-      return;
-    }
-
-    setState(() {
-
-      messages.add({
-        "type": "text",
-        "text":
-            "⏳ L'IA réfléchit...",
-        "isUser": false,
-      });
-
-    });
-
-    scrollBottom();
-
-    try {
-
-      final response =
-          await http.post(
-
-        Uri.parse(
-          "https://api.openai.com/v1/chat/completions",
-        ),
-
-        headers: {
-
-          "Authorization":
-              "Bearer $apiKey",
-
-          "Content-Type":
-              "application/json",
-        },
-
-        body: jsonEncode({
-
-          "model":
-              "gpt-3.5-turbo",
-
-          "messages": [
-
-            {
-              "role": "system",
-
-              "content":
-"""
-Tu es SCOLAR AI, un assistant scolaire intelligent, moderne et pédagogique.
-
-════════════════════
-📚 INFORMATIONS
-════════════════════
-
-- Matière : $matiere
-- Niveau : $niveau
-- Chapitre : $chapitre
-
-════════════════════
-🎯 TON RÔLE
-════════════════════
-
-Tu aides les élèves du :
-- Collège
-- Lycée
-- BAC
-- Université
-- DELF
-
-Tu peux :
-- expliquer les leçons
-- simplifier les notions difficiles
-- créer des exercices
-- créer des devoirs
-- créer des examens
-- corriger les réponses
-- faire des résumés
-- créer des fiches de révision
-- aider aux devoirs
-- donner des méthodes
-- préparer aux contrôles
-- préparer au BAC
-- préparer au DELF
-- aider en programmation
-- motiver l'élève
-
-════════════════════
-📖 MÉTHODE DE RÉPONSE
-════════════════════
-
-- Réponds toujours clairement
-- Utilise un français simple
-- Sois pédagogique
-- Explique étape par étape
-- Donne des exemples
-- Fais des réponses organisées
-- Utilise des titres
-- Adapte le niveau selon l'élève
-- Encourage toujours l'élève
-- Fais des réponses modernes et agréables à lire
-
-════════════════════
-📊 SUPPORT VISUEL
-════════════════════
-
-Quand c'est utile :
-- utilise des tableaux
-- utilise des listes
-- explique avec étapes
-- montre les tables de multiplication
-- montre les formules importantes
-- aide visuellement l'élève
-- organise bien les réponses
-
-Pour le primaire :
-- utilise des exercices simples
-- utilise les tables de multiplication
-- explique lentement
-- utilise des exemples faciles
-- encourage beaucoup l'élève
-
-Pour le collège et lycée :
-- utilise des méthodes détaillées
-- montre les calculs
-- explique les formules
-- donne des astuces
-- montre les étapes importantes
-
-Pour le BAC :
-- fais des exercices type BAC
-- explique les méthodes officielles
-- donne des conseils d'examen
-- aide à réviser rapidement
-- montre les pièges à éviter
-
-Pour l'université :
-- donne des explications avancées
-- utilise des exemples concrets
-- explique la logique des concepts
-- aide à comprendre la théorie
-- aide en algorithmique
-- aide en développement
-- aide en réseaux
-- aide en bases de données
-
-════════════════════
-🧮 RÈGLES POUR LES MATHS
-════════════════════
-
-- N'utilise jamais LaTeX
-- N'écris jamais :
-
-\\(
-\\)
-\\[
-\\]
-\\frac
-\\times
-\\div
-
-- Écris les calculs normalement
-
-Exemples :
-- 1/2
-- 3/4
-- 5 × 8
-- 25 ÷ 5
-- x² + 3x
-
-- Affiche les calculs étape par étape
-- Utilise des tableaux si nécessaire
-- Explique les formules simplement
-
-════════════════════
-💻 PROGRAMMATION
-════════════════════
-
-Si la matière est :
-- Algorithme
-- Programmation
-- Réseaux
-- Informatique
-
-Alors :
-- explique le code simplement
-- montre des exemples
-- corrige les erreurs
-- aide en Flutter
-- aide en Python
-- aide en C
-- aide en Java
-- aide en HTML/CSS
-- aide en SQL
-- explique les bugs
-- aide à créer des applications
-- aide à comprendre les concepts
-
-════════════════════
-🇫🇷 DELF
-════════════════════
-
-Si le niveau est DELF :
-- aide en compréhension
-- aide en grammaire
-- aide en conjugaison
-- crée des dialogues
-- crée des productions écrites
-- corrige les fautes
-- améliore le vocabulaire
-- aide à parler français
-- aide à préparer l'examen DELF
-
-════════════════════
-📝 EXERCICES
-════════════════════
-
-Si l'utilisateur demande un exercice :
-- donne d'abord l'exercice
-- attends la réponse
-- puis corrige étape par étape
-
-Si l'utilisateur demande une correction :
-- explique les erreurs
-- donne la bonne méthode
-- encourage l'élève
-
-════════════════════
-⭐ IMPORTANT
-════════════════════
-
-- Sois intelligent
-- Sois motivant
-- Sois professionnel
-- Réponds toujours proprement
-- Fais des réponses modernes
-- Fais des réponses agréables à lire
-- Utilise des emojis quand c'est utile
-- Donne envie d'apprendre
-- Aide vraiment l'élève à progresser
-
-"""
-            },
-
-            {
-              "role": "user",
-              "content": userText
-            }
-
-          ]
-        }),
-      );
-
-      final data =
-          jsonDecode(
-              response.body);
-
-      String reponse =
-          data["choices"][0]
-              ["message"]
-              ["content"];
-
-      setState(() {
-
-        messages.removeLast();
-
-        messages.add({
-          "type": "text",
-          "text": reponse,
-          "isUser": false,
-        });
-
-      });
-
-      saveMessages();
-
-      scrollBottom();
-
-    } catch (e) {
-
-      setState(() {
-
-        messages.removeLast();
-
-        messages.add({
-
-          "type": "text",
-
-          "text":
-              "❌ Erreur OpenAI",
-
-          "isUser": false,
-        });
-
-      });
-
-      scrollBottom();
-    }
-  }
-
-  // 📎 PDF
-  Future<void> pickPdf() async {
-
-    FilePickerResult? result =
-        await FilePicker.platform
-            .pickFiles(
-
-      type: FileType.custom,
-
-      allowedExtensions: ['pdf'],
-    );
-
-    if (result != null) {
-
-      String fileName =
-          result.files.single.name;
-
-      setState(() {
-
-        messages.add({
-          "type": "pdf",
-          "name": fileName,
-          "isUser": true,
-        });
-
-        messages.add({
-          "type": "text",
-          "text": "📄 PDF reçu",
-          "isUser": false,
-        });
-
-      });
-
-      saveMessages();
-
-      scrollBottom();
-    }
+    _initTts();
+    _initSpeech();
+    _initStorage();
   }
 
   @override
-  Widget build(
-      BuildContext context) {
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    _tts.stop();
+    _speech.stop();
+    super.dispose();
+  }
 
-    return Scaffold(
+  Future<void> _initTts() async {
+    await _tts.setLanguage("fr-FR");
+    await _tts.setPitch(1.0);
+    await _tts.setSpeechRate(0.45);
+    _tts.setCompletionHandler(() {
+      if (mounted) setState(() => _speakingIndex = null);
+    });
+  }
 
-      backgroundColor:
-          Colors.black,
+  Future<void> _initSpeech() async {
+    _speechAvailable = await _speech.initialize(
+      onError: (_) => setState(() => _isListening = false),
+    );
+    if (mounted) setState(() {});
+  }
 
-      drawer: Drawer(
+  void _initStorage() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      _dbRef = FirebaseDatabase.instance.ref('ai_chat/$uid');
+      _loadFromFirebase();
+    } else {
+      _loadFromPrefs();
+    }
+  }
 
-        child: ListView(
+  // ─── Persistence ───────────────────────────────────────────────────────────
 
-          children: [
+  Future<void> _loadFromFirebase() async {
+    try {
+      final snap = await _dbRef!.get();
+      if (snap.exists && snap.value != null) {
+        final raw = (snap.value as Map<Object?, Object?>)['data'] as String?;
+        if (raw != null) {
+          final list = (jsonDecode(raw) as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+          if (mounted) {
+            setState(() => _messages = list);
+            _scrollToBottom();
+          }
+          return;
+        }
+      }
+    } catch (_) {}
+    await _loadFromPrefs();
+  }
 
-            const DrawerHeader(
+  Future<void> _loadFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getStringList('ai_messages');
+    if (data != null && mounted) {
+      setState(() {
+        _messages = data
+            .map((e) => Map<String, dynamic>.from(jsonDecode(e) as Map))
+            .toList();
+      });
+      _scrollToBottom();
+    }
+  }
 
-              decoration:
-                  BoxDecoration(
-                color:
-                    Colors.deepPurple,
-              ),
+  Future<void> _persist() async {
+    final exportable = _messages.where((m) => m['type'] == 'text').toList();
+    final encoded = jsonEncode(exportable);
 
-              child: Text(
+    if (_dbRef != null) {
+      try { await _dbRef!.set({'data': encoded}); } catch (_) {}
+    }
 
-                "Choisir niveau",
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      'ai_messages',
+      exportable.map((m) => jsonEncode(m)).toList(),
+    );
+  }
 
-                style: TextStyle(
-                  color:
-                      Colors.white,
-                  fontSize: 20,
-                ),
-              ),
-            ),
-            
-            buildNiveau(
-                "Collège"),
-            buildNiveau(
-                "Lycée"),
-            buildNiveau("BAC"),
-            buildNiveau(
-                "Université"),
-            buildNiveau("DELF"),
-
-          ],
-        ),
-      ),
-
-      appBar: AppBar(
-
-        backgroundColor:
-            Colors.black,
-
-        title:
-            const Text("ILYAS31AI"),
-
+  Future<void> _clearMessages() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Effacer la conversation ?"),
+        content: const Text("Tous les messages seront supprimés définitivement."),
         actions: [
-
-          IconButton(
-
-            icon: const Icon(
-              Icons.delete,
-            ),
-
-            onPressed:
-                clearMessages,
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Annuler"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Effacer", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
+    );
+    if (confirm != true || !mounted) return;
 
-      body: Column(
+    try { await _dbRef?.remove(); } catch (_) {}
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('ai_messages');
+    setState(() => _messages.clear());
+  }
 
-        children: [
+  // ─── Scroll ────────────────────────────────────────────────────────────────
 
-          // 📚 MATIÈRES
-          Container(
-
-            height: 60,
-
-            padding:
-                const EdgeInsets
-                    .symmetric(
-              horizontal: 10,
-            ),
-
-            child: ListView(
-
-              scrollDirection:
-                  Axis.horizontal,
-
-              children:
-                  getMatieres()
-                      .map((m) {
-
-                return Padding(
-
-                  padding:
-                      const EdgeInsets
-                          .only(
-                    right: 10,
-                  ),
-
-                  child:
-                      ChoiceChip(
-
-                    label:
-                        Text(m),
-
-                    selected:
-                        matiere ==
-                            m,
-
-                    onSelected:
-                        (_) {
-
-                      setState(() {
-                        matiere =
-                            m;
-                      });
-
-                    },
-                  ),
-                );
-
-              }).toList(),
-            ),
-          ),
-// 📘 CHAPITRES
-if (getChapitres().isNotEmpty)
-  Container(
-    height: 60,
-    padding: const EdgeInsets.symmetric(
-      horizontal: 10,
-    ),
-    child: ListView(
-      scrollDirection: Axis.horizontal,
-      children: getChapitres().map((c) {
-        return Padding(
-          padding: const EdgeInsets.only(
-            right: 10,
-          ),
-          child: ChoiceChip(
-            label: Text(c),
-            selected: chapitre == c,
-            onSelected: (_) {
-              setState(() {
-                chapitre = c;
-              });
-            },
-          ),
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
         );
-      }).toList(),
-    ),
-  ),
-          // 💬 CHAT
-          Expanded(
+      }
+    });
+  }
 
-            child:
-                ListView.builder(
+  // ─── Voice ─────────────────────────────────────────────────────────────────
 
-              controller:
-                  scrollController,
+  Future<void> _toggleListening() async {
+    if (!_speechAvailable) return;
 
-              itemCount:
-                  messages.length,
+    if (_isListening) {
+      await _speech.stop();
+      setState(() => _isListening = false);
+      return;
+    }
 
-              itemBuilder:
-                  (context,
-                      index) {
+    setState(() => _isListening = true);
+    await _speech.listen(
+      localeId: _matiere == "Anglais" ? "en_US" : "fr_FR",
+      onResult: (result) {
+        setState(() {
+          _controller.text = result.recognizedWords;
+          _controller.selection = TextSelection.fromPosition(
+            TextPosition(offset: _controller.text.length),
+          );
+        });
+      },
+    );
+  }
 
-                var msg =
-                    messages[
-                        index];
+  Future<void> _speak(String text, int index) async {
+    if (_speakingIndex == index) {
+      await _tts.stop();
+      setState(() => _speakingIndex = null);
+      return;
+    }
+    setState(() => _speakingIndex = index);
+    await _tts.setLanguage(_matiere == "Anglais" ? "en-US" : "fr-FR");
+    await _tts.speak(text);
+  }
 
-                // 📷 IMAGE
-                if (msg["type"] ==
-                    "image") {
+  // ─── OpenAI ────────────────────────────────────────────────────────────────
 
-                  return Align(
+  Future<void> _sendMessage() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _isLoading) return;
 
-                    alignment:
-                        Alignment
-                            .centerRight,
+    if (_matiere.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Choisis une matière d'abord 📚")),
+      );
+      return;
+    }
 
-                    child:
-                        Container(
+    _controller.clear();
+    if (_isListening) {
+      await _speech.stop();
+      setState(() => _isListening = false);
+    }
 
-                      margin:
-                          const EdgeInsets
-                              .all(
-                                  8),
+    final userMsg = {
+      'type': 'text',
+      'text': text,
+      'isUser': true,
+      'ts': DateTime.now().millisecondsSinceEpoch,
+    };
+    setState(() {
+      _messages.add(userMsg);
+      _isLoading = true;
+    });
+    _scrollToBottom();
 
-                      child:
-                          Image.file(
+    try {
+      // Build last-20-message history for multi-turn context
+      final history = _messages
+          .where((m) => m['type'] == 'text' && m['text'] != null)
+          .toList();
+      final window = history.length > 20 ? history.sublist(history.length - 20) : history;
+      final apiHistory = window
+          .map((m) => {
+                'role': (m['isUser'] as bool) ? 'user' : 'assistant',
+                'content': m['text'] as String,
+              })
+          .toList();
 
-                        File(
-                            msg["path"]),
+      final response = await http.post(
+        Uri.parse("https://api.openai.com/v1/chat/completions"),
+        headers: {
+          "Authorization": "Bearer $_apiKey",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({
+          "model": "gpt-4o-mini",
+          "messages": [
+            {"role": "system", "content": _systemPrompt()},
+            ...apiHistory,
+          ],
+          "max_tokens": 1500,
+          "temperature": 0.7,
+        }),
+      );
 
-                        width: 200,
-                      ),
-                    ),
-                  );
-                }
+      if (response.statusCode != 200) throw Exception("HTTP ${response.statusCode}");
 
-                // 📄 PDF
-                if (msg["type"] ==
-                    "pdf") {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final reply = (data["choices"] as List)[0]["message"]["content"] as String;
 
-                  return Align(
+      final aiMsg = {
+        'type': 'text',
+        'text': reply.trim(),
+        'isUser': false,
+        'ts': DateTime.now().millisecondsSinceEpoch,
+      };
+      if (!mounted) return;
+      setState(() {
+        _messages.add(aiMsg);
+        _isLoading = false;
+      });
+      await _persist();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add({
+          'type': 'text',
+          'text': '❌ Erreur : vérifier la connexion ou la clé API.',
+          'isUser': false,
+          'ts': DateTime.now().millisecondsSinceEpoch,
+        });
+        _isLoading = false;
+      });
+    }
+    _scrollToBottom();
+  }
 
-                    alignment:
-                        Alignment
-                            .centerRight,
+  String _systemPrompt() => """Tu es SCOLAR AI, un assistant scolaire intelligent et bienveillant.
 
-                    child:
-                        Container(
+Niveau : $_niveau | Matière : $_matiere${_chapitre.isNotEmpty ? ' | Chapitre : $_chapitre' : ''}
 
-                      margin:
-                          const EdgeInsets
-                              .all(
-                                  8),
+Règles absolues :
+- Réponds en français (en anglais si matière = "Anglais")
+- Explique clairement, étape par étape, avec des exemples
+- Encourage toujours l'élève
+- N'utilise JAMAIS de LaTeX — écris les maths normalement : 1/2, x², 5×8, 25÷5
+- Utilise des listes à puces et des titres courts pour structurer
+- Adapte la profondeur au niveau $_niveau
+- Si l'élève pose un exercice, donne-lui d'abord le temps de répondre avant de corriger""";
 
-                      padding:
-                          const EdgeInsets
-                              .all(
-                                  10),
+  // ─── Attachments ───────────────────────────────────────────────────────────
 
-                      decoration:
-                          BoxDecoration(
+  Future<void> _pickImage() async {
+    final img = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (img == null || !mounted) return;
+    setState(() => _messages.add({
+      'type': 'image',
+      'path': img.path,
+      'isUser': true,
+      'ts': DateTime.now().millisecondsSinceEpoch,
+    }));
+    _scrollToBottom();
+  }
 
-                        color: Colors
-                            .blueGrey,
+  Future<void> _pickPdf() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+    if (result == null || !mounted) return;
+    setState(() => _messages.add({
+      'type': 'pdf',
+      'name': result.files.single.name,
+      'isUser': true,
+      'ts': DateTime.now().millisecondsSinceEpoch,
+    }));
+    _scrollToBottom();
+  }
 
-                        borderRadius:
-                            BorderRadius.circular(
-                                12),
-                      ),
+  // ─── PDF export ────────────────────────────────────────────────────────────
 
-                      child:
-                          SelectableText(
+  Future<void> _exportPdf(String text) async {
+    final clean = text
+        .replaceAll(RegExp(r'\\[a-zA-Z]+\{[^}]*\}'), '')
+        .replaceAll(RegExp(r'[\\${}]'), '')
+        .trim();
 
-                        msg["name"],
+    final pdf = pw.Document();
+    final logo = await imageFromAssetBundle('assets/logo.png');
 
-                        style:
-                            const TextStyle(
-                          color: Colors
-                              .white,
-                        ),
-                      ),
-                    ),
-                  );
-                }
+    pdf.addPage(pw.MultiPage(build: (ctx) => [
+      pw.Row(children: [
+        pw.Container(width: 48, height: 48, child: pw.Image(logo)),
+        pw.SizedBox(width: 14),
+        pw.Text("SCOLAR AI",
+            style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+      ]),
+      pw.SizedBox(height: 6),
+      pw.Text(
+        "$_niveau — $_matiere${_chapitre.isNotEmpty ? ' — $_chapitre' : ''}",
+        style: const pw.TextStyle(fontSize: 11),
+      ),
+      pw.Divider(),
+      pw.SizedBox(height: 14),
+      pw.Text(clean, style: const pw.TextStyle(fontSize: 13)),
+    ]));
 
-                // 💬 TEXT
-                return Align(
+    await Printing.layoutPdf(onLayout: (_) async => pdf.save());
+  }
 
-                  alignment:
-                      msg["isUser"]
+  // ─── Build ─────────────────────────────────────────────────────────────────
 
-                          ? Alignment
-                              .centerRight
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D1117),
+      drawer: _buildDrawer(),
+      appBar: _buildAppBar(),
+      body: Column(
+        children: [
+          _buildMatiereBar(),
+          if (_currentChapitres.isNotEmpty) _buildChapitreBar(),
+          Expanded(child: _buildMessageList()),
+          if (_isLoading) _buildTypingIndicator(),
+          _buildInputBar(),
+        ],
+      ),
+    );
+  }
 
-                          : Alignment
-                              .centerLeft,
+  // ─── AppBar ────────────────────────────────────────────────────────────────
 
-                  child:
-                      Container(
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: const Color(0xFF161B22),
+      elevation: 0,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("SCOLAR AI",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+          Text(
+            _matiere.isNotEmpty ? "$_niveau · $_matiere" : _niveau,
+            style: const TextStyle(fontSize: 11, color: Colors.white54),
+          ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.delete_outline, color: Colors.white70),
+          tooltip: "Effacer",
+          onPressed: _clearMessages,
+        ),
+      ],
+    );
+  }
 
-                    constraints:
-                        const BoxConstraints(
-                      maxWidth: 500,
-                    ),
+  // ─── Drawer ────────────────────────────────────────────────────────────────
 
-                    margin:
-                        const EdgeInsets
-                            .all(8),
-
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-
-                    decoration:
-                        BoxDecoration(
-
-                      color: msg[
-                              "isUser"]
-                          ? Colors
-                              .blue
-                          : Colors
-                              .grey
-                              .shade800,
-
-                      borderRadius:
-                          BorderRadius
-                              .circular(
-                                  15),
-                    ),
-
-                    child: Column(
-
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
-
-                      children: [
-
-                        SelectableText(
-
-                          msg["text"],
-
-                          style:
-                              const TextStyle(
-                            color: Colors
-                                .white,
-                            fontSize:
-                                16,
-                          ),
-                        ),
-
-                        const SizedBox(
-                            height:
-                                10),
-
-                        // 📄 PDF
-                        if (!msg[
-                            "isUser"])
-
-                          ElevatedButton.icon(
-
-                            onPressed:
-                                () async {
-
-                              String
-                                  texte =
-                                  msg["text"] ??
-                                      "";
-
-                              await generatePdf(
-                                  texte);
-                            },
-
-                            icon:
-                                const Icon(
-                              Icons
-                                  .picture_as_pdf,
-                            ),
-
-                            label:
-                                const Text(
-                              "PDF",
-                            ),
-                          ),
-
-                        const SizedBox(
-                            height:
-                                8),
-
-                        // 🔊 VOIX
-                        if (!msg[
-                            "isUser"])
-
-                          ElevatedButton.icon(
-
-                            onPressed:
-                                () async {
-
-                              String
-                                  texte =
-                                  msg["text"] ??
-                                      "";
-
-                              await speak(
-                                  texte);
-                            },
-
-                            icon:
-                                const Icon(
-                              Icons
-                                  .volume_up,
-                            ),
-
-                            label:
-                                const Text(
-                              "Lire",
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+  Widget _buildDrawer() {
+    return Drawer(
+      backgroundColor: const Color(0xFF161B22),
+      child: Column(
+        children: [
+          DrawerHeader(
+            margin: EdgeInsets.zero,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF4C1D95), Color(0xFF1D4ED8)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Niveau scolaire",
+                      style: TextStyle(color: Colors.white60, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Text(_niveau,
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                ],
+              ),
             ),
           ),
-
-          // ✍️ INPUT
-          Container(
-
-            padding:
-                const EdgeInsets
-                    .all(10),
-
-            child: Row(
-
-              children: [
-
-                // 📎 PDF
-                IconButton(
-
-                  icon:
-                      const Icon(
-                    Icons
-                        .attach_file,
-                    color:
-                        Colors.white,
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: _matieres.keys.map((n) {
+                final selected = n == _niveau;
+                return ListTile(
+                  leading: Icon(
+                    selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    color: selected ? const Color(0xFF2563EB) : Colors.white38,
+                    size: 20,
                   ),
-
-                  onPressed:
-                      pickPdf,
-                ),
-
-                // 📷 IMAGE
-                IconButton(
-
-                  icon:
-                      const Icon(
-                    Icons.image,
-                    color:
-                        Colors.white,
-                  ),
-
-                  onPressed:
-                      pickImage,
-                ),
-
-                // ✍️ INPUT
-                Expanded(
-
-                  child:
-                      TextField(
-
-                    controller:
-                        controller,
-
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white,
-                    ),
-
-                    onSubmitted:
-                        (_) =>
-                            sendMessage(),
-
-                    decoration:
-                        InputDecoration(
-
-                      hintText:
-                          "Message...",
-
-                      hintStyle:
-                          const TextStyle(
-                        color: Colors
-                            .white54,
-                      ),
-
-                      filled: true,
-
-                      fillColor:
-                          Colors
-                              .grey
-                              .shade900,
-
-                      border:
-                          OutlineInputBorder(
-
-                        borderRadius:
-                            BorderRadius.circular(
-                                30),
-
-                        borderSide:
-                            BorderSide
-                                .none,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // 🎤
-                IconButton(
-
-                  icon: const Icon(
-  Icons.mic_off,
-  color: Colors.white,
-),
-onPressed: null,
-                ),
-
-                // 🚀
-                IconButton(
-
-                  icon:
-                      const Icon(
-                    Icons.send,
-                    color:
-                        Colors.white,
-                  ),
-
-                  onPressed:
-                      sendMessage,
-                ),
-              ],
+                  title: Text(n,
+                      style: TextStyle(
+                        color: selected ? Colors.white : Colors.white70,
+                        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                      )),
+                  selected: selected,
+                  selectedTileColor: Colors.white.withValues(alpha: 0.06),
+                  onTap: () {
+                    setState(() {
+                      _niveau = n;
+                      _matiere = "";
+                      _chapitre = "";
+                    });
+                    Navigator.pop(context);
+                  },
+                );
+              }).toList(),
             ),
           ),
         ],
@@ -1349,25 +524,365 @@ onPressed: null,
     );
   }
 
-  // 📚 NIVEAU
-  Widget buildNiveau(
-      String name) {
+  // ─── Matière / Chapitre bars ───────────────────────────────────────────────
 
-    return ListTile(
+  Widget _buildMatiereBar() {
+    return Container(
+      height: 52,
+      color: const Color(0xFF161B22),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: _currentMatieres.map((m) {
+          final sel = _matiere == m;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8, top: 9, bottom: 9),
+            child: ChoiceChip(
+              label: Text(m),
+              selected: sel,
+              onSelected: (_) => setState(() { _matiere = m; _chapitre = ""; }),
+              selectedColor: const Color(0xFF2563EB),
+              backgroundColor: const Color(0xFF21262D),
+              labelStyle: TextStyle(
+                color: sel ? Colors.white : Colors.white60,
+                fontSize: 13,
+                fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
+              ),
+              side: BorderSide.none,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
 
-      title: Text(name),
+  Widget _buildChapitreBar() {
+    return Container(
+      height: 44,
+      color: const Color(0xFF0D1117),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: _currentChapitres.map((c) {
+          final sel = _chapitre == c;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8, top: 6, bottom: 6),
+            child: ChoiceChip(
+              label: Text(c, style: const TextStyle(fontSize: 12)),
+              selected: sel,
+              onSelected: (_) => setState(() => _chapitre = c),
+              selectedColor: const Color(0xFF6D28D9),
+              backgroundColor: const Color(0xFF161B22),
+              labelStyle: TextStyle(color: sel ? Colors.white : Colors.white54),
+              side: BorderSide.none,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
 
-      onTap: () {
+  // ─── Message list ──────────────────────────────────────────────────────────
 
-        setState(() {
+  Widget _buildMessageList() {
+    if (_messages.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.auto_awesome, size: 56, color: Color(0xFF2563EB)),
+            const SizedBox(height: 16),
+            const Text(
+              "SCOLAR AI",
+              style: TextStyle(
+                  color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Choisis une matière et pose ta question",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white38, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
 
-          niveau = name;
-          matiere = "";
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      itemCount: _messages.length,
+      itemBuilder: (context, i) => _buildBubble(_messages[i], i),
+    );
+  }
 
-        });
+  Widget _buildBubble(Map<String, dynamic> msg, int index) {
+    final isUser = msg['isUser'] as bool? ?? false;
+    final type = msg['type'] as String? ?? 'text';
 
-        Navigator.pop(context);
-      },
+    if (type == 'image') {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.file(File(msg['path'] as String), width: 220),
+          ),
+        ),
+      );
+    }
+
+    if (type == 'pdf') {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF21262D),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF30363D)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.picture_as_pdf, color: Colors.redAccent, size: 20),
+              const SizedBox(width: 8),
+              Text(msg['name'] as String? ?? '',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Text bubble
+    final maxW = MediaQuery.of(context).size.width * 0.80;
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: maxW),
+        margin: EdgeInsets.only(
+          left: isUser ? 60 : 12,
+          right: isUser ? 12 : 60,
+          top: 3,
+          bottom: 3,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isUser ? const Color(0xFF2563EB) : const Color(0xFF21262D),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(isUser ? 18 : 4),
+            bottomRight: Radius.circular(isUser ? 4 : 18),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SelectableText(
+              msg['text'] as String? ?? '',
+              style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.45),
+            ),
+            if (!isUser) ...[
+              const SizedBox(height: 10),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _chip(
+                    icon: _speakingIndex == index ? Icons.stop_rounded : Icons.volume_up_rounded,
+                    label: _speakingIndex == index ? "Stop" : "Écouter",
+                    onTap: () => _speak(msg['text'] as String? ?? '', index),
+                  ),
+                  const SizedBox(width: 8),
+                  _chip(
+                    icon: Icons.picture_as_pdf_outlined,
+                    label: "PDF",
+                    onTap: () => _exportPdf(msg['text'] as String? ?? ''),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chip({required IconData icon, required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white10,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: Colors.white60),
+            const SizedBox(width: 4),
+            Text(label, style: const TextStyle(fontSize: 12, color: Colors.white60)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Typing indicator ──────────────────────────────────────────────────────
+
+  Widget _buildTypingIndicator() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(left: 12, bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF21262D),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomRight: Radius.circular(18),
+            bottomLeft: Radius.circular(4),
+          ),
+        ),
+        child: const _TypingDots(),
+      ),
+    );
+  }
+
+  // ─── Input bar ─────────────────────────────────────────────────────────────
+
+  Widget _buildInputBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF161B22),
+        border: Border(top: BorderSide(color: Color(0xFF30363D))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.attach_file, size: 22),
+              color: Colors.white54,
+              tooltip: "Joindre un PDF",
+              onPressed: _pickPdf,
+            ),
+            IconButton(
+              icon: const Icon(Icons.image_outlined, size: 22),
+              color: Colors.white54,
+              tooltip: "Joindre une image",
+              onPressed: _pickImage,
+            ),
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                style: const TextStyle(color: Colors.white, fontSize: 15),
+                maxLines: 5,
+                minLines: 1,
+                keyboardType: TextInputType.multiline,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  hintText: _matiere.isEmpty ? "Choisis une matière..." : "Pose ta question...",
+                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
+                  filled: true,
+                  fillColor: const Color(0xFF21262D),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              icon: Icon(
+                _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                size: 22,
+                color: _isListening
+                    ? Colors.redAccent
+                    : (_speechAvailable ? Colors.white54 : Colors.white24),
+              ),
+              tooltip: _speechAvailable ? "Dicter" : "Micro indisponible",
+              onPressed: _speechAvailable ? _toggleListening : null,
+            ),
+            _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2563EB)),
+                    ),
+                  )
+                : IconButton(
+                    icon: const Icon(Icons.send_rounded, size: 22, color: Color(0xFF2563EB)),
+                    tooltip: "Envoyer",
+                    onPressed: _sendMessage,
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Animated typing dots ──────────────────────────────────────────────────
+
+class _TypingDots extends StatefulWidget {
+  const _TypingDots();
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(3, (i) {
+          final t = (_ctrl.value + i / 3) % 1.0;
+          final opacity = (0.3 + 0.7 * (1.0 - (2 * t - 1).abs())).clamp(0.3, 1.0);
+          return Container(
+            width: 8,
+            height: 8,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: opacity),
+              shape: BoxShape.circle,
+            ),
+          );
+        }),
+      ),
     );
   }
 }
