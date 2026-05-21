@@ -1,59 +1,176 @@
 import 'package:flutter/material.dart';
 
-// 🔥 IMPORT DES PAGES
+// 🔥 FIREBASE
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
+
+// 📄 PAGES
+import 'pages/login_page.dart';
 import 'pages/home_page.dart';
 import 'pages/eleves_page.dart';
-import 'pages/emploi_page.dart';
-import 'pages/devoirs_page.dart';
-import 'pages/notifications_page.dart';
-import 'pages/plan_classe_page.dart';
+import 'pages/professeurs_page.dart';
+import 'pages/discussion_page.dart';
+import 'pages/users_page.dart';
+import 'pages/scan_page.dart';
+import 'pages/monde_enfants_page.dart';
+import 'pages/chat_ia_page.dart';
+
+// 🧠 ÉLÈVES
 import 'pages/quiz_page.dart';
 import 'pages/fiches_page.dart';
 import 'pages/flashcards_page.dart';
-import 'pages/discussion_page.dart';
 import 'pages/amis_page.dart';
-import 'pages/professeurs_page.dart';
+import 'pages/devoirs_page.dart';
+import 'pages/notes_page.dart';
+import 'pages/emploi_page.dart';
+import 'pages/notifications_page.dart';
+import 'pages/plan_classe_page.dart';
 
-void main() {
+// 🎮 ENFANTS
+import 'pages/alphabet_page.dart';
+import 'pages/chiffres_page.dart';
+import 'pages/couleurs_page.dart';
+import 'pages/animaux_dessin_page.dart';
+import 'pages/lecture_page.dart';
+import 'pages/addition_game_page.dart';
+import 'pages/soustraction_page.dart';
+import 'pages/compter_page.dart';
+import 'pages/comparer_page.dart';
+import 'pages/math_page.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔥 INITIALISATION FIREBASE
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // 🔕 NOTIFICATIONS DÉSACTIVÉES TEMPORAIREMENT
+  // await NotificationService.init("ilyas");
+
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  static String get currentUser =>
+      FirebaseAuth.instance.currentUser?.email ?? '';
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ILYAS APP',
-      theme: ThemeData.dark(),
 
-      // 🏠 ACCUEIL
-      home: const HomePage(),
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0F2027),
+        useMaterial3: true,
+      ),
+
+      // 🏠 AUTH GUARD
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snapshot.hasData) return const HomePage();
+          return const LoginPage();
+        },
+      ),
 
       routes: {
-  '/eleves': (context) => const ElevesMenuPage(),
-  '/emploi': (context) => const EmploiPage(),
-  '/devoirs': (context) => const DevoirsPage(),
-  '/notifications': (context) => const NotificationsPage(),
-  '/plan': (context) => const PlanClassePage(),
-  '/quiz': (context) => const QuizPage(),
-  '/fiches': (context) => const FichesPage(),
-  '/flashcards': (context) => const FlashcardsPage(),
+        // 📌 PRINCIPAL
+        '/eleves': (context) => const ElevesPage(),
 
-  // ✅ CORRECTION ICI (TRÈS IMPORTANT)
-  '/discussion': (context) {
-    final args =
-        ModalRoute.of(context)!.settings.arguments as Map;
+        '/professeurs': (context) => ProfesseursPage(
+              currentUser: currentUser,
+            ),
 
-    return DiscussionPage(
-      name: args['name'],
-    );
-  },
+        '/users': (context) => UsersPage(
+              currentUser: currentUser,
+            ),
 
-  '/amis': (context) => const AmisPage(),
-  '/professeurs': (context) => const ProfesseursPage(),
-},
+        '/amis': (context) => AmisPage(
+              currentUser: currentUser,
+            ),
+
+        '/chat': (context) => const ChatPage(),
+
+        '/scan': (context) => const ScanPage(),
+
+        '/monde_enfants': (context) =>
+            const MondeEnfantsPage(),
+
+        // 🎓 ÉLÈVES
+        '/quiz': (context) => const QuizPage(),
+
+        '/fiches': (context) => const FichesPage(),
+
+        '/flashcards': (context) =>
+            const FlashcardsPage(),
+
+        '/devoirs': (context) => const DevoirsPage(),
+
+        '/notes': (context) => const NotesPage(),
+
+        '/emploi': (context) => const EmploiPage(),
+
+        // 🔔 NOTIFICATIONS
+        '/notifications': (context) =>
+            NotificationsPage(
+              currentUser: currentUser,
+            ),
+
+        '/plan': (context) => const PlanClassePage(),
+
+        // 🎮 ENFANTS
+        '/alphabet': (context) => const AlphabetPage(),
+
+        '/chiffres': (context) => const ChiffresPage(),
+
+        '/couleurs': (context) => const CouleursPage(),
+
+        '/animaux': (context) =>
+            const AnimauxDessinPage(),
+
+        '/lecture': (context) => const LecturePage(),
+
+        '/addition': (context) =>
+            const AdditionGamePage(),
+
+        '/soustraction': (context) =>
+            const SoustractionPage(),
+
+        '/compter': (context) => const CompterPage(),
+
+        '/comparer': (context) => const ComparerPage(),
+
+        '/math': (context) => const MathPage(),
+      },
+
+      // 💬 DISCUSSION
+      onGenerateRoute: (settings) {
+        if (settings.name == '/discussion') {
+          final args =
+              settings.arguments as Map<String, dynamic>?;
+
+          return MaterialPageRoute(
+            builder: (context) => DiscussionPage(
+              name: args?['name'] ?? 'general',
+              user: args?['user'] ?? currentUser,
+            ),
+          );
+        }
+
+        return null;
+      },
     );
   }
 }

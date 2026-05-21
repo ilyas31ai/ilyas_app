@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "9575574160",
+    "project_id": "ilyasapp-4762c",
+    "storage_bucket": "ilyasapp-4762c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:9575574160:android:b11ae77d8f8fd2c55e4615",
+        "android_client_info": {
+          "package_name": "com.example.ilyas31ai_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCGbbRKjdyRPajTfcCrkOpYm_etinNJ6Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
