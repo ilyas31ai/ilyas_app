@@ -1,3 +1,10 @@
+// Makes AGP classes (e.g. LibraryExtension) available to the root build script.
+buildscript {
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.11.1")
+    }
+}
+
 plugins {
     id("com.google.gms.google-services") version "4.3.15" apply false
 }
@@ -23,14 +30,13 @@ subprojects {
 }
 
 // AGP 8+ requires every library module to declare a namespace.
-// Older plugins (e.g. speech_to_text 5.x) don't — this fills in the gap.
+// Older plugins (e.g. speech_to_text 5.x) don't — this fills the gap.
+// plugins.withId fires at plugin-application time, avoiding afterEvaluate timing conflicts.
 subprojects {
-    afterEvaluate {
-        if (project.plugins.hasPlugin("com.android.library")) {
-            val lib = project.extensions
-                .findByType<com.android.build.gradle.LibraryExtension>()
-            if (lib != null && lib.namespace == null) {
-                lib.namespace = project.group.toString()
+    plugins.withId("com.android.library") {
+        extensions.configure<com.android.build.gradle.LibraryExtension> {
+            if (namespace == null) {
+                namespace = project.group.toString()
             }
         }
     }
