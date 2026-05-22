@@ -53,6 +53,10 @@ dependencies:
   # 🎤 VOICE INPUT
   speech_to_text: 5.6.1
 
+dependency_overrides:
+  speech_to_text:
+    path: packages/speech_to_text
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
