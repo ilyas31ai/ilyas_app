@@ -6,7 +6,7 @@ buildscript {
 }
 
 plugins {
-    id("com.google.gms.google-services") version "4.3.15" apply false
+    id("com.google.gms.google-services") version "4.4.2" apply false
 }
 allprojects {
     repositories {
@@ -31,7 +31,6 @@ subprojects {
 
 // AGP 8+ requires every library module to declare a namespace.
 // Older plugins (e.g. speech_to_text 5.x) don't — this fills the gap.
-// plugins.withId fires at plugin-application time, avoiding afterEvaluate timing conflicts.
 subprojects {
     plugins.withId("com.android.library") {
         extensions.configure<com.android.build.gradle.LibraryExtension> {
