@@ -15,6 +15,7 @@ import 'pages/users_page.dart';
 import 'pages/scan_page.dart';
 import 'pages/monde_enfants_page.dart';
 import 'pages/chat_ia_page.dart';
+import 'pages/chat_history_page.dart';
 
 // 🧠 ÉLÈVES
 import 'pages/quiz_page.dart';
@@ -101,7 +102,7 @@ class MyApp extends StatelessWidget {
               currentUser: currentUser,
             ),
 
-        '/chat': (context) => const ChatPage(),
+        '/chat': (context) => const ChatHistoryPage(),
 
         '/scan': (context) => const ScanPage(),
 
