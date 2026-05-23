@@ -137,6 +137,7 @@ class _DevoirsPageState extends State<DevoirsPage> {
       ),
 
       floatingActionButton: FloatingActionButton(
+        heroTag: 'devoirs_fab',
         onPressed: showAddDialog,
         backgroundColor: Colors.blueAccent,
         child: const Icon(Icons.add),

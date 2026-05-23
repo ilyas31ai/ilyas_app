@@ -173,6 +173,7 @@ class _FichesPageState extends State<FichesPage> {
 
       // 🔥 FLOAT BUTTON PRO
       floatingActionButton: FloatingActionButton(
+        heroTag: 'fiches_fab',
         onPressed: showAddDialog,
         backgroundColor: Colors.blueAccent,
         child: const Icon(Icons.add),

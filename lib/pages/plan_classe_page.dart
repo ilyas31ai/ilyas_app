@@ -78,6 +78,7 @@ class _PlanClassePageState extends State<PlanClassePage> {
       ),
 
       floatingActionButton: FloatingActionButton(
+        heroTag: 'plan_classe_fab',
         onPressed: ajouterEleve,
         child: const Icon(Icons.add),
       ),

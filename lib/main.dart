@@ -15,6 +15,8 @@ import 'pages/users_page.dart';
 import 'pages/scan_page.dart';
 import 'pages/monde_enfants_page.dart';
 import 'pages/chat_history_page.dart';
+import 'pages/jeux_scolaires_page.dart';
+import 'pages/leaderboard_page.dart';
 
 // 🧠 ÉLÈVES
 import 'pages/quiz_page.dart';
@@ -114,6 +116,10 @@ class MyApp extends StatelessWidget {
 
         '/monde_enfants': (context) =>
             const MondeEnfantsPage(),
+
+        '/jeux_scolaires': (context) => const JeuxScolairesPage(),
+
+        '/leaderboard': (context) => const LeaderboardPage(),
 
         // 🎓 ÉLÈVES
         '/quiz': (context) => const QuizPage(),

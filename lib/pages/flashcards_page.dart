@@ -156,6 +156,7 @@ class _FlashcardsPageState extends State<FlashcardsPage> {
       ),
 
       floatingActionButton: FloatingActionButton(
+        heroTag: 'flashcards_fab',
         onPressed: showAddDialog,
         child: const Icon(Icons.add),
       ),

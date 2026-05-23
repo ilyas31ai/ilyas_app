@@ -109,6 +109,7 @@ class _UsersPageState extends State<UsersPage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'users_fab',
         backgroundColor: const Color(0xFF2563EB),
         onPressed: _showAddContactDialog,
         child: const Icon(Icons.person_add, color: Colors.white),

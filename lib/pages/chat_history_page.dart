@@ -207,6 +207,7 @@ class _ChatHistoryPageState extends State<ChatHistoryPage> {
   }
 
   Widget _buildFab() => FloatingActionButton.extended(
+        heroTag: 'chat_history_fab',
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const ChatSetupPage()),
