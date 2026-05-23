@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart';
+import '../services/social_service.dart';
+import '../widgets/user_avatar.dart';
 
 class ProfesseursPage extends StatefulWidget {
   final String currentUser;
@@ -11,173 +12,324 @@ class ProfesseursPage extends StatefulWidget {
 }
 
 class _ProfesseursPageState extends State<ProfesseursPage> {
-  final db = FirebaseDatabase.instance.ref();
+  Future<void> _showAddDialog() async {
+    final nameCtrl = TextEditingController();
+    final matiereCtrl = TextEditingController();
 
-  // ➕ AJOUT PROF
-  void ajouterProf() {
-    TextEditingController controller = TextEditingController();
-
-    showDialog(
+    await showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Ajouter professeur"),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              hintText: "Nom du professeur",
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1F2937),
+        title: const Text(
+          'Ajouter un professeur',
+          style: TextStyle(color: Colors.white, fontSize: 16),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'Nom du professeur',
+                hintStyle: TextStyle(color: Colors.white38),
+                prefixIcon:
+                    Icon(Icons.person, color: Colors.white38, size: 18),
+                enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF2563EB))),
+                focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF6C47FF))),
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Annuler"),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = controller.text.trim();
-                if (name.isEmpty) return;
-
-                // 🔥 sauvegarde Firebase
-                await db.child("professeurs/$name").set({
-                  "name": name,
-                });
-
-                // 🔥 ajouter en contact (optionnel)
-                await db
-                    .child("users/${widget.currentUser}/contacts/$name")
-                    .set(true);
-
-                Navigator.pop(context);
-              },
-              child: const Text("Ajouter"),
+            const SizedBox(height: 14),
+            TextField(
+              controller: matiereCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'Matière enseignée',
+                hintStyle: TextStyle(color: Colors.white38),
+                prefixIcon:
+                    Icon(Icons.book_outlined, color: Colors.white38, size: 18),
+                enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF2563EB))),
+                focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF6C47FF))),
+              ),
             ),
           ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler',
+                style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameCtrl.text.trim();
+              if (name.isEmpty) return;
+              await SocialService.addProf(
+                widget.currentUser,
+                name,
+                matiereCtrl.text.trim(),
+              );
+              if (mounted) Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Ajouter'),
+          ),
+        ],
+      ),
     );
+
+    nameCtrl.dispose();
+    matiereCtrl.dispose();
   }
 
-  // ❌ supprimer prof
-  void supprimerProf(String name) async {
-    await db.child("professeurs/$name").remove();
+  Future<void> _confirmDelete(String name) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1F2937),
+        title: const Text('Supprimer ?',
+            style: TextStyle(color: Colors.white)),
+        content: Text('Supprimer Prof. $name ?',
+            style: const TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler',
+                style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Supprimer',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await SocialService.removeProf(widget.currentUser, name);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-
+      backgroundColor: const Color(0xFF0D1117),
       appBar: AppBar(
-        backgroundColor: Colors.red,
-        title: const Text("Professeurs"),
-      ),
-
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            // 🔷 LOGO
-            Image.asset("assets/logo.png", height: 70),
-            const SizedBox(height: 10),
-            const Text(
-              "ILYAS31AI",
-              style: TextStyle(color: Colors.white),
-            ),
-            const SizedBox(height: 15),
-
-            // 📋 LISTE FIREBASE
-            Expanded(
-              child: StreamBuilder(
-                stream: db.child("professeurs").onValue,
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData ||
-                      snapshot.data!.snapshot.value == null) {
-                    return const Center(
-                      child: Text("Aucun professeur",
-                          style: TextStyle(color: Colors.white)),
-                    );
-                  }
-
-                  final data = Map<dynamic, dynamic>.from(
-                      snapshot.data!.snapshot.value as Map);
-
-                  final profs = data.keys.toList();
-
-                  return ListView.builder(
-                    itemCount: profs.length,
-                    itemBuilder: (context, index) {
-                      final name = profs[index];
-
-                      return Container(
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.blue, Colors.cyan],
-                          ),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Row(
-                          children: [
-                            const CircleAvatar(
-                              backgroundColor: Colors.white,
-                              child: Icon(Icons.person),
-                            ),
-
-                            const SizedBox(width: 10),
-
-                            Expanded(
-                              child: Text(
-                                name,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-
-                            // 💬 CHAT
-                            IconButton(
-                              onPressed: () {
-                                Navigator.pushNamed(
-                                  context,
-                                  '/discussion',
-                                  arguments: {
-                                    "name": name,
-                                    "user": widget.currentUser,
-                                  },
-                                );
-                              },
-                              icon: const Icon(Icons.chat,
-                                  color: Colors.white),
-                            ),
-
-                            // ❌ SUPPRIMER
-                            IconButton(
-                              onPressed: () {
-                                supprimerProf(name);
-                              },
-                              icon: const Icon(Icons.delete,
-                                  color: Colors.red),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
+        backgroundColor: const Color(0xFF161B22),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Professeurs',
+          style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold),
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFF2563EB),
+        onPressed: _showAddDialog,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text('Ajouter',
+            style: TextStyle(color: Colors.white)),
+      ),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: SocialService.profsStream(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(
+                child:
+                    CircularProgressIndicator(color: Color(0xFF2563EB)));
+          }
 
-      // ➕ AJOUT
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.orange,
-        onPressed: ajouterProf,
-        child: const Icon(Icons.add),
+          final profs = snap.data ?? [];
+
+          if (profs.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF161B22),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Icon(Icons.school_outlined,
+                        color: Colors.white24, size: 36),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Aucun professeur',
+                      style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  const Text('Ajoute un professeur avec le bouton +',
+                      style:
+                          TextStyle(color: Colors.white24, fontSize: 13)),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
+            itemCount: profs.length,
+            itemBuilder: (_, i) {
+              final prof = profs[i];
+              final name = prof['id'] as String? ?? '';
+              final matiere = prof['matiere'] as String? ?? '';
+
+              return _ProfCard(
+                name: name,
+                matiere: matiere,
+                onChat: () => Navigator.pushNamed(
+                  context,
+                  '/discussion',
+                  arguments: {
+                    'name': name,
+                    'user': widget.currentUser,
+                  },
+                ),
+                onDelete: () => _confirmDelete(name),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ─── Prof Card ────────────────────────────────────────────────────────────────
+
+class _ProfCard extends StatelessWidget {
+  final String name;
+  final String matiere;
+  final VoidCallback onChat;
+  final VoidCallback onDelete;
+
+  const _ProfCard({
+    required this.name,
+    required this.matiere,
+    required this.onChat,
+    required this.onDelete,
+  });
+
+  static const _matiereColors = <String, Color>{
+    'maths': Color(0xFF2563EB),
+    'français': Color(0xFF16A34A),
+    'anglais': Color(0xFFDC2626),
+    'histoire': Color(0xFFD97706),
+    'géographie': Color(0xFF0891B2),
+    'physique': Color(0xFF7C3AED),
+    'chimie': Color(0xFFBE185D),
+    'svt': Color(0xFF15803D),
+    'philosophie': Color(0xFF6D28D9),
+    'informatique': Color(0xFF0F766E),
+  };
+
+  Color get _accent {
+    final key = matiere.toLowerCase();
+    for (final e in _matiereColors.entries) {
+      if (key.contains(e.key)) return e.value;
+    }
+    return const Color(0xFF6C47FF);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _accent;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161B22),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Stack(
+            children: [
+              UserAvatar(username: name, radius: 24, showStatus: true),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: const Color(0xFF161B22), width: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Prof. $name',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                if (matiere.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      matiere,
+                      style: TextStyle(
+                          color: accent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                const SizedBox(height: 2),
+                OnlineLabel(username: name),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline,
+                color: Color(0xFF2563EB), size: 20),
+            tooltip: 'Envoyer un message',
+            onPressed: onChat,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline,
+                color: Colors.white30, size: 20),
+            tooltip: 'Supprimer',
+            onPressed: onDelete,
+          ),
+        ],
       ),
     );
   }
