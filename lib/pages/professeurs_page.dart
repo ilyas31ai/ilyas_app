@@ -1,19 +1,70 @@
 import 'package:flutter/material.dart';
-import 'discussion_page.dart';
+import 'package:firebase_database/firebase_database.dart';
 
-class ProfesseursPage extends StatelessWidget {
-  const ProfesseursPage({super.key});
+class ProfesseursPage extends StatefulWidget {
+  final String currentUser;
+
+  const ProfesseursPage({super.key, required this.currentUser});
+
+  @override
+  State<ProfesseursPage> createState() => _ProfesseursPageState();
+}
+
+class _ProfesseursPageState extends State<ProfesseursPage> {
+  final db = FirebaseDatabase.instance.ref();
+
+  // ➕ AJOUT PROF
+  void ajouterProf() {
+    TextEditingController controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Ajouter professeur"),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: "Nom du professeur",
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Annuler"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = controller.text.trim();
+                if (name.isEmpty) return;
+
+                // 🔥 sauvegarde Firebase
+                await db.child("professeurs/$name").set({
+                  "name": name,
+                });
+
+                // 🔥 ajouter en contact (optionnel)
+                await db
+                    .child("users/${widget.currentUser}/contacts/$name")
+                    .set(true);
+
+                Navigator.pop(context);
+              },
+              child: const Text("Ajouter"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ❌ supprimer prof
+  void supprimerProf(String name) async {
+    await db.child("professeurs/$name").remove();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Liste des profs
-    final List<Map<String, String>> profs = [
-      {"name": "Mr Dupont"},
-      {"name": "Mme Fatima"},
-      {"name": "Mme Sarah"},
-      {"name": "Mr Yassine"},
-    ];
-
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
 
@@ -23,95 +74,97 @@ class ProfesseursPage extends StatelessWidget {
       ),
 
       body: Padding(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            // 🔍 Barre de recherche
-            TextField(
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: "Rechercher prof ou matière...",
-                hintStyle: const TextStyle(color: Colors.white54),
-                filled: true,
-                fillColor: Colors.white10,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-
+            // 🔷 LOGO
+            Image.asset("assets/logo.png", height: 70),
             const SizedBox(height: 10),
+            const Text(
+              "ILYAS31AI",
+              style: TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 15),
 
-            // 📋 Liste des profs
+            // 📋 LISTE FIREBASE
             Expanded(
-              child: ListView.builder(
-                itemCount: profs.length,
-                itemBuilder: (context, index) {
-                  final prof = profs[index];
-                  final name = prof["name"]!;
+              child: StreamBuilder(
+                stream: db.child("professeurs").onValue,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData ||
+                      snapshot.data!.snapshot.value == null) {
+                    return const Center(
+                      child: Text("Aucun professeur",
+                          style: TextStyle(color: Colors.white)),
+                    );
+                  }
 
-                  return Container(
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Colors.blue, Colors.cyan],
-                      ),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
+                  final data = Map<dynamic, dynamic>.from(
+                      snapshot.data!.snapshot.value as Map);
 
-                    child: Row(
-                      children: [
-                        // 👤 Avatar
-                        const CircleAvatar(
-                          backgroundColor: Colors.white,
-                          child: Icon(Icons.person),
+                  final profs = data.keys.toList();
+
+                  return ListView.builder(
+                    itemCount: profs.length,
+                    itemBuilder: (context, index) {
+                      final name = profs[index];
+
+                      return Container(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Colors.blue, Colors.cyan],
+                          ),
+                          borderRadius: BorderRadius.circular(15),
                         ),
+                        child: Row(
+                          children: [
+                            const CircleAvatar(
+                              backgroundColor: Colors.white,
+                              child: Icon(Icons.person),
+                            ),
 
-                        const SizedBox(width: 10),
+                            const SizedBox(width: 10),
 
-                        // 📛 Nom
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
+                            Expanded(
+                              child: Text(
                                 name,
                                 style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold),
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              const Text(
-                                "En ligne",
-                                style: TextStyle(
-                                    color: Colors.white70, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ),
+                            ),
 
-                        // 💬 Bouton chat
-                        IconButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    DiscussionPage(name: name),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.chat, color: Colors.white),
-                        ),
+                            // 💬 CHAT
+                            IconButton(
+                              onPressed: () {
+                                Navigator.pushNamed(
+                                  context,
+                                  '/discussion',
+                                  arguments: {
+                                    "name": name,
+                                    "user": widget.currentUser,
+                                  },
+                                );
+                              },
+                              icon: const Icon(Icons.chat,
+                                  color: Colors.white),
+                            ),
 
-                        // 🗑 Supprimer (optionnel)
-                        IconButton(
-                          onPressed: () {},
-                          icon: const Icon(Icons.delete, color: Colors.red),
+                            // ❌ SUPPRIMER
+                            IconButton(
+                              onPressed: () {
+                                supprimerProf(name);
+                              },
+                              icon: const Icon(Icons.delete,
+                                  color: Colors.red),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               ),
@@ -120,10 +173,10 @@ class ProfesseursPage extends StatelessWidget {
         ),
       ),
 
-      // ➕ bouton ajouter
+      // ➕ AJOUT
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.orange,
-        onPressed: () {},
+        onPressed: ajouterProf,
         child: const Icon(Icons.add),
       ),
     );

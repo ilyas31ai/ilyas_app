@@ -1,117 +1,125 @@
 import 'package:flutter/material.dart';
 
-class ElevesMenuPage extends StatelessWidget {
-  const ElevesMenuPage({super.key});
-
-  Widget buildItem(
-      BuildContext context, String title, IconData icon, String route) {
-    return InkWell(
-      onTap: () {
-        if (route == '/discussion') {
-          Navigator.pushNamed(
-            context,
-            '/discussion',
-            arguments: {
-              'name': 'Élève',
-              'type': 'eleve',
-            },
-          );
-        } else {
-          Navigator.pushNamed(context, route);
-        }
-      },
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.blue.shade700.withOpacity(0.6),
-              Colors.blue.shade400.withOpacity(0.3),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+class ElevesPage extends StatelessWidget {
+  const ElevesPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-
       appBar: AppBar(
-        backgroundColor: Colors.blue,
         title: const Text("Espace Élèves"),
+        backgroundColor: Colors.deepPurple,
       ),
-
-      body: Column(
+      body: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
-          const SizedBox(height: 20),
-
-          // 🔥 LOGO + TEXTE
+          // 🔝 LOGO + TITRE
           Column(
             children: [
               Image.asset(
                 'assets/logo.png',
-                width: 100,
+                width: 80,
               ),
               const SizedBox(height: 10),
               const Text(
-                "Bienvenue",
-                style: TextStyle(color: Colors.white70),
+                "ILYAS31AI",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+              const SizedBox(height: 20),
             ],
           ),
 
+          // 🔔 Notifications
+          buildCard(context, Icons.notifications, "Notifications"),
+
+          // 🪑 Plan de classe
+          buildCard(context, Icons.grid_view, "Plan de classe"),
+
           const SizedBox(height: 20),
 
-          Expanded(
-            child: ListView(
-              children: [
-                buildItem(context, "Notifications", Icons.notifications,
-                    '/notifications'),
-                buildItem(context, "Plan de classe", Icons.map,
-                    '/plan_classe'),
-
-                const Padding(
-                  padding: EdgeInsets.all(10),
-                  child: Text("Révision",
-                      style: TextStyle(color: Colors.white54)),
-                ),
-
-                buildItem(context, "Quiz interactifs", Icons.quiz,
-                    '/quiz'),
-                buildItem(context, "Fiches de cours", Icons.book,
-                    '/fiches'),
-                buildItem(context, "Flashcards", Icons.style,
-                    '/flashcards'),
-
-                const Padding(
-                  padding: EdgeInsets.all(10),
-                  child: Text("Communication",
-                      style: TextStyle(color: Colors.white54)),
-                ),
-
-                buildItem(context, "Discussion", Icons.chat,
-                    '/discussion'),
-                buildItem(context, "Amis", Icons.people, '/amis'),
-              ],
-            ),
+          // 📚 Révision
+          const Text(
+            "Révision",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
+          buildCard(context, Icons.quiz, "Quiz interactifs"),
+          buildCard(context, Icons.menu_book, "Fiches de cours"),
+          buildCard(context, Icons.style, "Flashcards"),
+
+          const SizedBox(height: 20),
+
+          // 💬 Communication
+          const Text(
+            "Communication",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          buildCard(context, Icons.chat, "Discussion"),
+          buildCard(context, Icons.people, "Amis"),
+
+          const SizedBox(height: 20),
+
+          // 📊 Suivi scolaire
+          const Text(
+            "Suivi scolaire",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          buildCard(context, Icons.assignment, "Devoirs"),
+          buildCard(context, Icons.bar_chart, "Notes & statistiques"),
+          buildCard(context, Icons.schedule, "Emploi du temps"),
         ],
+      ),
+    );
+  }
+
+  // 🔥 CARD DESIGN + NAVIGATION
+  Widget buildCard(BuildContext context, IconData icon, String title) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Colors.blue, Colors.purple],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: Colors.white),
+        title: Text(
+          title,
+          style: const TextStyle(color: Colors.white),
+        ),
+        trailing: const Icon(Icons.arrow_forward, color: Colors.white),
+
+        // 🚀 NAVIGATION CORRIGÉE
+        onTap: () {
+          if (title == "Notifications") {
+            Navigator.pushNamed(context, '/notifications');
+          } else if (title == "Plan de classe") {
+            Navigator.pushNamed(context, '/plan');
+          } else if (title == "Quiz interactifs") {
+            Navigator.pushNamed(context, '/quiz');
+          } else if (title == "Fiches de cours") {
+            Navigator.pushNamed(context, '/fiches');
+          } else if (title == "Flashcards") {
+            Navigator.pushNamed(context, '/flashcards');
+          } else if (title == "Discussion") {
+            Navigator.pushNamed(
+              context,
+              '/discussion',
+              arguments: {'name': 'Classe'},
+            );
+          } else if (title == "Amis") {
+            Navigator.pushNamed(context, '/amis');
+          } else if (title == "Devoirs") {
+            Navigator.pushNamed(context, '/devoirs');
+          } else if (title == "Notes & statistiques") {
+            Navigator.pushNamed(context, '/notes'); // ✅ FIX
+          } else if (title == "Emploi du temps") {
+            Navigator.pushNamed(context, '/emploi');
+          }
+        },
       ),
     );
   }

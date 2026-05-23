@@ -28,7 +28,7 @@ android {
 
         applicationId = "com.example.ilyas31ai_app"
 
-        minSdk = flutter.minSdkVersion // speech_to_text requires API 21+
+        minSdk = flutter.minSdkVersion // speech_to_text + Firebase Auth require API 21+
         targetSdk = flutter.targetSdkVersion
 
         versionCode = flutter.versionCode
