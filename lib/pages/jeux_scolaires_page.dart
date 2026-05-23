@@ -1,28 +1,70 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/xp_service.dart';
+import 'coming_soon_page.dart';
 
 class JeuxScolairesPage extends StatelessWidget {
   const JeuxScolairesPage({super.key});
 
   static const _games = [
-    _GameInfo('Maths rapides', '⚡', 'Addition · Soustraction · Multiplication',
-        [Color(0xFF6C47FF), Color(0xFF2563EB)], true),
-    _GameInfo('Multiplications', '✖️', 'Tables de multiplication',
-        [Color(0xFF16A34A), Color(0xFF059669)], true),
-    _GameInfo('Mémoire visuelle', '🧠', 'Retiens et reproduis',
-        [Color(0xFFDC2626), Color(0xFFDB2777)], false),
-    _GameInfo('Vocabulaire', '📝', 'Enrichis ton dictionnaire',
-        [Color(0xFFD97706), Color(0xFFF59E0B)], false),
-    _GameInfo('Calcul mental', '🔢', 'Rapidité et précision',
-        [Color(0xFF0891B2), Color(0xFF7C3AED)], false),
-    _GameInfo('Orthographe', '✍️', 'Bonne orthographe = bon français',
-        [Color(0xFFBE185D), Color(0xFF9333EA)], false),
-    _GameInfo('Puzzle logique', '🧩', 'Réflexion et logique',
-        [Color(0xFF0F766E), Color(0xFF0891B2)], false),
-    _GameInfo('Défis chrono', '⏱️', 'Bats le chrono !',
-        [Color(0xFFB45309), Color(0xFFD97706)], false),
+    _GameInfo(
+      title: 'Maths rapides',
+      emoji: '⚡',
+      desc: 'Addition · Soustraction · Multiplication',
+      colors: [Color(0xFF6C47FF), Color(0xFF2563EB)],
+      playable: true,
+    ),
+    _GameInfo(
+      title: 'Multiplications',
+      emoji: '✖️',
+      desc: 'Tables de multiplication',
+      colors: [Color(0xFF16A34A), Color(0xFF059669)],
+      playable: true,
+    ),
+    _GameInfo(
+      title: 'Mémoire visuelle',
+      emoji: '🧠',
+      desc: 'Retiens et reproduis des séquences',
+      colors: [Color(0xFFDC2626), Color(0xFFDB2777)],
+      playable: false,
+    ),
+    _GameInfo(
+      title: 'Vocabulaire',
+      emoji: '📝',
+      desc: 'Enrichis ton dictionnaire',
+      colors: [Color(0xFFD97706), Color(0xFFF59E0B)],
+      playable: false,
+    ),
+    _GameInfo(
+      title: 'Calcul mental',
+      emoji: '🔢',
+      desc: 'Rapidité et précision',
+      colors: [Color(0xFF0891B2), Color(0xFF7C3AED)],
+      playable: false,
+    ),
+    _GameInfo(
+      title: 'Orthographe',
+      emoji: '✍️',
+      desc: 'Bonne orthographe = bon français',
+      colors: [Color(0xFFBE185D), Color(0xFF9333EA)],
+      playable: false,
+    ),
+    _GameInfo(
+      title: 'Puzzle logique',
+      emoji: '🧩',
+      desc: 'Réflexion et logique',
+      colors: [Color(0xFF0F766E), Color(0xFF0891B2)],
+      playable: false,
+    ),
+    _GameInfo(
+      title: 'Défis chrono',
+      emoji: '⏱️',
+      desc: 'Bats le chrono !',
+      colors: [Color(0xFFB45309), Color(0xFFD97706)],
+      playable: false,
+    ),
   ];
 
   @override
@@ -35,7 +77,7 @@ class JeuxScolairesPage extends StatelessWidget {
         elevation: 0,
       ),
       body: GridView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           crossAxisSpacing: 12,
@@ -54,25 +96,65 @@ class JeuxScolairesPage extends StatelessWidget {
 class _GameInfo {
   final String title, emoji, desc;
   final List<Color> colors;
-  final bool available;
-  const _GameInfo(this.title, this.emoji, this.desc, this.colors, this.available);
+  final bool playable;
+
+  const _GameInfo({
+    required this.title,
+    required this.emoji,
+    required this.desc,
+    required this.colors,
+    required this.playable,
+  });
 }
 
-// ─── Tile ─────────────────────────────────────────────────────────────────────
+// ─── Animated Tile ────────────────────────────────────────────────────────────
 
-class _GameTile extends StatelessWidget {
+class _GameTile extends StatefulWidget {
   final _GameInfo game;
+
   const _GameTile({required this.game});
 
-  void _onTap(BuildContext context) {
-    if (!game.available) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${game.title} — bientôt disponible !'),
-        backgroundColor: const Color(0xFF1C2128),
-        behavior: SnackBarBehavior.floating,
-      ));
-      return;
-    }
+  @override
+  State<_GameTile> createState() => _GameTileState();
+}
+
+class _GameTileState extends State<_GameTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      lowerBound: 0.93,
+      upperBound: 1.0,
+      value: 1.0,
+    );
+    _scale = _ctrl;
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails _) {
+    HapticFeedback.mediumImpact();
+    _ctrl.reverse();
+  }
+
+  void _onTapUp(TapUpDetails _) {
+    _ctrl.forward().then((_) => _navigate());
+  }
+
+  void _onTapCancel() => _ctrl.forward();
+
+  void _navigate() {
+    final game = widget.game;
     if (game.title == 'Maths rapides') {
       showModalBottomSheet(
         context: context,
@@ -87,72 +169,106 @@ class _GameTile extends StatelessWidget {
         backgroundColor: Colors.transparent,
         builder: (_) => const _MultiplicationsGame(),
       );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ComingSoonPage(
+            title: game.title,
+            emoji: game.emoji,
+            colors: game.colors,
+          ),
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final game = widget.game;
     return GestureDetector(
-      onTap: () => _onTap(context),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
               colors: game.colors,
               begin: Alignment.topLeft,
-              end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
                 color: game.colors[0].withValues(alpha: 0.35),
                 blurRadius: 10,
-                offset: const Offset(0, 5))
-          ],
-        ),
-        child: Stack(
-          children: [
-            if (!game.available)
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                      color: Colors.black38,
-                      borderRadius: BorderRadius.circular(8)),
-                  child: const Text('Bientôt',
-                      style: TextStyle(color: Colors.white70, fontSize: 9)),
-                ),
+                offset: const Offset(0, 5),
               ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(game.emoji, style: const TextStyle(fontSize: 38)),
-                  const Spacer(),
-                  Text(game.title,
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Coming soon badge
+              if (!game.playable)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black38,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Bientôt',
+                      style:
+                          TextStyle(color: Colors.white70, fontSize: 9),
+                    ),
+                  ),
+                ),
+
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(game.emoji,
+                        style: const TextStyle(fontSize: 38)),
+                    const Spacer(),
+                    Text(
+                      game.title,
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(game.desc,
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      game.desc,
                       style: const TextStyle(
                           color: Colors.white70, fontSize: 11),
-                      maxLines: 2),
-                  const SizedBox(height: 8),
-                  Row(children: const [
-                    Icon(Icons.star, color: Colors.amber, size: 13),
-                    SizedBox(width: 4),
-                    Text('+10 XP / bonne réponse',
-                        style:
-                            TextStyle(color: Colors.white60, fontSize: 10)),
-                  ]),
-                ],
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(children: const [
+                      Icon(Icons.star, color: Colors.amber, size: 13),
+                      SizedBox(width: 4),
+                      Text(
+                        '+10 XP / bonne réponse',
+                        style: TextStyle(
+                            color: Colors.white60, fontSize: 10),
+                      ),
+                    ]),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -189,7 +305,10 @@ class _MathsRapidesGameState extends State<_MathsRapidesGame> {
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) { t.cancel(); return; }
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
       setState(() {
         if (_timeLeft > 0) {
           _timeLeft--;
@@ -234,10 +353,19 @@ class _MathsRapidesGameState extends State<_MathsRapidesGame> {
 
   void _onAnswer(int val) {
     if (_gameOver || _feedback != null) return;
+    HapticFeedback.selectionClick();
     if (val == _answer) {
-      setState(() { _score++; _streak++; _feedback = '✅'; });
+      setState(() {
+        _score++;
+        _streak++;
+        _feedback = '✅';
+      });
     } else {
-      setState(() { _streak = 0; _feedback = '❌'; });
+      HapticFeedback.vibrate();
+      setState(() {
+        _streak = 0;
+        _feedback = '❌';
+      });
     }
     Future.delayed(const Duration(milliseconds: 600), () {
       if (mounted && !_gameOver) setState(() => _generateQuestion());
@@ -245,7 +373,10 @@ class _MathsRapidesGameState extends State<_MathsRapidesGame> {
   }
 
   @override
-  void dispose() { _timer?.cancel(); super.dispose(); }
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -353,7 +484,10 @@ class _MathsRapidesGameState extends State<_MathsRapidesGame> {
               onPressed: () {
                 _timer?.cancel();
                 setState(() {
-                  _score = 0; _streak = 0; _timeLeft = 30; _gameOver = false;
+                  _score = 0;
+                  _streak = 0;
+                  _timeLeft = 30;
+                  _gameOver = false;
                   _generateQuestion();
                 });
                 _startTimer();
@@ -365,8 +499,8 @@ class _MathsRapidesGameState extends State<_MathsRapidesGame> {
           const SizedBox(height: 12),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer',
-                style: TextStyle(color: Colors.white54)),
+            child:
+                const Text('Fermer', style: TextStyle(color: Colors.white54)),
           ),
         ],
       ),
@@ -402,7 +536,10 @@ class _MultiplicationsGameState extends State<_MultiplicationsGame> {
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) { t.cancel(); return; }
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
       setState(() {
         if (_timeLeft > 0) {
           _timeLeft--;
@@ -432,17 +569,26 @@ class _MultiplicationsGameState extends State<_MultiplicationsGame> {
 
   void _onAnswer(int val) {
     if (_gameOver || _feedback != null) return;
-    setState(() {
-      _feedback = val == _answer ? '✅' : '❌';
-      if (val == _answer) _score++;
-    });
+    HapticFeedback.selectionClick();
+    if (val == _answer) {
+      setState(() {
+        _score++;
+        _feedback = '✅';
+      });
+    } else {
+      HapticFeedback.vibrate();
+      setState(() => _feedback = '❌');
+    }
     Future.delayed(const Duration(milliseconds: 600), () {
       if (mounted && !_gameOver) setState(() => _generateQuestion());
     });
   }
 
   @override
-  void dispose() { _timer?.cancel(); super.dispose(); }
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -481,11 +627,13 @@ class _MultiplicationsGameState extends State<_MultiplicationsGame> {
         const Spacer(),
         _feedback != null
             ? Text(_feedback!, style: const TextStyle(fontSize: 52))
-            : Text('$_a × $_b = ?',
+            : Text(
+                '$_a × $_b = ?',
                 style: const TextStyle(
                     color: Colors.white,
                     fontSize: 44,
-                    fontWeight: FontWeight.bold)),
+                    fontWeight: FontWeight.bold),
+              ),
         const Spacer(),
         GridView.count(
           shrinkWrap: true,
@@ -501,11 +649,12 @@ class _MultiplicationsGameState extends State<_MultiplicationsGame> {
                       borderRadius: BorderRadius.circular(14),
                       onTap: () => _onAnswer(c),
                       child: Center(
-                          child: Text('$c',
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold))),
+                        child: Text('$c',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold)),
+                      ),
                     ),
                   ))
               .toList(),
@@ -541,7 +690,9 @@ class _MultiplicationsGameState extends State<_MultiplicationsGame> {
             onPressed: () {
               _timer?.cancel();
               setState(() {
-                _score = 0; _timeLeft = 45; _gameOver = false;
+                _score = 0;
+                _timeLeft = 45;
+                _gameOver = false;
                 _generateQuestion();
               });
               _startTimer();
@@ -553,8 +704,8 @@ class _MultiplicationsGameState extends State<_MultiplicationsGame> {
         const SizedBox(height: 12),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Fermer',
-              style: TextStyle(color: Colors.white54)),
+          child:
+              const Text('Fermer', style: TextStyle(color: Colors.white54)),
         ),
       ],
     );
