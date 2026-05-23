@@ -7,6 +7,7 @@ import 'chat_history_page.dart';
 import 'eleves_page.dart';
 import 'profile_page.dart';
 import '../services/social_service.dart';
+import '../services/user_service.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -24,6 +25,7 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     SocialService.goOnline();
+    UserService.syncProfile();
   }
 
   @override

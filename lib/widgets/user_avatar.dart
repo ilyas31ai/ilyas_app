@@ -37,7 +37,8 @@ class UserAvatar extends StatelessWidget {
 
   String get _initials {
     if (username.isEmpty) return '?';
-    final name = username.contains('@') ? username.split('@').first : username;
+    final name =
+        username.contains('@') ? username.split('@').first : username;
     final parts = name.trim().split(' ');
     if (parts.length >= 2) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
@@ -82,16 +83,35 @@ class UserAvatar extends StatelessWidget {
   }
 }
 
-class _StatusDot extends StatelessWidget {
+// ─── Status Dot ───────────────────────────────────────────────────────────────
+// StatefulWidget : stream stocké en initState → une seule souscription stable
+
+class _StatusDot extends StatefulWidget {
   final String username;
   const _StatusDot({required this.username});
 
   @override
+  State<_StatusDot> createState() => _StatusDotState();
+}
+
+class _StatusDotState extends State<_StatusDot> {
+  late final Stream<DatabaseEvent> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = FirebaseDatabase.instance
+        .ref('status/${widget.username}/online')
+        .onValue;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return StreamBuilder(
-      stream: FirebaseDatabase.instance.ref('status/$username/online').onValue,
+    return StreamBuilder<DatabaseEvent>(
+      stream: _stream,
       builder: (context, snap) {
-        final online = snap.hasData && snap.data?.snapshot.value == true;
+        final online =
+            snap.hasData && snap.data?.snapshot.value == true;
         return Container(
           width: 11,
           height: 11,
@@ -109,14 +129,31 @@ class _StatusDot extends StatelessWidget {
   }
 }
 
-class OnlineLabel extends StatelessWidget {
+// ─── Online Label ─────────────────────────────────────────────────────────────
+// StatefulWidget : stream stocké en initState → une seule souscription stable
+
+class OnlineLabel extends StatefulWidget {
   final String username;
   const OnlineLabel({super.key, required this.username});
 
   @override
+  State<OnlineLabel> createState() => _OnlineLabelState();
+}
+
+class _OnlineLabelState extends State<OnlineLabel> {
+  late final Stream<DatabaseEvent> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream =
+        FirebaseDatabase.instance.ref('status/${widget.username}').onValue;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return StreamBuilder(
-      stream: FirebaseDatabase.instance.ref('status/$username').onValue,
+    return StreamBuilder<DatabaseEvent>(
+      stream: _stream,
       builder: (context, snap) {
         bool online = false;
         if (snap.hasData && snap.data!.snapshot.value != null) {

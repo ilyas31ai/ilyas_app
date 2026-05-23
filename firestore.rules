@@ -7,6 +7,12 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Profils utilisateurs : tout auth peut lire, chacun écrit uniquement le sien
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
     // Par défaut : refuser tout accès
     match /{document=**} {
       allow read, write: if false;

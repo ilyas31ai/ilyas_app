@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import '../models/user_model.dart';
+import '../services/user_service.dart';
 import '../widgets/user_avatar.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -11,27 +13,30 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  String get _user => FirebaseAuth.instance.currentUser?.email ?? '';
-  String get _name =>
-      _user.contains('@') ? _user.split('@').first : _user;
+  String get _email => FirebaseAuth.instance.currentUser?.email ?? '';
 
   final _db = FirebaseDatabase.instance.ref();
 
+  // Firestore profile stream (real data)
+  late final Stream<UserModel?> _profileStream;
+
   int _friendsCount = 0;
   int _contactsCount = 0;
-  bool _loading = true;
+  bool _statsLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _profileStream = UserService.currentUserStream();
     _loadStats();
   }
 
   Future<void> _loadStats() async {
-    if (_user.isEmpty) return;
+    final email = _email;
+    if (email.isEmpty) return;
     final results = await Future.wait([
-      _db.child('friends/$_user').get(),
-      _db.child('users/$_user/contacts').get(),
+      _db.child('friends/$email').get(),
+      _db.child('users/$email/contacts').get(),
     ]);
 
     final friendsSnap = results[0];
@@ -45,41 +50,52 @@ class _ProfilePageState extends State<ProfilePage> {
       _contactsCount = contactsSnap.exists
           ? (Map<dynamic, dynamic>.from(contactsSnap.value as Map)).length
           : 0;
-      _loading = false;
+      _statsLoading = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D1117),
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _buildHeader()),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _buildStatsRow(),
-                  const SizedBox(height: 20),
-                  _buildInfoCard(),
-                  const SizedBox(height: 20),
-                  _buildBadgesSection(),
-                  const SizedBox(height: 20),
-                  _buildActionsSection(context),
-                ]),
-              ),
+    return StreamBuilder<UserModel?>(
+      stream: _profileStream,
+      builder: (context, snap) {
+        final profile = snap.data;
+        return Scaffold(
+          backgroundColor: const Color(0xFF0D1117),
+          body: SafeArea(
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(child: _buildHeader(profile)),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      _buildStatsRow(),
+                      const SizedBox(height: 20),
+                      _buildInfoCard(profile),
+                      const SizedBox(height: 20),
+                      _buildBadgesSection(),
+                      const SizedBox(height: 20),
+                      _buildActionsSection(context),
+                    ]),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
   // ─── Header ───────────────────────────────────────────────────────────────
 
-  Widget _buildHeader() {
+  Widget _buildHeader(UserModel? profile) {
+    final displayName = profile?.displayName ??
+        (_email.contains('@') ? _email.split('@').first : _email);
+    final roleLabel = profile?.role.label ?? '…';
+    final roleColor = _roleColor(profile?.role);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
       child: Column(
@@ -95,7 +111,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     fontWeight: FontWeight.bold),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: const Color(0xFF2563EB).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
@@ -113,10 +130,10 @@ class _ProfilePageState extends State<ProfilePage> {
             ],
           ),
           const SizedBox(height: 24),
-          UserAvatar(username: _user, radius: 42, showStatus: true),
+          UserAvatar(username: _email, radius: 42, showStatus: true),
           const SizedBox(height: 14),
           Text(
-            _name,
+            displayName,
             style: const TextStyle(
                 color: Colors.white,
                 fontSize: 22,
@@ -124,21 +141,32 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: 4),
           Text(
-            _user,
+            _email,
             style: const TextStyle(color: Colors.white38, fontSize: 12),
           ),
           const SizedBox(height: 10),
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _BadgePill(Icons.star, 'Actif', Color(0xFFD97706)),
-              SizedBox(width: 8),
-              _BadgePill(Icons.school, 'Studieux', Color(0xFF16A34A)),
+              _BadgePill(Icons.shield_outlined, roleLabel, roleColor),
+              const SizedBox(width: 8),
+              const _BadgePill(Icons.star, 'Actif', Color(0xFFD97706)),
             ],
           ),
         ],
       ),
     );
+  }
+
+  Color _roleColor(UserRole? role) {
+    switch (role) {
+      case UserRole.professeur:
+        return const Color(0xFF6C47FF);
+      case UserRole.admin:
+        return const Color(0xFFD97706);
+      default:
+        return const Color(0xFF16A34A);
+    }
   }
 
   // ─── Stats ────────────────────────────────────────────────────────────────
@@ -157,13 +185,13 @@ class _ProfilePageState extends State<ProfilePage> {
           _StatCell(
             icon: Icons.people_outline,
             label: 'Amis',
-            value: _loading ? '…' : '$_friendsCount',
+            value: _statsLoading ? '…' : '$_friendsCount',
           ),
           _VertDivider(),
           _StatCell(
             icon: Icons.contacts_outlined,
             label: 'Contacts',
-            value: _loading ? '…' : '$_contactsCount',
+            value: _statsLoading ? '…' : '$_contactsCount',
           ),
           _VertDivider(),
           const _StatCell(
@@ -178,7 +206,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // ─── Info Card ────────────────────────────────────────────────────────────
 
-  Widget _buildInfoCard() {
+  Widget _buildInfoCard(UserModel? profile) {
+    final memberSince = profile?.createdAt != null
+        ? _formatDate(profile!.createdAt!.toDate())
+        : '…';
+    final niveau = profile?.niveau;
+    final matiere = profile?.matiere;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -195,16 +229,25 @@ class _ProfilePageState extends State<ProfilePage> {
                   fontWeight: FontWeight.w600,
                   fontSize: 15)),
           const SizedBox(height: 14),
-          _InfoRow(Icons.email_outlined, 'Email', _user),
+          _InfoRow(Icons.email_outlined, 'Email', _email),
+          if (niveau != null && niveau.isNotEmpty) ...[
+            const Divider(color: Color(0xFF21262D), height: 22),
+            _InfoRow(Icons.school_outlined, 'Niveau', niveau),
+          ],
+          if (matiere != null && matiere.isNotEmpty) ...[
+            const Divider(color: Color(0xFF21262D), height: 22),
+            _InfoRow(Icons.book_outlined, 'Matière', matiere),
+          ],
           const Divider(color: Color(0xFF21262D), height: 22),
-          const _InfoRow(Icons.school_outlined, 'Niveau', 'ILYAS31AI'),
-          const Divider(color: Color(0xFF21262D), height: 22),
-          const _InfoRow(
-              Icons.calendar_today_outlined, 'Membre depuis', 'Mai 2025'),
+          _InfoRow(
+              Icons.calendar_today_outlined, 'Membre depuis', memberSince),
         ],
       ),
     );
   }
+
+  String _formatDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   // ─── Badges ───────────────────────────────────────────────────────────────
 

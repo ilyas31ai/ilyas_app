@@ -16,10 +16,14 @@ class _UsersPageState extends State<UsersPage> {
   final _searchCtrl = TextEditingController();
   String _query = '';
 
+  // Stream stocké en initState → pas de re-souscription sur setState (recherche)
+  late final Stream<List<String>> _contactsStream;
+
   @override
   void initState() {
     super.initState();
     SocialService.goOnline();
+    _contactsStream = SocialService.contactsStream(widget.currentUser);
     _searchCtrl.addListener(() {
       if (mounted) setState(() => _query = _searchCtrl.text.toLowerCase());
     });
@@ -57,8 +61,8 @@ class _UsersPageState extends State<UsersPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child:
-                const Text('Annuler', style: TextStyle(color: Colors.white54)),
+            child: const Text('Annuler',
+                style: TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () async {
@@ -77,8 +81,8 @@ class _UsersPageState extends State<UsersPage> {
 
   String _timeAgo(int? ts) {
     if (ts == null) return '';
-    final diff = DateTime.now()
-        .difference(DateTime.fromMillisecondsSinceEpoch(ts));
+    final diff =
+        DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(ts));
     if (diff.inMinutes < 1) return 'maintenant';
     if (diff.inMinutes < 60) return '${diff.inMinutes}min';
     if (diff.inHours < 24) return '${diff.inHours}h';
@@ -111,7 +115,6 @@ class _UsersPageState extends State<UsersPage> {
       ),
       body: Column(
         children: [
-          // Search bar
           Container(
             color: const Color(0xFF161B22),
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
@@ -128,13 +131,12 @@ class _UsersPageState extends State<UsersPage> {
                     ? IconButton(
                         icon: const Icon(Icons.clear,
                             color: Colors.white38, size: 18),
-                        onPressed: () => _searchCtrl.clear(),
+                        onPressed: _searchCtrl.clear,
                       )
                     : null,
                 filled: true,
                 fillColor: const Color(0xFF21262D),
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -142,10 +144,9 @@ class _UsersPageState extends State<UsersPage> {
               ),
             ),
           ),
-          // Contact list
           Expanded(
             child: StreamBuilder<List<String>>(
-              stream: SocialService.contactsStream(widget.currentUser),
+              stream: _contactsStream, // stream stocké → stable
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -168,9 +169,7 @@ class _UsersPageState extends State<UsersPage> {
                             size: 56, color: Colors.white24),
                         const SizedBox(height: 14),
                         Text(
-                          all.isEmpty
-                              ? 'Aucun contact'
-                              : 'Aucun résultat',
+                          all.isEmpty ? 'Aucun contact' : 'Aucun résultat',
                           style: const TextStyle(
                               color: Colors.white54, fontSize: 17),
                         ),
@@ -189,8 +188,8 @@ class _UsersPageState extends State<UsersPage> {
                 return ListView.builder(
                   padding: const EdgeInsets.only(top: 4, bottom: 100),
                   itemCount: contacts.length,
-                  itemBuilder: (_, i) =>
-                      _ContactTile(
+                  itemBuilder: (_, i) => _ContactTile(
+                    key: ValueKey(contacts[i]),
                     contactName: contacts[i],
                     currentUser: widget.currentUser,
                     timeAgo: _timeAgo,
@@ -205,36 +204,69 @@ class _UsersPageState extends State<UsersPage> {
   }
 }
 
-// ─── Contact Tile ─────────────────────────────────────────────────────────────
+// ─── Contact Tile (StatefulWidget) ────────────────────────────────────────────
+// Converti de StatelessWidget : stream preview stocké en initState →
+// pas de re-souscription quand le parent rebuild (frappe dans la recherche).
+// ValueKey sur contactName garantit que Flutter recycle correctement l'état.
 
-class _ContactTile extends StatelessWidget {
+class _ContactTile extends StatefulWidget {
   final String contactName;
   final String currentUser;
   final String Function(int?) timeAgo;
 
   const _ContactTile({
+    super.key,
     required this.contactName,
     required this.currentUser,
     required this.timeAgo,
   });
 
-  String get _chatId => SocialService.chatId(currentUser, contactName);
+  @override
+  State<_ContactTile> createState() => _ContactTileState();
+}
+
+class _ContactTileState extends State<_ContactTile> {
+  late final Stream<_MessagePreview> _previewStream;
+
+  String get _chatId =>
+      SocialService.chatId(widget.currentUser, widget.contactName);
+
+  @override
+  void initState() {
+    super.initState();
+    // Construction du stream une seule fois → souscription stable
+    _previewStream = SocialService.messagesStream(_chatId).map((msgs) {
+      if (msgs.isEmpty) return _MessagePreview.empty();
+      final last = msgs.last;
+      final unread = msgs
+          .where((m) =>
+              m['sender'] != widget.currentUser && m['seen'] != true)
+          .length;
+      return _MessagePreview(
+        text: last['text'] as String? ?? '',
+        time: last['time'] as int?,
+        unread: unread,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder(
-      stream: _MessagesPreviewStream(chatId: _chatId, viewer: currentUser).stream,
+    return StreamBuilder<_MessagePreview>(
+      stream: _previewStream,
       builder: (context, snap) {
         final preview = snap.data ?? _MessagePreview.empty();
         return InkWell(
           onTap: () => Navigator.pushNamed(
             context,
             '/discussion',
-            arguments: {'name': contactName, 'user': currentUser},
+            arguments: {
+              'name': widget.contactName,
+              'user': widget.currentUser,
+            },
           ),
           child: Container(
-            margin:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFF161B22),
@@ -245,16 +277,18 @@ class _ContactTile extends StatelessWidget {
             child: Row(
               children: [
                 UserAvatar(
-                    username: contactName, radius: 24, showStatus: true),
+                    username: widget.contactName,
+                    radius: 24,
+                    showStatus: true),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        contactName.contains('@')
-                            ? contactName.split('@').first
-                            : contactName,
+                        widget.contactName.contains('@')
+                            ? widget.contactName.split('@').first
+                            : widget.contactName,
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -287,7 +321,7 @@ class _ContactTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      timeAgo(preview.time),
+                      widget.timeAgo(preview.time),
                       style: const TextStyle(
                           color: Colors.white38, fontSize: 11),
                     ),
@@ -321,7 +355,7 @@ class _ContactTile extends StatelessWidget {
   }
 }
 
-// ─── Message Preview Stream ────────────────────────────────────────────────────
+// ─── Message Preview ──────────────────────────────────────────────────────────
 
 class _MessagePreview {
   final String text;
@@ -336,26 +370,4 @@ class _MessagePreview {
 
   factory _MessagePreview.empty() =>
       const _MessagePreview(text: 'Aucun message', time: null, unread: 0);
-}
-
-class _MessagesPreviewStream {
-  final String chatId;
-  final String viewer;
-
-  _MessagesPreviewStream({required this.chatId, required this.viewer});
-
-  Stream<_MessagePreview> get stream {
-    return SocialService.messagesStream(chatId).map((msgs) {
-      if (msgs.isEmpty) return _MessagePreview.empty();
-      final last = msgs.last;
-      final unread = msgs
-          .where((m) => m['sender'] != viewer && m['seen'] != true)
-          .length;
-      return _MessagePreview(
-        text: last['text'] as String? ?? '',
-        time: last['time'] as int?,
-        unread: unread,
-      );
-    });
-  }
 }

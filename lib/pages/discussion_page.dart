@@ -17,13 +17,16 @@ class DiscussionPage extends StatefulWidget {
   State<DiscussionPage> createState() => _DiscussionPageState();
 }
 
-class _DiscussionPageState extends State<DiscussionPage>
-    with SingleTickerProviderStateMixin {
+class _DiscussionPageState extends State<DiscussionPage> {
   final _textCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   bool _sending = false;
   bool _blocked = false;
   bool _showScrollBtn = false;
+
+  // Stream stocké en initState → une seule souscription stable peu importe
+  // le nombre de setState() appelés (envoi, scroll, etc.)
+  late final Stream<List<Map<String, dynamic>>> _messagesStream;
 
   String get _chatId => SocialService.chatId(widget.user, widget.name);
   bool get _isGroup =>
@@ -32,6 +35,7 @@ class _DiscussionPageState extends State<DiscussionPage>
   @override
   void initState() {
     super.initState();
+    _messagesStream = SocialService.messagesStream(_chatId);
     _initPage();
     _scrollCtrl.addListener(_onScroll);
   }
@@ -255,7 +259,7 @@ class _DiscussionPageState extends State<DiscussionPage>
 
   Widget _buildMessages() {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: SocialService.messagesStream(_chatId),
+      stream: _messagesStream,
       builder: (context, snap) {
         final msgs = snap.data ?? [];
         if (msgs.isEmpty) return _buildEmpty();

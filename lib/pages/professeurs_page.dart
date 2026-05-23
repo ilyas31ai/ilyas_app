@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/social_service.dart';
+import '../models/user_model.dart';
+import '../services/user_service.dart';
 import '../widgets/user_avatar.dart';
 
 class ProfesseursPage extends StatefulWidget {
@@ -12,110 +13,13 @@ class ProfesseursPage extends StatefulWidget {
 }
 
 class _ProfesseursPageState extends State<ProfesseursPage> {
-  Future<void> _showAddDialog() async {
-    final nameCtrl = TextEditingController();
-    final matiereCtrl = TextEditingController();
+  // Firestore stream → uniquement les vrais professeurs inscrits
+  late final Stream<List<UserModel>> _profsStream;
 
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1F2937),
-        title: const Text(
-          'Ajouter un professeur',
-          style: TextStyle(color: Colors.white, fontSize: 16),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                hintText: 'Nom du professeur',
-                hintStyle: TextStyle(color: Colors.white38),
-                prefixIcon:
-                    Icon(Icons.person, color: Colors.white38, size: 18),
-                enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF2563EB))),
-                focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF6C47FF))),
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: matiereCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                hintText: 'Matière enseignée',
-                hintStyle: TextStyle(color: Colors.white38),
-                prefixIcon:
-                    Icon(Icons.book_outlined, color: Colors.white38, size: 18),
-                enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF2563EB))),
-                focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF6C47FF))),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler',
-                style: TextStyle(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final name = nameCtrl.text.trim();
-              if (name.isEmpty) return;
-              await SocialService.addProf(
-                widget.currentUser,
-                name,
-                matiereCtrl.text.trim(),
-              );
-              if (mounted) Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Ajouter'),
-          ),
-        ],
-      ),
-    );
-
-    nameCtrl.dispose();
-    matiereCtrl.dispose();
-  }
-
-  Future<void> _confirmDelete(String name) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1F2937),
-        title: const Text('Supprimer ?',
-            style: TextStyle(color: Colors.white)),
-        content: Text('Supprimer Prof. $name ?',
-            style: const TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler',
-                style: TextStyle(color: Colors.white54)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Supprimer',
-                style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      await SocialService.removeProf(widget.currentUser, name);
-    }
+  @override
+  void initState() {
+    super.initState();
+    _profsStream = UserService.usersByRoleStream('professeur');
   }
 
   @override
@@ -137,20 +41,12 @@ class _ProfesseursPageState extends State<ProfesseursPage> {
               fontWeight: FontWeight.bold),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF2563EB),
-        onPressed: _showAddDialog,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Ajouter',
-            style: TextStyle(color: Colors.white)),
-      ),
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: SocialService.profsStream(),
+      body: StreamBuilder<List<UserModel>>(
+        stream: _profsStream,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(
-                child:
-                    CircularProgressIndicator(color: Color(0xFF2563EB)));
+                child: CircularProgressIndicator(color: Color(0xFF2563EB)));
           }
 
           final profs = snap.data ?? [];
@@ -171,15 +67,19 @@ class _ProfesseursPageState extends State<ProfesseursPage> {
                         color: Colors.white24, size: 36),
                   ),
                   const SizedBox(height: 16),
-                  const Text('Aucun professeur',
-                      style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Aucun professeur inscrit',
+                    style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 6),
-                  const Text('Ajoute un professeur avec le bouton +',
-                      style:
-                          TextStyle(color: Colors.white24, fontSize: 13)),
+                  const Text(
+                    'Les professeurs apparaissent ici\naprès leur inscription',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white24, fontSize: 13),
+                  ),
                 ],
               ),
             );
@@ -190,21 +90,16 @@ class _ProfesseursPageState extends State<ProfesseursPage> {
             itemCount: profs.length,
             itemBuilder: (_, i) {
               final prof = profs[i];
-              final name = prof['id'] as String? ?? '';
-              final matiere = prof['matiere'] as String? ?? '';
-
               return _ProfCard(
-                name: name,
-                matiere: matiere,
+                prof: prof,
                 onChat: () => Navigator.pushNamed(
                   context,
                   '/discussion',
                   arguments: {
-                    'name': name,
+                    'name': prof.email,
                     'user': widget.currentUser,
                   },
                 ),
-                onDelete: () => _confirmDelete(name),
               );
             },
           );
@@ -217,16 +112,12 @@ class _ProfesseursPageState extends State<ProfesseursPage> {
 // ─── Prof Card ────────────────────────────────────────────────────────────────
 
 class _ProfCard extends StatelessWidget {
-  final String name;
-  final String matiere;
+  final UserModel prof;
   final VoidCallback onChat;
-  final VoidCallback onDelete;
 
   const _ProfCard({
-    required this.name,
-    required this.matiere,
+    required this.prof,
     required this.onChat,
-    required this.onDelete,
   });
 
   static const _matiereColors = <String, Color>{
@@ -242,7 +133,7 @@ class _ProfCard extends StatelessWidget {
     'informatique': Color(0xFF0F766E),
   };
 
-  Color get _accent {
+  Color _accent(String matiere) {
     final key = matiere.toLowerCase();
     for (final e in _matiereColors.entries) {
       if (key.contains(e.key)) return e.value;
@@ -252,7 +143,8 @@ class _ProfCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = _accent;
+    final matiere = prof.matiere ?? '';
+    final accent = _accent(matiere);
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 5),
       padding: const EdgeInsets.all(14),
@@ -265,7 +157,7 @@ class _ProfCard extends StatelessWidget {
         children: [
           Stack(
             children: [
-              UserAvatar(username: name, radius: 24, showStatus: true),
+              UserAvatar(username: prof.email, radius: 24, showStatus: true),
               Positioned(
                 bottom: 0,
                 right: 0,
@@ -288,7 +180,7 @@ class _ProfCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Prof. $name',
+                  'Prof. ${prof.displayName}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -313,7 +205,7 @@ class _ProfCard extends StatelessWidget {
                     ),
                   ),
                 const SizedBox(height: 2),
-                OnlineLabel(username: name),
+                OnlineLabel(username: prof.email),
               ],
             ),
           ),
@@ -322,12 +214,6 @@ class _ProfCard extends StatelessWidget {
                 color: Color(0xFF2563EB), size: 20),
             tooltip: 'Envoyer un message',
             onPressed: onChat,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline,
-                color: Colors.white30, size: 20),
-            tooltip: 'Supprimer',
-            onPressed: onDelete,
           ),
         ],
       ),

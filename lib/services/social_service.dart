@@ -39,8 +39,11 @@ class SocialService {
   }
 
   static Stream<bool> onlineStream(String user) {
-    return _db.child('status/$user/online').onValue
-        .map((e) => e.snapshot.value == true);
+    return _db
+        .child('status/$user/online')
+        .onValue
+        .map<bool>((e) => e.snapshot.value == true)
+        .asBroadcastStream();
   }
 
   static Future<int?> lastSeen(String user) async {
@@ -51,15 +54,21 @@ class SocialService {
   // ─── Messages ─────────────────────────────────────────────────────────────
 
   static Stream<List<Map<String, dynamic>>> messagesStream(String cId) {
-    return _db.child('messages/$cId').limitToLast(100).onValue.map((e) {
-      if (e.snapshot.value == null) return [];
-      final raw = Map<dynamic, dynamic>.from(e.snapshot.value as Map);
-      final list = raw.values
-          .map((v) => Map<String, dynamic>.from(v as Map))
-          .toList()
-        ..sort((a, b) => (a['time'] as int? ?? 0).compareTo(b['time'] as int? ?? 0));
-      return list;
-    });
+    return _db
+        .child('messages/$cId')
+        .limitToLast(100)
+        .onValue
+        .map<List<Map<String, dynamic>>>((e) {
+          if (e.snapshot.value == null) return [];
+          final raw = Map<dynamic, dynamic>.from(e.snapshot.value as Map);
+          final list = raw.values
+              .map((v) => Map<String, dynamic>.from(v as Map))
+              .toList()
+            ..sort((a, b) =>
+                (a['time'] as int? ?? 0).compareTo(b['time'] as int? ?? 0));
+          return list;
+        })
+        .asBroadcastStream();
   }
 
   static Future<void> sendMessage({
@@ -99,11 +108,15 @@ class SocialService {
   // ─── Contacts ─────────────────────────────────────────────────────────────
 
   static Stream<List<String>> contactsStream(String user) {
-    return _db.child('users/$user/contacts').onValue.map((e) {
-      if (e.snapshot.value == null) return [];
-      return List<String>.from(
-          Map<dynamic, dynamic>.from(e.snapshot.value as Map).keys);
-    });
+    return _db
+        .child('users/$user/contacts')
+        .onValue
+        .map<List<String>>((e) {
+          if (e.snapshot.value == null) return [];
+          return List<String>.from(
+              Map<dynamic, dynamic>.from(e.snapshot.value as Map).keys);
+        })
+        .asBroadcastStream();
   }
 
   static Future<void> addContact(String owner, String contact) async {
@@ -114,29 +127,41 @@ class SocialService {
   // ─── Amis ─────────────────────────────────────────────────────────────────
 
   static Stream<List<String>> friendsStream(String user) {
-    return _db.child('friends/$user').onValue.map((e) {
-      if (e.snapshot.value == null) return [];
-      return List<String>.from(
-          Map<dynamic, dynamic>.from(e.snapshot.value as Map).keys);
-    });
+    return _db
+        .child('friends/$user')
+        .onValue
+        .map<List<String>>((e) {
+          if (e.snapshot.value == null) return [];
+          return List<String>.from(
+              Map<dynamic, dynamic>.from(e.snapshot.value as Map).keys);
+        })
+        .asBroadcastStream();
   }
 
   static Stream<List<String>> requestsStream(String user) {
-    return _db.child('friend_requests/$user').onValue.map((e) {
-      if (e.snapshot.value == null) return [];
-      return List<String>.from(
-          Map<dynamic, dynamic>.from(e.snapshot.value as Map).keys);
-    });
+    return _db
+        .child('friend_requests/$user')
+        .onValue
+        .map<List<String>>((e) {
+          if (e.snapshot.value == null) return [];
+          return List<String>.from(
+              Map<dynamic, dynamic>.from(e.snapshot.value as Map).keys);
+        })
+        .asBroadcastStream();
   }
 
   static Stream<List<String>> allUsersStream(String excludeUser) {
-    return _db.child('users').onValue.map((e) {
-      if (e.snapshot.value == null) return [];
-      return List<String>.from(
-          Map<dynamic, dynamic>.from(e.snapshot.value as Map)
-              .keys
-              .where((k) => k != excludeUser));
-    });
+    return _db
+        .child('users')
+        .onValue
+        .map<List<String>>((e) {
+          if (e.snapshot.value == null) return [];
+          return List<String>.from(
+              Map<dynamic, dynamic>.from(e.snapshot.value as Map)
+                  .keys
+                  .where((k) => k != excludeUser));
+        })
+        .asBroadcastStream();
   }
 
   static Future<void> sendFriendRequest(String from, String to) async {
@@ -177,23 +202,30 @@ class SocialService {
   // ─── Professeurs ──────────────────────────────────────────────────────────
 
   static Stream<List<Map<String, dynamic>>> profsStream() {
-    return _db.child('professeurs').onValue.map((e) {
-      if (e.snapshot.value == null) return [];
-      return Map<dynamic, dynamic>.from(e.snapshot.value as Map)
-          .entries
-          .map((en) {
-            final data = en.value is Map
-                ? Map<String, dynamic>.from(en.value as Map)
-                : <String, dynamic>{'name': en.key.toString()};
-            data['id'] = en.key.toString();
-            return data;
-          })
-          .toList();
-    });
+    return _db
+        .child('professeurs')
+        .onValue
+        .map<List<Map<String, dynamic>>>((e) {
+          if (e.snapshot.value == null) return [];
+          return Map<dynamic, dynamic>.from(e.snapshot.value as Map)
+              .entries
+              .map((en) {
+                final data = en.value is Map
+                    ? Map<String, dynamic>.from(en.value as Map)
+                    : <String, dynamic>{'name': en.key.toString()};
+                data['id'] = en.key.toString();
+                return data;
+              })
+              .toList();
+        })
+        .asBroadcastStream();
   }
 
-  static Future<void> addProf(String currentUser, String name, String matiere) async {
-    await _db.child('professeurs/$name').set({'name': name, 'matiere': matiere});
+  static Future<void> addProf(
+      String currentUser, String name, String matiere) async {
+    await _db
+        .child('professeurs/$name')
+        .set({'name': name, 'matiere': matiere});
     await _db.child('users/$currentUser/contacts/$name').set(true);
   }
 
