@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/social_service.dart';
 
 class NotificationsPage extends StatefulWidget {
   final String currentUser;
@@ -41,8 +42,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
       all.add("📭 Ajoute des flashcards !");
     }
 
-    final reqSnapshot =
-        await db.child("friend_requests/${widget.currentUser}").get();
+    final reqSnapshot = await db
+        .child('friend_requests/${SocialService.encodeKey(widget.currentUser)}')
+        .get();
 
     if (reqSnapshot.exists) {
       final data =
@@ -107,8 +109,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
           StreamBuilder(
             stream: db
-                .child("notifications/${widget.currentUser}")
-                .orderByChild("time")
+                .child('notifications/${SocialService.encodeKey(widget.currentUser)}')
+                .orderByChild('time')
                 .onValue,
             builder: (context, snapshot) {
               if (!snapshot.hasData ||

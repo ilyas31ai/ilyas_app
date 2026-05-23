@@ -6,10 +6,18 @@ class SocialService {
 
   static String get me => FirebaseAuth.instance.currentUser?.email ?? '';
 
+  /// Encode an email for use as an RTDB path segment.
+  /// RTDB forbids '.', '#', '$', '[', ']' — replace '.' with ','.
+  static String encodeKey(String s) =>
+      s.replaceAll('.', ',').replaceAll('#', '_').replaceAll(r'$', '_');
+
+  /// Decode an RTDB key back to the original email.
+  static String decodeKey(String s) => s.replaceAll(',', '.');
+
   static String chatId(String a, String b) {
     if (a == 'general' || b == 'general') return 'general';
     if (a == 'Classe' || b == 'Classe') return 'Classe';
-    final pair = [a, b]..sort();
+    final pair = [encodeKey(a), encodeKey(b)]..sort();
     return pair.join('__');
   }
 
@@ -18,12 +26,13 @@ class SocialService {
   static Future<void> goOnline() async {
     final u = me;
     if (u.isEmpty) return;
-    await _db.child('users/$u').update({'name': u});
-    await _db.child('status/$u').set({
+    final k = encodeKey(u);
+    await _db.child('users/$k').update({'name': u});
+    await _db.child('status/$k').set({
       'online': true,
       'lastSeen': DateTime.now().millisecondsSinceEpoch,
     });
-    _db.child('status/$u').onDisconnect().set({
+    _db.child('status/$k').onDisconnect().set({
       'online': false,
       'lastSeen': ServerValue.timestamp,
     });
@@ -32,22 +41,25 @@ class SocialService {
   static Future<void> goOffline() async {
     final u = me;
     if (u.isEmpty) return;
-    await _db.child('status/$u').update({
+    final k = encodeKey(u);
+    await _db.child('status/$k').update({
       'online': false,
       'lastSeen': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
   static Stream<bool> onlineStream(String user) {
+    final k = encodeKey(user);
     return _db
-        .child('status/$user/online')
+        .child('status/$k/online')
         .onValue
         .map<bool>((e) => e.snapshot.value == true)
         .asBroadcastStream();
   }
 
   static Future<int?> lastSeen(String user) async {
-    final snap = await _db.child('status/$user/lastSeen').get();
+    final snap =
+        await _db.child('status/${encodeKey(user)}/lastSeen').get();
     return snap.value as int?;
   }
 
@@ -85,7 +97,8 @@ class SocialService {
       'seen': false,
     });
     if (toUser != 'general' && toUser != 'Classe') {
-      await _db.child('notifications/$toUser').push().set({
+      final k = encodeKey(toUser);
+      await _db.child('notifications/$k').push().set({
         'title': sender,
         'body': text,
         'time': time,
@@ -108,98 +121,125 @@ class SocialService {
   // ─── Contacts ─────────────────────────────────────────────────────────────
 
   static Stream<List<String>> contactsStream(String user) {
+    final k = encodeKey(user);
     return _db
-        .child('users/$user/contacts')
+        .child('users/$k/contacts')
         .onValue
         .map<List<String>>((e) {
           if (e.snapshot.value == null) return [];
-          return List<String>.from(
-              Map<dynamic, dynamic>.from(e.snapshot.value as Map).keys);
+          return Map<dynamic, dynamic>.from(e.snapshot.value as Map)
+              .keys
+              .map((key) => decodeKey(key.toString()))
+              .toList();
         })
         .asBroadcastStream();
   }
 
   static Future<void> addContact(String owner, String contact) async {
-    await _db.child('users/$contact').update({'name': contact});
-    await _db.child('users/$owner/contacts/$contact').set(true);
+    final kContact = encodeKey(contact);
+    final kOwner = encodeKey(owner);
+    await _db.child('users/$kContact').update({'name': contact});
+    await _db.child('users/$kOwner/contacts/$kContact').set(true);
   }
 
   // ─── Amis ─────────────────────────────────────────────────────────────────
 
   static Stream<List<String>> friendsStream(String user) {
+    final k = encodeKey(user);
     return _db
-        .child('friends/$user')
+        .child('friends/$k')
         .onValue
         .map<List<String>>((e) {
           if (e.snapshot.value == null) return [];
-          return List<String>.from(
-              Map<dynamic, dynamic>.from(e.snapshot.value as Map).keys);
+          return Map<dynamic, dynamic>.from(e.snapshot.value as Map)
+              .keys
+              .map((key) => decodeKey(key.toString()))
+              .toList();
         })
         .asBroadcastStream();
   }
 
   static Stream<List<String>> requestsStream(String user) {
+    final k = encodeKey(user);
     return _db
-        .child('friend_requests/$user')
+        .child('friend_requests/$k')
         .onValue
         .map<List<String>>((e) {
           if (e.snapshot.value == null) return [];
-          return List<String>.from(
-              Map<dynamic, dynamic>.from(e.snapshot.value as Map).keys);
+          return Map<dynamic, dynamic>.from(e.snapshot.value as Map)
+              .keys
+              .map((key) => decodeKey(key.toString()))
+              .toList();
         })
         .asBroadcastStream();
   }
 
   static Stream<List<String>> allUsersStream(String excludeUser) {
+    final kExclude = encodeKey(excludeUser);
     return _db
         .child('users')
         .onValue
         .map<List<String>>((e) {
           if (e.snapshot.value == null) return [];
-          return List<String>.from(
-              Map<dynamic, dynamic>.from(e.snapshot.value as Map)
-                  .keys
-                  .where((k) => k != excludeUser));
+          return Map<dynamic, dynamic>.from(e.snapshot.value as Map)
+              .keys
+              .where((k) => k != kExclude)
+              .map((key) => decodeKey(key.toString()))
+              .toList();
         })
         .asBroadcastStream();
   }
 
   static Future<void> sendFriendRequest(String from, String to) async {
-    await _db.child('friend_requests/$to/$from').set(true);
+    await _db
+        .child('friend_requests/${encodeKey(to)}/${encodeKey(from)}')
+        .set(true);
   }
 
   static Future<void> acceptRequest(String viewer, String from) async {
-    await _db.child('friends/$viewer/$from').set(true);
-    await _db.child('friends/$from/$viewer').set(true);
-    await _db.child('friend_requests/$viewer/$from').remove();
+    final kViewer = encodeKey(viewer);
+    final kFrom = encodeKey(from);
+    await _db.child('friends/$kViewer/$kFrom').set(true);
+    await _db.child('friends/$kFrom/$kViewer').set(true);
+    await _db.child('friend_requests/$kViewer/$kFrom').remove();
   }
 
   static Future<void> rejectRequest(String viewer, String from) async {
-    await _db.child('friend_requests/$viewer/$from').remove();
+    await _db
+        .child('friend_requests/${encodeKey(viewer)}/${encodeKey(from)}')
+        .remove();
   }
 
   static Future<void> removeFriend(String a, String b) async {
-    await _db.child('friends/$a/$b').remove();
-    await _db.child('friends/$b/$a').remove();
+    final ka = encodeKey(a);
+    final kb = encodeKey(b);
+    await _db.child('friends/$ka/$kb').remove();
+    await _db.child('friends/$kb/$ka').remove();
   }
 
   // ─── Blocage ──────────────────────────────────────────────────────────────
 
   static Future<void> blockUser(String blocker, String target) async {
-    await _db.child('blocked/$blocker/$target').set(true);
+    await _db
+        .child('blocked/${encodeKey(blocker)}/${encodeKey(target)}')
+        .set(true);
     await removeFriend(blocker, target);
   }
 
   static Future<void> unblockUser(String blocker, String target) async {
-    await _db.child('blocked/$blocker/$target').remove();
+    await _db
+        .child('blocked/${encodeKey(blocker)}/${encodeKey(target)}')
+        .remove();
   }
 
   static Future<bool> isBlocked(String by, String target) async {
-    final snap = await _db.child('blocked/$by/$target').get();
+    final snap = await _db
+        .child('blocked/${encodeKey(by)}/${encodeKey(target)}')
+        .get();
     return snap.value == true;
   }
 
-  // ─── Professeurs ──────────────────────────────────────────────────────────
+  // ─── Professeurs (legacy RTDB) ─────────────────────────────────────────────
 
   static Stream<List<Map<String, dynamic>>> profsStream() {
     return _db
@@ -226,7 +266,9 @@ class SocialService {
     await _db
         .child('professeurs/$name')
         .set({'name': name, 'matiere': matiere});
-    await _db.child('users/$currentUser/contacts/$name').set(true);
+    await _db
+        .child('users/${encodeKey(currentUser)}/contacts/${encodeKey(name)}')
+        .set(true);
   }
 
   static Future<void> removeProf(String currentUser, String name) async {

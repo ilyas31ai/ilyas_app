@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/user_model.dart';
+import '../services/social_service.dart';
 import '../services/storage_service.dart';
 import '../services/user_service.dart';
 import '../widgets/shimmer_box.dart';
@@ -57,9 +58,10 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _loadStats() async {
     final email = _email;
     if (email.isEmpty) return;
+    final k = SocialService.encodeKey(email);
     final results = await Future.wait([
-      _db.child('friends/$email').get(),
-      _db.child('users/$email/contacts').get(),
+      _db.child('friends/$k').get(),
+      _db.child('users/$k/contacts').get(),
     ]);
 
     final friendsSnap = results[0];

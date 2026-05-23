@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import '../services/social_service.dart';
 
 class UserAvatar extends StatelessWidget {
   final String username;
@@ -116,9 +117,9 @@ class _StatusDotState extends State<_StatusDot> {
   @override
   void initState() {
     super.initState();
-    _stream = FirebaseDatabase.instance
-        .ref('status/${widget.username}/online')
-        .onValue;
+    final k = SocialService.encodeKey(widget.username);
+    _stream =
+        FirebaseDatabase.instance.ref('status/$k/online').onValue;
   }
 
   @override
@@ -162,8 +163,8 @@ class _OnlineLabelState extends State<OnlineLabel> {
   @override
   void initState() {
     super.initState();
-    _stream =
-        FirebaseDatabase.instance.ref('status/${widget.username}').onValue;
+    final k = SocialService.encodeKey(widget.username);
+    _stream = FirebaseDatabase.instance.ref('status/$k').onValue;
   }
 
   @override

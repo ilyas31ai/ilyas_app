@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'social_service.dart';
 
 class NotificationService {
   static final FirebaseMessaging _fcm = FirebaseMessaging.instance;
@@ -30,8 +31,9 @@ class NotificationService {
     });
 
     // RTDB-based in-app chat notifications
+    final k = SocialService.encodeKey(currentUser);
     FirebaseDatabase.instance
-        .ref('notifications/$currentUser')
+        .ref('notifications/$k')
         .onChildAdded
         .listen((event) {
       if (event.snapshot.value == null) return;
@@ -44,23 +46,29 @@ class NotificationService {
   }
 
   static Future<void> _saveFcmToken() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-    final token = await _fcm.getToken();
-    if (token == null) return;
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .update({'fcmToken': token});
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      final token = await _fcm.getToken();
+      if (token == null) return;
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .update({'fcmToken': token});
+    } catch (_) {
+      // Transient error — will retry on next token refresh
+    }
   }
 
   static Future<void> _updateFcmToken(String token) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .update({'fcmToken': token});
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .update({'fcmToken': token});
+    } catch (_) {}
   }
 
   static Future<void> showLocalNotification(
