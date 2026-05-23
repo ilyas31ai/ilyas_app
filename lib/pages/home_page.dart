@@ -1,15 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/social_service.dart';
+import '../widgets/shimmer_box.dart';
 import '../widgets/user_avatar.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
   String get _user => FirebaseAuth.instance.currentUser?.email ?? '';
   String get _name {
     final u = FirebaseAuth.instance.currentUser?.email ?? '';
     return u.contains('@') ? u.split('@').first : u;
+  }
+
+  late final Stream<List<String>> _contactsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = _user;
+    _contactsStream = user.isNotEmpty
+        ? SocialService.contactsStream(user)
+        : const Stream.empty();
   }
 
   @override
@@ -233,8 +250,40 @@ class HomePage extends StatelessWidget {
     if (user.isEmpty) return const SizedBox.shrink();
 
     return StreamBuilder<List<String>>(
-      stream: SocialService.contactsStream(user),
+      stream: _contactsStream,
       builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return Column(
+            children: List.generate(
+              2,
+              (_) => Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161B22),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  children: [
+                    ShimmerBox(width: 40, height: 40, radius: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ShimmerBox(width: 100, height: 12),
+                          SizedBox(height: 6),
+                          ShimmerBox(width: 160, height: 10),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
         final contacts = snap.data ?? [];
         if (contacts.isEmpty) {
           return Container(
@@ -242,7 +291,8 @@ class HomePage extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF161B22),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              border:
+                  Border.all(color: Colors.white.withValues(alpha: 0.05)),
             ),
             child: const Center(
               child: Text(
@@ -257,6 +307,7 @@ class HomePage extends StatelessWidget {
         return Column(
           children: preview.map((contact) {
             return _RecentContactTile(
+              key: ValueKey(contact),
               contact: contact,
               user: user,
               onTap: () => Navigator.pushNamed(
@@ -387,26 +438,42 @@ class _ToolCard extends StatelessWidget {
 }
 
 // ─── Recent Contact Tile ──────────────────────────────────────────────────────
+// StatefulWidget : stream stocké en initState → stable sur les rebuilds du parent
 
-class _RecentContactTile extends StatelessWidget {
+class _RecentContactTile extends StatefulWidget {
   final String contact;
   final String user;
   final VoidCallback onTap;
 
   const _RecentContactTile({
+    super.key,
     required this.contact,
     required this.user,
     required this.onTap,
   });
 
-  String get _displayName =>
-      contact.contains('@') ? contact.split('@').first : contact;
+  @override
+  State<_RecentContactTile> createState() => _RecentContactTileState();
+}
+
+class _RecentContactTileState extends State<_RecentContactTile> {
+  late final Stream<List<Map<String, dynamic>>> _msgStream;
+
+  String get _displayName => widget.contact.contains('@')
+      ? widget.contact.split('@').first
+      : widget.contact;
+
+  @override
+  void initState() {
+    super.initState();
+    final chatId = SocialService.chatId(widget.user, widget.contact);
+    _msgStream = SocialService.messagesStream(chatId);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final chatId = SocialService.chatId(user, contact);
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: SocialService.messagesStream(chatId),
+      stream: _msgStream,
       builder: (context, snap) {
         final msgs = snap.data ?? [];
         final lastText = msgs.isNotEmpty
@@ -414,19 +481,22 @@ class _RecentContactTile extends StatelessWidget {
             : 'Aucun message';
 
         return InkWell(
-          onTap: onTap,
+          onTap: widget.onTap,
           borderRadius: BorderRadius.circular(12),
           child: Container(
             margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: const Color(0xFF161B22),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.05)),
             ),
             child: Row(
               children: [
-                UserAvatar(username: contact, radius: 20, showStatus: true),
+                UserAvatar(
+                    username: widget.contact, radius: 20, showStatus: true),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -443,13 +513,14 @@ class _RecentContactTile extends StatelessWidget {
                         lastText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style:
-                            const TextStyle(color: Colors.white38, fontSize: 12),
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+                const Icon(Icons.chevron_right,
+                    color: Colors.white24, size: 18),
               ],
             ),
           ),

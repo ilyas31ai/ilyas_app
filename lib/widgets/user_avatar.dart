@@ -5,12 +5,14 @@ class UserAvatar extends StatelessWidget {
   final String username;
   final double radius;
   final bool showStatus;
+  final String? photoUrl;
 
   const UserAvatar({
     super.key,
     required this.username,
     this.radius = 22,
     this.showStatus = false,
+    this.photoUrl,
   });
 
   static const _palette = [
@@ -35,6 +37,22 @@ class UserAvatar extends StatelessWidget {
     return _palette[hash % _palette.length];
   }
 
+  Widget _initialsCircle() => Container(
+        width: radius * 2,
+        height: radius * 2,
+        decoration: BoxDecoration(color: _color, shape: BoxShape.circle),
+        child: Center(
+          child: Text(
+            _initials,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: radius * 0.65,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
+
   String get _initials {
     if (username.isEmpty) return '?';
     final name =
@@ -48,24 +66,22 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final circle = Container(
-      width: radius * 2,
-      height: radius * 2,
-      decoration: BoxDecoration(
-        color: _color,
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: Text(
-          _initials,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: radius * 0.65,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
+    final url = photoUrl;
+    final circle = url != null && url.isNotEmpty
+        ? ClipOval(
+            child: Image.network(
+              url,
+              width: radius * 2,
+              height: radius * 2,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _initialsCircle(),
+              loadingBuilder: (_, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return _initialsCircle();
+              },
+            ),
+          )
+        : _initialsCircle();
 
     if (!showStatus) return circle;
 

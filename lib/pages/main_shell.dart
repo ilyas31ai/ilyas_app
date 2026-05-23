@@ -6,6 +6,7 @@ import 'users_page.dart';
 import 'chat_history_page.dart';
 import 'eleves_page.dart';
 import 'profile_page.dart';
+import '../services/notification_service.dart';
 import '../services/social_service.dart';
 import '../services/user_service.dart';
 
@@ -26,6 +27,7 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     SocialService.goOnline();
     UserService.syncProfile();
+    NotificationService.init(_user);
   }
 
   @override

@@ -1,9 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/user_model.dart';
+import '../services/storage_service.dart';
 import '../services/user_service.dart';
+import '../widgets/shimmer_box.dart';
 import '../widgets/user_avatar.dart';
+import 'edit_profile_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -17,18 +22,36 @@ class _ProfilePageState extends State<ProfilePage> {
 
   final _db = FirebaseDatabase.instance.ref();
 
-  // Firestore profile stream (real data)
   late final Stream<UserModel?> _profileStream;
 
   int _friendsCount = 0;
   int _contactsCount = 0;
   bool _statsLoading = true;
+  bool _uploadingPhoto = false;
 
   @override
   void initState() {
     super.initState();
     _profileStream = UserService.currentUserStream();
     _loadStats();
+  }
+
+  Future<void> _pickAndUploadPhoto() async {
+    final picker = ImagePicker();
+    final picked =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
+    if (picked == null) return;
+
+    setState(() => _uploadingPhoto = true);
+    try {
+      final url =
+          await StorageService.uploadProfilePhoto(File(picked.path));
+      if (url != null) {
+        await UserService.updateProfile({'photoUrl': url});
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
   }
 
   Future<void> _loadStats() async {
@@ -59,24 +82,28 @@ class _ProfilePageState extends State<ProfilePage> {
     return StreamBuilder<UserModel?>(
       stream: _profileStream,
       builder: (context, snap) {
+        final loading = snap.connectionState == ConnectionState.waiting;
         final profile = snap.data;
         return Scaffold(
           backgroundColor: const Color(0xFF0D1117),
           body: SafeArea(
             child: CustomScrollView(
               slivers: [
-                SliverToBoxAdapter(child: _buildHeader(profile)),
+                SliverToBoxAdapter(
+                    child: _buildHeader(context, profile, loading)),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       _buildStatsRow(),
                       const SizedBox(height: 20),
-                      _buildInfoCard(profile),
+                      loading
+                          ? _buildInfoShimmer()
+                          : _buildInfoCard(profile),
                       const SizedBox(height: 20),
                       _buildBadgesSection(),
                       const SizedBox(height: 20),
-                      _buildActionsSection(context),
+                      _buildActionsSection(context, profile),
                     ]),
                   ),
                 ),
@@ -90,7 +117,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // ─── Header ───────────────────────────────────────────────────────────────
 
-  Widget _buildHeader(UserModel? profile) {
+  Widget _buildHeader(
+      BuildContext context, UserModel? profile, bool loading) {
     final displayName = profile?.displayName ??
         (_email.contains('@') ? _email.split('@').first : _email);
     final roleLabel = profile?.role.label ?? '…';
@@ -110,35 +138,104 @@ class _ProfilePageState extends State<ProfilePage> {
                     fontSize: 20,
                     fontWeight: FontWeight.bold),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: const Color(0xFF2563EB).withValues(alpha: 0.3)),
-                ),
-                child: const Text(
-                  'ILYAS31AI',
-                  style: TextStyle(
-                      color: Color(0xFF2563EB),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700),
-                ),
+              Row(
+                children: [
+                  if (profile != null)
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined,
+                          color: Colors.white54, size: 20),
+                      tooltip: 'Modifier le profil',
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              EditProfilePage(profile: profile),
+                        ),
+                      ),
+                    ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB)
+                          .withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: const Color(0xFF2563EB)
+                              .withValues(alpha: 0.3)),
+                    ),
+                    child: const Text(
+                      'ILYAS31AI',
+                      style: TextStyle(
+                          color: Color(0xFF2563EB),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 24),
-          UserAvatar(username: _email, radius: 42, showStatus: true),
-          const SizedBox(height: 14),
-          Text(
-            displayName,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold),
+          // Tappable avatar with upload overlay
+          GestureDetector(
+            onTap: _pickAndUploadPhoto,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                UserAvatar(
+                  username: _email,
+                  radius: 42,
+                  showStatus: true,
+                  photoUrl: profile?.photoUrl,
+                ),
+                if (_uploadingPhoto)
+                  Container(
+                    width: 84,
+                    height: 84,
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    ),
+                  )
+                else
+                  Positioned(
+                    bottom: 2,
+                    right: 2,
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: const Color(0xFF0D1117), width: 2),
+                      ),
+                      child: const Icon(Icons.camera_alt,
+                          color: Colors.white, size: 12),
+                    ),
+                  ),
+              ],
+            ),
           ),
+          const SizedBox(height: 14),
+          loading
+              ? ShimmerBox(
+                  width: 120,
+                  height: 22,
+                  radius: 6,
+                )
+              : Text(
+                  displayName,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold),
+                ),
           const SizedBox(height: 4),
           Text(
             _email,
@@ -278,11 +375,47 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // ─── Info Shimmer ─────────────────────────────────────────────────────────
+
+  Widget _buildInfoShimmer() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161B22),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const ShimmerBox(width: 100, height: 14),
+          const SizedBox(height: 18),
+          const ShimmerBox(width: double.infinity, height: 12),
+          const SizedBox(height: 10),
+          const ShimmerBox(width: double.infinity, height: 12),
+          const SizedBox(height: 10),
+          const ShimmerBox(width: 160, height: 12),
+        ],
+      ),
+    );
+  }
+
   // ─── Actions ──────────────────────────────────────────────────────────────
 
-  Widget _buildActionsSection(BuildContext context) {
+  Widget _buildActionsSection(BuildContext context, UserModel? profile) {
     return Column(
       children: [
+        if (profile != null)
+          _ActionTile(
+            icon: Icons.edit_outlined,
+            label: 'Modifier le profil',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => EditProfilePage(profile: profile)),
+            ),
+          ),
+        if (profile != null) const SizedBox(height: 8),
         _ActionTile(
           icon: Icons.notifications_outlined,
           label: 'Notifications',

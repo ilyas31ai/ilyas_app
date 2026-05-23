@@ -1,85 +1,70 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:firebase_database/firebase_database.dart';
 
 class NotificationService {
-
-  static final FirebaseMessaging _fcm =
-      FirebaseMessaging.instance;
-
+  static final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   static final FlutterLocalNotificationsPlugin _local =
       FlutterLocalNotificationsPlugin();
 
-  // 🔥 INITIALISATION
   static Future<void> init(String currentUser) async {
+    await _fcm.requestPermission(alert: true, badge: true, sound: true);
 
-    // 🔐 Permission notifications
-    await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // 📱 Android local notification
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
+    await _local.initialize(
+        const InitializationSettings(android: androidSettings));
 
-    const InitializationSettings settings =
-        InitializationSettings(
-      android: androidSettings,
-    );
+    // Save FCM token to Firestore for push targeting
+    await _saveFcmToken();
+    _fcm.onTokenRefresh.listen(_updateFcmToken);
 
-    await _local.initialize(settings);
+    // Foreground FCM messages
+    FirebaseMessaging.onMessage.listen((msg) {
+      showLocalNotification(
+        msg.notification?.title ?? 'Notification',
+        msg.notification?.body ?? '',
+      );
+    });
 
-    // 🔥 Message reçu quand app ouverte
-    FirebaseMessaging.onMessage.listen(
-      (RemoteMessage message) {
-
-        showLocalNotification(
-          message.notification?.title ?? "Notification",
-          message.notification?.body ?? "",
-        );
-      },
-    );
-
-    // 🔥 Click notification
-    FirebaseMessaging.onMessageOpenedApp.listen(
-      (RemoteMessage message) {
-
-        print("Notification ouverte");
-      },
-    );
-
-    // 🔥 Firebase Realtime Database
-    final DatabaseReference db =
-        FirebaseDatabase.instance.ref();
-
-    db
-        .child("notifications/$currentUser")
+    // RTDB-based in-app chat notifications
+    FirebaseDatabase.instance
+        .ref('notifications/$currentUser')
         .onChildAdded
         .listen((event) {
-
-      if (event.snapshot.value != null) {
-
-        final data =
-            Map<dynamic, dynamic>.from(
-          event.snapshot.value as Map,
-        );
-
-        showLocalNotification(
-          data["title"] ?? "Message",
-          data["body"] ?? "",
-        );
-      }
+      if (event.snapshot.value == null) return;
+      final data = Map<dynamic, dynamic>.from(event.snapshot.value as Map);
+      showLocalNotification(
+        data['title'] as String? ?? 'Message',
+        data['body'] as String? ?? '',
+      );
     });
   }
 
-  // 🔔 Notification locale
-  static Future<void> showLocalNotification(
-    String title,
-    String body,
-  ) async {
+  static Future<void> _saveFcmToken() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final token = await _fcm.getToken();
+    if (token == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .update({'fcmToken': token});
+  }
 
+  static Future<void> _updateFcmToken(String token) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .update({'fcmToken': token});
+  }
+
+  static Future<void> showLocalNotification(
+      String title, String body) async {
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
       'chat_channel',
@@ -87,17 +72,11 @@ class NotificationService {
       importance: Importance.max,
       priority: Priority.high,
     );
-
-    const NotificationDetails details =
-        NotificationDetails(
-      android: androidDetails,
-    );
-
     await _local.show(
       0,
       title,
       body,
-      details,
+      const NotificationDetails(android: androidDetails),
     );
   }
 }
