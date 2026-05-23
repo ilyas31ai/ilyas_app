@@ -14,10 +14,6 @@ class ElevesPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: const Color(0xFF161B22),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: const Text(
           'Espace Élèves',
           style: TextStyle(

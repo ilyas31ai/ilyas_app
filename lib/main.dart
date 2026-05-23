@@ -7,14 +7,13 @@ import 'firebase_options.dart';
 
 // 📄 PAGES
 import 'pages/login_page.dart';
-import 'pages/home_page.dart';
+import 'pages/main_shell.dart';
 import 'pages/eleves_page.dart';
 import 'pages/professeurs_page.dart';
 import 'pages/discussion_page.dart';
 import 'pages/users_page.dart';
 import 'pages/scan_page.dart';
 import 'pages/monde_enfants_page.dart';
-import 'pages/chat_ia_page.dart';
 import 'pages/chat_history_page.dart';
 
 // 🧠 ÉLÈVES
@@ -68,8 +67,12 @@ class MyApp extends StatelessWidget {
 
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0F2027),
+        scaffoldBackgroundColor: const Color(0xFF0D1117),
         useMaterial3: true,
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFF2563EB),
+          surface: Color(0xFF161B22),
+        ),
       ),
 
       // 🏠 AUTH GUARD
@@ -78,10 +81,13 @@ class MyApp extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
+              backgroundColor: Color(0xFF0D1117),
+              body: Center(
+                child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+              ),
             );
           }
-          if (snapshot.hasData) return const HomePage();
+          if (snapshot.hasData) return const MainShell();
           return const LoginPage();
         },
       ),

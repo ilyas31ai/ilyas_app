@@ -1,78 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/social_service.dart';
+import '../widgets/user_avatar.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  // 🔘 BOUTON
-  Widget buildButton(
-    BuildContext context,
-    String title,
-    IconData icon,
-    String route,
-    List<Color> colors,
-  ) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(30),
+  String get _user => FirebaseAuth.instance.currentUser?.email ?? '';
+  String get _name {
+    final u = FirebaseAuth.instance.currentUser?.email ?? '';
+    return u.contains('@') ? u.split('@').first : u;
+  }
 
-      onTap: () {
-        if (route == '/discussion') {
-          Navigator.pushNamed(
-            context,
-            '/discussion',
-            arguments: {
-              'name': 'general',
-              'user': FirebaseAuth.instance.currentUser?.email ?? '',
-            },
-          );
-        } else {
-          Navigator.pushNamed(context, route);
-        }
-      },
-
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-
-        padding: const EdgeInsets.symmetric(
-          vertical: 18,
-          horizontal: 20,
-        ),
-
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: colors),
-
-          borderRadius: BorderRadius.circular(30),
-
-          boxShadow: [
-            BoxShadow(
-              color: colors.first.withOpacity(0.4),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white),
-
-            const SizedBox(width: 12),
-
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D1117),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(child: _buildHeader(context)),
+            SliverToBoxAdapter(child: _buildBanner(context)),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  _buildSectionLabel('Navigation rapide'),
+                  const SizedBox(height: 10),
+                  _buildQuickGrid(context),
+                  const SizedBox(height: 22),
+                  _buildSectionLabel('Outils'),
+                  const SizedBox(height: 10),
+                  _buildToolsList(context),
+                  const SizedBox(height: 22),
+                  _buildSectionLabel('Activité récente'),
+                  const SizedBox(height: 10),
+                  _buildRecentMessages(context),
+                ]),
               ),
-            ),
-
-            const Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.white,
-              size: 16,
             ),
           ],
         ),
@@ -80,175 +45,416 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F2027),
+  // ─── Header ───────────────────────────────────────────────────────────────
 
-      appBar: AppBar(
-        title: const Text("ILYAS31AI"),
-
-        backgroundColor: Colors.transparent,
-
-        elevation: 0,
-
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.notifications,
-              color: Colors.white,
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+      child: Row(
+        children: [
+          UserAvatar(username: _user, radius: 22, showStatus: false),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Bonjour, $_name 👋',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Text(
+                  'SCOLAR AI · ILYAS31AI',
+                  style: TextStyle(color: Colors.white38, fontSize: 11),
+                ),
+              ],
             ),
-
-            onPressed: () {
-              Navigator.pushNamed(
-                context,
-                '/notifications',
-              );
-            },
           ),
-
           IconButton(
-            icon: const Icon(
-              Icons.logout,
-              color: Colors.white,
-            ),
-
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white60),
+            onPressed: () => Navigator.pushNamed(context, '/notifications'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white30, size: 20),
             onPressed: () => FirebaseAuth.instance.signOut(),
           ),
         ],
       ),
+    );
+  }
 
-      body: Container(
-        width: double.infinity,
+  // ─── Hero Banner ──────────────────────────────────────────────────────────
 
-        padding: const EdgeInsets.all(20),
+  Widget _buildBanner(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF6C47FF), Color(0xFF2563EB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Plateforme scolaire',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Chat IA · Révision · Messagerie',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/chat'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Démarrer le Chat IA →',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.auto_awesome, color: Colors.white24, size: 52),
+        ],
+      ),
+    );
+  }
 
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color(0xFF0F2027),
-              Color(0xFF203A43),
-              Color(0xFF2C5364),
-            ],
+  // ─── Quick Grid ───────────────────────────────────────────────────────────
 
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        color: Colors.white38,
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
+  Widget _buildQuickGrid(BuildContext context) {
+    const items = [
+      _QItem(Icons.auto_awesome, 'Chat IA', [Color(0xFF6C47FF), Color(0xFF2563EB)], '/chat'),
+      _QItem(Icons.school, 'Révision', [Color(0xFF2563EB), Color(0xFF0891B2)], '/eleves'),
+      _QItem(Icons.message, 'Messages', [Color(0xFF15803D), Color(0xFF16A34A)], '/users'),
+      _QItem(Icons.people, 'Amis', [Color(0xFF7C3AED), Color(0xFF6C47FF)], '/amis'),
+      _QItem(Icons.child_care, 'Enfants', [Color(0xFFBE185D), Color(0xFF7C3AED)], '/monde_enfants'),
+      _QItem(Icons.notifications, 'Alertes', [Color(0xFF374151), Color(0xFF1F2937)], '/notifications'),
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 1.05,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+      ),
+      itemCount: items.length,
+      itemBuilder: (_, i) {
+        final item = items[i];
+        return _QuickGridCell(item: item);
+      },
+    );
+  }
+
+  // ─── Tools List ───────────────────────────────────────────────────────────
+
+  Widget _buildToolsList(BuildContext context) {
+    return Column(
+      children: [
+        _ToolCard(
+          icon: Icons.camera_alt,
+          title: 'Scan devoirs',
+          subtitle: 'Photographier et analyser',
+          colors: const [Color(0xFF0F766E), Color(0xFF0891B2)],
+          onTap: () => Navigator.pushNamed(context, '/scan'),
+        ),
+        const SizedBox(height: 8),
+        _ToolCard(
+          icon: Icons.chat_bubble_rounded,
+          title: 'Discussion classe',
+          subtitle: 'Chat avec toute la classe',
+          colors: const [Color(0xFF7C3AED), Color(0xFF6C47FF)],
+          onTap: () => Navigator.pushNamed(
+            context,
+            '/discussion',
+            arguments: {
+              'name': 'Classe',
+              'user': FirebaseAuth.instance.currentUser?.email ?? '',
+            },
           ),
         ),
+        const SizedBox(height: 8),
+        _ToolCard(
+          icon: Icons.person,
+          title: 'Professeurs',
+          subtitle: 'Gérer vos professeurs',
+          colors: const [Color(0xFFD97706), Color(0xFFDC2626)],
+          onTap: () => Navigator.pushNamed(context, '/professeurs'),
+        ),
+      ],
+    );
+  }
 
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              const SizedBox(height: 10),
+  // ─── Recent Messages ──────────────────────────────────────────────────────
 
-              // 🔷 LOGO
-              Image.asset(
-                'assets/logo.png',
-                height: 90,
+  Widget _buildRecentMessages(BuildContext context) {
+    final user = _user;
+    if (user.isEmpty) return const SizedBox.shrink();
+
+    return StreamBuilder<List<String>>(
+      stream: SocialService.contactsStream(user),
+      builder: (context, snap) {
+        final contacts = snap.data ?? [];
+        if (contacts.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B22),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            ),
+            child: const Center(
+              child: Text(
+                'Aucun contact récent',
+                style: TextStyle(color: Colors.white38, fontSize: 13),
               ),
+            ),
+          );
+        }
 
-              const SizedBox(height: 10),
-
-              const Text(
-                "ILYAS31AI",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-
-              const Text(
-                "Bienvenue 👋",
-                style: TextStyle(
-                  color: Colors.white70,
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              buildButton(
+        final preview = contacts.take(3).toList();
+        return Column(
+          children: preview.map((contact) {
+            return _RecentContactTile(
+              contact: contact,
+              user: user,
+              onTap: () => Navigator.pushNamed(
                 context,
-                "Espace Élèves",
-                Icons.school,
-                '/eleves',
-                [
-                  Colors.blue,
-                  Colors.blueAccent,
-                ],
-              ),
-
-              buildButton(
-                context,
-                "Professeurs",
-                Icons.person,
-                '/professeurs',
-                [
-                  Colors.orange,
-                  Colors.deepOrange,
-                ],
-              ),
-
-              buildButton(
-                context,
-                "Discussion",
-                Icons.chat,
                 '/discussion',
-                [
-                  Colors.purple,
-                  Colors.deepPurple,
-                ],
+                arguments: {'name': contact, 'user': user},
               ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+}
 
-              buildButton(
-                context,
-                "Contacts",
-                Icons.people,
-                '/users',
-                [
-                  Colors.green,
-                  Colors.teal,
-                ],
+// ─── Quick Grid Cell ──────────────────────────────────────────────────────────
+
+class _QItem {
+  final IconData icon;
+  final String label;
+  final List<Color> colors;
+  final String route;
+  const _QItem(this.icon, this.label, this.colors, this.route);
+}
+
+class _QuickGridCell extends StatelessWidget {
+  final _QItem item;
+  const _QuickGridCell({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => Navigator.pushNamed(context, item.route),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF161B22),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: item.colors),
+                borderRadius: BorderRadius.circular(12),
               ),
-
-              buildButton(
-                context,
-                "Chat IA",
-                Icons.smart_toy,
-                '/chat',
-                [
-                  Colors.indigo,
-                  Colors.deepPurple,
-                ],
-              ),
-
-              buildButton(
-                context,
-                "Scan devoirs",
-                Icons.camera_alt,
-                '/scan',
-                [
-                  Colors.teal,
-                  Colors.green,
-                ],
-              ),
-
-              buildButton(
-                context,
-                "Monde Enfants",
-                Icons.child_care,
-                '/monde_enfants',
-                [
-                  Colors.pink,
-                  Colors.purpleAccent,
-                ],
-              ),
-
-              const SizedBox(height: 20),
-            ],
-          ),
+              child: Icon(item.icon, color: Colors.white, size: 22),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              item.label,
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+// ─── Tool Card ────────────────────────────────────────────────────────────────
+
+class _ToolCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final List<Color> colors;
+  final VoidCallback onTap;
+
+  const _ToolCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161B22),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: colors),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14)),
+                  Text(subtitle,
+                      style:
+                          const TextStyle(color: Colors.white38, fontSize: 12)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.white24, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Recent Contact Tile ──────────────────────────────────────────────────────
+
+class _RecentContactTile extends StatelessWidget {
+  final String contact;
+  final String user;
+  final VoidCallback onTap;
+
+  const _RecentContactTile({
+    required this.contact,
+    required this.user,
+    required this.onTap,
+  });
+
+  String get _displayName =>
+      contact.contains('@') ? contact.split('@').first : contact;
+
+  @override
+  Widget build(BuildContext context) {
+    final chatId = SocialService.chatId(user, contact);
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: SocialService.messagesStream(chatId),
+      builder: (context, snap) {
+        final msgs = snap.data ?? [];
+        final lastText = msgs.isNotEmpty
+            ? (msgs.last['text'] as String? ?? '')
+            : 'Aucun message';
+
+        return InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B22),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            ),
+            child: Row(
+              children: [
+                UserAvatar(username: contact, radius: 20, showStatus: true),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _displayName,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13),
+                      ),
+                      Text(
+                        lastText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            const TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
