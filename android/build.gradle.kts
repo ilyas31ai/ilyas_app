@@ -37,6 +37,7 @@ subprojects {
             if (namespace == null) {
                 namespace = project.group.toString()
             }
+            compileSdk = 36
         }
     }
 }

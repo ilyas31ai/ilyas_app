@@ -1,240 +1,270 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+
+import '../services/etudiant_service.dart';
 
 class ElevesPage extends StatelessWidget {
   const ElevesPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final email = FirebaseAuth.instance.currentUser?.email ?? '';
-    final name = email.contains('@') ? email.split('@').first : email;
-
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
       appBar: AppBar(
         backgroundColor: const Color(0xFF161B22),
         elevation: 0,
         title: const Text(
-          'Espace Élèves',
+          'Espace Etudiant',
           style: TextStyle(
-              color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(child: _buildHeader(name)),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _buildSection('Révision & Outils', [
-                  _Item(Icons.auto_awesome, 'Chat IA',
-                      'Assistant scolaire intelligent', '/chat',
-                      [const Color(0xFF6C47FF), const Color(0xFF2563EB)]),
-                  _Item(Icons.quiz, 'Quiz interactifs',
-                      'Teste tes connaissances', '/quiz',
-                      [const Color(0xFF2563EB), const Color(0xFF0891B2)]),
-                  _Item(Icons.menu_book, 'Fiches de cours',
-                      'Résumés et notions clés', '/fiches',
-                      [const Color(0xFF16A34A), const Color(0xFF0F766E)]),
-                  _Item(Icons.style, 'Flashcards',
-                      'Mémorise efficacement', '/flashcards',
-                      [const Color(0xFFD97706), const Color(0xFFDC2626)]),
-                ]),
-                _buildSection('Communication', [
-                  _Item(Icons.chat_bubble_rounded, 'Discussion classe',
-                      'Chat avec ta classe', '/discussion',
-                      [const Color(0xFF7C3AED), const Color(0xFF6C47FF)],
-                      args: {'name': 'Classe'}),
-                  _Item(Icons.people, 'Amis',
-                      'Gère tes amis et contacts', '/amis',
-                      [const Color(0xFF0891B2), const Color(0xFF2563EB)]),
-                  _Item(Icons.message, 'Messages',
-                      'Tes conversations privées', '/users',
-                      [const Color(0xFF15803D), const Color(0xFF16A34A)]),
-                ]),
-                _buildSection('Suivi scolaire', [
-                  _Item(Icons.assignment, 'Devoirs',
-                      'Suis tes devoirs', '/devoirs',
-                      [const Color(0xFFBE185D), const Color(0xFF7C3AED)]),
-                  _Item(Icons.bar_chart, 'Notes & Stats',
-                      'Analyse tes résultats', '/notes',
-                      [const Color(0xFF0891B2), const Color(0xFF6D28D9)]),
-                  _Item(Icons.schedule, 'Emploi du temps',
-                      'Ton planning de cours', '/emploi',
-                      [const Color(0xFFD97706), const Color(0xFFDC2626)]),
-                  _Item(Icons.grid_view, 'Plan de classe',
-                      'Organisation de la salle', '/plan',
-                      [const Color(0xFF0F766E), const Color(0xFF0891B2)]),
-                ]),
-                _buildSection('Autres', [
-                  _Item(Icons.notifications, 'Notifications',
-                      'Tes alertes', '/notifications',
-                      [const Color(0xFF374151), const Color(0xFF1F2937)]),
-                ]),
-              ]),
-            ),
-          ),
-        ],
+      body: StreamBuilder<String?>(
+        stream: EtudiantService.classeNomStream(),
+        builder: (context, snap) {
+          final classeNom = snap.data;
+          return _StudentHub(classeNom: classeNom);
+        },
       ),
     );
   }
+}
 
-  Widget _buildHeader(String name) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6C47FF), Color(0xFF2563EB)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
+class _StudentHub extends StatelessWidget {
+  final String? classeNom;
+  const _StudentHub({required this.classeNom});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = user?.displayName ?? user?.email ?? 'Etudiant';
+
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF6C47FF), Color(0xFF2563EB)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.circular(18),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text('Bienvenue',
+                    style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const SizedBox(height: 4),
                 Text(
-                  'Bonjour, $name 👋',
+                  displayName,
                   style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold),
                 ),
-                const Text(
-                  'Espace Élèves · ILYAS31AI',
-                  style: TextStyle(
-                      color: Colors.white70, fontSize: 12),
+                const SizedBox(height: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    classeNom ?? 'Classe non assignee',
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.school, color: Colors.white70, size: 28),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSection(String title, List<_Item> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 20, bottom: 8, left: 2),
-          child: Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-            ),
+        ),
+        SliverToBoxAdapter(child: _sectionLabel('Tableau de bord')),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              _NavCard(
+                icon: Icons.dashboard_outlined,
+                title: 'Tableau de bord',
+                subtitle: 'Apercu general de votre scolarite',
+                colors: const [Color(0xFF6C47FF), Color(0xFF2563EB)],
+                onTap: () =>
+                    Navigator.pushNamed(context, '/etudiant_dashboard'),
+              ),
+            ]),
           ),
         ),
-        ...items.map((item) => _ItemCard(item: item)),
+        SliverToBoxAdapter(child: _sectionLabel('Scolarite')),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              _NavCard(
+                icon: Icons.assignment_outlined,
+                title: 'Mes Devoirs',
+                subtitle: 'Consulter et remettre vos devoirs',
+                colors: const [Color(0xFF7C3AED), Color(0xFF6C47FF)],
+                onTap: () =>
+                    Navigator.pushNamed(context, '/etudiant_devoirs'),
+              ),
+              const SizedBox(height: 10),
+              _NavCard(
+                icon: Icons.menu_book_outlined,
+                title: 'Révisions',
+                subtitle: 'Cours, exercices et quiz par matière',
+                colors: const [Color(0xFF0F766E), Color(0xFF16A34A)],
+                onTap: () =>
+                    Navigator.pushNamed(context, '/etudiant_revisions'),
+              ),
+              const SizedBox(height: 10),
+              _NavCard(
+                icon: Icons.bar_chart_outlined,
+                title: 'Notes & Resultats',
+                subtitle: 'Vos notes et moyennes par matiere',
+                colors: const [Color(0xFF0891B2), Color(0xFF2563EB)],
+                onTap: () => Navigator.pushNamed(context, '/notes'),
+              ),
+              const SizedBox(height: 10),
+              _NavCard(
+                icon: Icons.schedule_outlined,
+                title: 'Emploi du temps',
+                subtitle: 'Votre planning hebdomadaire',
+                colors: const [Color(0xFF15803D), Color(0xFF16A34A)],
+                onTap: () => Navigator.pushNamed(context, '/emploi'),
+              ),
+            ]),
+          ),
+        ),
+        SliverToBoxAdapter(child: _sectionLabel('Ressources')),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              _NavCard(
+                icon: Icons.folder_outlined,
+                title: 'Documents pedagogiques',
+                subtitle: 'Cours, exercices et corrections',
+                colors: const [Color(0xFFD97706), Color(0xFFB45309)],
+                onTap: () =>
+                    Navigator.pushNamed(context, '/etudiant_documents'),
+              ),
+              const SizedBox(height: 10),
+              _NavCard(
+                icon: Icons.campaign_outlined,
+                title: 'Annonces',
+                subtitle: "Actualites et informations de l'ecole",
+                colors: const [Color(0xFF0F766E), Color(0xFF0891B2)],
+                onTap: () =>
+                    Navigator.pushNamed(context, '/etudiant_annonces'),
+              ),
+            ]),
+          ),
+        ),
+        SliverToBoxAdapter(child: _sectionLabel('Autre')),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              _NavCard(
+                icon: Icons.notifications_outlined,
+                title: 'Notifications',
+                subtitle: 'Vos alertes et rappels',
+                colors: const [Color(0xFF374151), Color(0xFF4B5563)],
+                onTap: () => Navigator.pushNamed(context, '/notifications'),
+              ),
+              const SizedBox(height: 10),
+              _NavCard(
+                icon: Icons.info_outline,
+                title: 'Informations administratives',
+                subtitle: 'Calendrier, examens, evenements',
+                colors: const [Color(0xFF0F766E), Color(0xFF0D9488)],
+                onTap: () =>
+                    Navigator.pushNamed(context, '/etudiant_annonces'),
+              ),
+            ]),
+          ),
+        ),
       ],
     );
   }
+
+  Widget _sectionLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+      child: Text(
+        label.toUpperCase(),
+        style: const TextStyle(
+          color: Colors.white38,
+          fontSize: 11,
+          letterSpacing: 1.2,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
 }
 
-class _Item {
+class _NavCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final String route;
   final List<Color> colors;
-  final Map<String, dynamic>? args;
+  final VoidCallback onTap;
 
-  const _Item(this.icon, this.title, this.subtitle, this.route, this.colors,
-      {this.args});
-}
-
-class _ItemCard extends StatelessWidget {
-  final _Item item;
-  const _ItemCard({required this.item});
+  const _NavCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.colors,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
-        if (item.route == '/discussion') {
-          final email =
-              FirebaseAuth.instance.currentUser?.email ?? '';
-          Navigator.pushNamed(context, '/discussion', arguments: {
-            'name': item.args?['name'] ?? 'Classe',
-            'user': email,
-          });
-        } else {
-          Navigator.pushNamed(context, item.route);
-        }
-      },
-      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(
-            horizontal: 14, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           color: const Color(0xFF161B22),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: Colors.white.withValues(alpha: 0.05)),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: item.colors),
-                borderRadius: BorderRadius.circular(10),
+                gradient: LinearGradient(colors: colors),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(item.icon, color: Colors.white, size: 20),
+              child: Icon(icon, color: Colors.white, size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    item.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    item.subtitle,
-                    style: const TextStyle(
-                        color: Colors.white38, fontSize: 12),
-                  ),
+                  Text(title,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 12)),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right,
-                color: Colors.white24, size: 20),
+            const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
           ],
         ),
       ),

@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+
 import '../models/user_model.dart';
 import '../services/user_service.dart';
 
@@ -55,8 +56,7 @@ class _LoginPageState extends State<LoginPage> {
         await UserService.syncProfile(role: _selectedRole);
       }
     } on FirebaseAuthException catch (e) {
-      String msg = "Erreur";
-
+      String msg;
       switch (e.code) {
         case 'email-already-in-use':
           msg = "Email déjà utilisé";
@@ -65,19 +65,27 @@ class _LoginPageState extends State<LoginPage> {
           msg = "Email invalide";
           break;
         case 'weak-password':
-          msg = "Mot de passe trop faible";
+          msg = "Mot de passe trop faible (min 6 caractères)";
           break;
         case 'user-not-found':
-          msg = "Utilisateur introuvable";
+          msg = "Compte introuvable — vérifiez l'email";
           break;
         case 'wrong-password':
           msg = "Mot de passe incorrect";
           break;
+        case 'invalid-credential':
+          msg = "Email ou mot de passe incorrect [invalid-credential]";
+          break;
+        case 'too-many-requests':
+          msg = "Trop de tentatives — réessayez plus tard";
+          break;
+        case 'network-request-failed':
+          msg = "Pas de connexion réseau";
+          break;
         default:
-          msg = e.message ?? "Erreur inconnue";
+          msg = "[${e.code}] ${e.message ?? 'Erreur inconnue'}";
       }
-
-      showMsg(msg);
+      showMsg(msg, duration: const Duration(seconds: 8));
     } catch (e) {
       showMsg("Erreur: $e");
     }
@@ -96,15 +104,34 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: mail);
-      showMsg("Email envoyé 📩");
+      showMsg(
+        "Email de réinitialisation envoyé à $mail — vérifiez Spam/Junk et l'onglet \"Autres\" Outlook",
+        duration: const Duration(seconds: 10),
+      );
     } on FirebaseAuthException catch (e) {
-      showMsg(e.message ?? "Erreur");
+      String msg;
+      switch (e.code) {
+        case 'user-not-found':
+          msg = "Aucun compte trouvé pour cet email";
+          break;
+        case 'invalid-email':
+          msg = "Email invalide";
+          break;
+        case 'too-many-requests':
+          msg = "Trop de tentatives — réessayez plus tard";
+          break;
+        default:
+          msg = "[${e.code}] ${e.message ?? 'Erreur'}";
+      }
+      showMsg(msg, duration: const Duration(seconds: 8));
+    } catch (e) {
+      showMsg("Erreur: $e");
     }
   }
 
-  void showMsg(String text) {
+  void showMsg(String text, {Duration duration = const Duration(seconds: 4)}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
+      SnackBar(content: Text(text), duration: duration),
     );
   }
 

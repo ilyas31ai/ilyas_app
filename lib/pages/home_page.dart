@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/social_service.dart';
-import '../widgets/shimmer_box.dart';
 import '../widgets/user_avatar.dart';
 
 class HomePage extends StatefulWidget {
@@ -16,17 +14,6 @@ class _HomePageState extends State<HomePage> {
   String get _name {
     final u = FirebaseAuth.instance.currentUser?.email ?? '';
     return u.contains('@') ? u.split('@').first : u;
-  }
-
-  late final Stream<List<String>> _contactsStream;
-
-  @override
-  void initState() {
-    super.initState();
-    final user = _user;
-    _contactsStream = user.isNotEmpty
-        ? SocialService.contactsStream(user)
-        : const Stream.empty();
   }
 
   @override
@@ -49,10 +36,6 @@ class _HomePageState extends State<HomePage> {
                   _buildSectionLabel('Outils'),
                   const SizedBox(height: 10),
                   _buildToolsList(context),
-                  const SizedBox(height: 22),
-                  _buildSectionLabel('Activité récente'),
-                  const SizedBox(height: 10),
-                  _buildRecentMessages(context),
                 ]),
               ),
             ),
@@ -133,26 +116,8 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Chat IA · Révision · Messagerie',
+                  'Révision · Gestion scolaire',
                   style: TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/chat'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Démarrer le Chat IA →',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -179,12 +144,11 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildQuickGrid(BuildContext context) {
     const items = [
-      _QItem(Icons.auto_awesome, 'Chat IA', [Color(0xFF6C47FF), Color(0xFF2563EB)], '/chat'),
       _QItem(Icons.school, 'Révision', [Color(0xFF2563EB), Color(0xFF0891B2)], '/eleves'),
-      _QItem(Icons.message, 'Messages', [Color(0xFF15803D), Color(0xFF16A34A)], '/users'),
-      _QItem(Icons.people, 'Amis', [Color(0xFF7C3AED), Color(0xFF6C47FF)], '/amis'),
       _QItem(Icons.child_care, 'Enfants', [Color(0xFFBE185D), Color(0xFF7C3AED)], '/monde_enfants'),
       _QItem(Icons.notifications, 'Alertes', [Color(0xFF374151), Color(0xFF1F2937)], '/notifications'),
+      _QItem(Icons.account_balance, 'Espace Direction', [Color(0xFF6C47FF), Color(0xFF2563EB)], '/espace_direction'),
+      _QItem(Icons.school, 'Espace Professeur', [Color(0xFF0F766E), Color(0xFF0891B2)], '/espace_professeur'),
     ];
 
     return GridView.builder(
@@ -216,111 +180,10 @@ class _HomePageState extends State<HomePage> {
           colors: const [Color(0xFF0F766E), Color(0xFF0891B2)],
           onTap: () => Navigator.pushNamed(context, '/scan'),
         ),
-        const SizedBox(height: 8),
-        _ToolCard(
-          icon: Icons.chat_bubble_rounded,
-          title: 'Discussion classe',
-          subtitle: 'Chat avec toute la classe',
-          colors: const [Color(0xFF7C3AED), Color(0xFF6C47FF)],
-          onTap: () => Navigator.pushNamed(
-            context,
-            '/discussion',
-            arguments: {
-              'name': 'Classe',
-              'user': FirebaseAuth.instance.currentUser?.email ?? '',
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-        _ToolCard(
-          icon: Icons.person,
-          title: 'Professeurs',
-          subtitle: 'Gérer vos professeurs',
-          colors: const [Color(0xFFD97706), Color(0xFFDC2626)],
-          onTap: () => Navigator.pushNamed(context, '/professeurs'),
-        ),
       ],
     );
   }
 
-  // ─── Recent Messages ──────────────────────────────────────────────────────
-
-  Widget _buildRecentMessages(BuildContext context) {
-    final user = _user;
-    if (user.isEmpty) return const SizedBox.shrink();
-
-    return StreamBuilder<List<String>>(
-      stream: _contactsStream,
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return Column(
-            children: List.generate(
-              2,
-              (_) => Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF161B22),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Row(
-                  children: [
-                    ShimmerBox(width: 40, height: 40, radius: 20),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ShimmerBox(width: 100, height: 12),
-                          SizedBox(height: 6),
-                          ShimmerBox(width: 160, height: 10),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        final contacts = snap.data ?? [];
-        if (contacts.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF161B22),
-              borderRadius: BorderRadius.circular(14),
-              border:
-                  Border.all(color: Colors.white.withValues(alpha: 0.05)),
-            ),
-            child: const Center(
-              child: Text(
-                'Aucun contact récent',
-                style: TextStyle(color: Colors.white38, fontSize: 13),
-              ),
-            ),
-          );
-        }
-
-        final preview = contacts.take(3).toList();
-        return Column(
-          children: preview.map((contact) {
-            return _RecentContactTile(
-              key: ValueKey(contact),
-              contact: contact,
-              user: user,
-              onTap: () => Navigator.pushNamed(
-                context,
-                '/discussion',
-                arguments: {'name': contact, 'user': user},
-              ),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
 }
 
 // ─── Quick Grid Cell ──────────────────────────────────────────────────────────
@@ -437,95 +300,3 @@ class _ToolCard extends StatelessWidget {
   }
 }
 
-// ─── Recent Contact Tile ──────────────────────────────────────────────────────
-// StatefulWidget : stream stocké en initState → stable sur les rebuilds du parent
-
-class _RecentContactTile extends StatefulWidget {
-  final String contact;
-  final String user;
-  final VoidCallback onTap;
-
-  const _RecentContactTile({
-    super.key,
-    required this.contact,
-    required this.user,
-    required this.onTap,
-  });
-
-  @override
-  State<_RecentContactTile> createState() => _RecentContactTileState();
-}
-
-class _RecentContactTileState extends State<_RecentContactTile> {
-  late final Stream<List<Map<String, dynamic>>> _msgStream;
-
-  String get _displayName => widget.contact.contains('@')
-      ? widget.contact.split('@').first
-      : widget.contact;
-
-  @override
-  void initState() {
-    super.initState();
-    final chatId = SocialService.chatId(widget.user, widget.contact);
-    _msgStream = SocialService.messagesStream(chatId);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _msgStream,
-      builder: (context, snap) {
-        final msgs = snap.data ?? [];
-        final lastText = msgs.isNotEmpty
-            ? (msgs.last['text'] as String? ?? '')
-            : 'Aucun message';
-
-        return InkWell(
-          onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF161B22),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.05)),
-            ),
-            child: Row(
-              children: [
-                UserAvatar(
-                    username: widget.contact, radius: 20, showStatus: true),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _displayName,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13),
-                      ),
-                      Text(
-                        lastText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Colors.white38, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right,
-                    color: Colors.white24, size: 18),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}

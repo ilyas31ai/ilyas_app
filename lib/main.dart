@@ -9,12 +9,10 @@ import 'firebase_options.dart';
 import 'pages/login_page.dart';
 import 'pages/main_shell.dart';
 import 'pages/eleves_page.dart';
-import 'pages/professeurs_page.dart';
-import 'pages/discussion_page.dart';
-import 'pages/users_page.dart';
 import 'pages/scan_page.dart';
+import 'pages/espace_direction_page.dart';
+import 'pages/espace_professeur_page.dart';
 import 'pages/monde_enfants_page.dart';
-import 'pages/chat_history_page.dart';
 import 'pages/jeux_scolaires_page.dart';
 import 'pages/leaderboard_page.dart';
 
@@ -22,12 +20,16 @@ import 'pages/leaderboard_page.dart';
 import 'pages/quiz_page.dart';
 import 'pages/fiches_page.dart';
 import 'pages/flashcards_page.dart';
-import 'pages/amis_page.dart';
 import 'pages/devoirs_page.dart';
+import 'pages/etudiant_devoirs_page.dart';
+import 'pages/etudiant_revisions_page.dart';
 import 'pages/notes_page.dart';
 import 'pages/emploi_page.dart';
 import 'pages/notifications_page.dart';
 import 'pages/plan_classe_page.dart';
+import 'pages/etudiant_dashboard_page.dart';
+import 'pages/etudiant_documents_page.dart';
+import 'pages/etudiant_annonces_page.dart';
 
 // 🎮 ENFANTS
 import 'pages/alphabet_page.dart';
@@ -98,21 +100,11 @@ class MyApp extends StatelessWidget {
         // 📌 PRINCIPAL
         '/eleves': (context) => const ElevesPage(),
 
-        '/professeurs': (context) => ProfesseursPage(
-              currentUser: currentUser,
-            ),
-
-        '/users': (context) => UsersPage(
-              currentUser: currentUser,
-            ),
-
-        '/amis': (context) => AmisPage(
-              currentUser: currentUser,
-            ),
-
-        '/chat': (context) => const ChatHistoryPage(),
-
         '/scan': (context) => const ScanPage(),
+
+        '/espace_direction': (context) => const EspaceDirectionPage(),
+
+        '/espace_professeur': (context) => const EspaceProfesseurPage(),
 
         '/monde_enfants': (context) =>
             const MondeEnfantsPage(),
@@ -131,6 +123,10 @@ class MyApp extends StatelessWidget {
 
         '/devoirs': (context) => const DevoirsPage(),
 
+        '/etudiant_devoirs': (context) => const EtudiantDevoirsPage(),
+
+        '/etudiant_revisions': (context) => const EtudiantRevisionsPage(),
+
         '/notes': (context) => const NotesPage(),
 
         '/emploi': (context) => const EmploiPage(),
@@ -142,6 +138,12 @@ class MyApp extends StatelessWidget {
             ),
 
         '/plan': (context) => const PlanClassePage(),
+
+        '/etudiant_dashboard': (context) => const EtudiantDashboardPage(),
+
+        '/etudiant_documents': (context) => const EtudiantDocumentsPage(),
+
+        '/etudiant_annonces': (context) => const EtudiantAnnoncesPage(),
 
         // 🎮 ENFANTS
         '/alphabet': (context) => const AlphabetPage(),
@@ -168,22 +170,6 @@ class MyApp extends StatelessWidget {
         '/math': (context) => const MathPage(),
       },
 
-      // 💬 DISCUSSION
-      onGenerateRoute: (settings) {
-        if (settings.name == '/discussion') {
-          final args =
-              settings.arguments as Map<String, dynamic>?;
-
-          return MaterialPageRoute(
-            builder: (context) => DiscussionPage(
-              name: args?['name'] ?? 'general',
-              user: args?['user'] ?? currentUser,
-            ),
-          );
-        }
-
-        return null;
-      },
     );
   }
 }

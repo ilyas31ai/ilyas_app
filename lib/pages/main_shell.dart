@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'home_page.dart';
-import 'users_page.dart';
-import 'chat_history_page.dart';
 import 'eleves_page.dart';
 import 'profile_page.dart';
 import '../services/notification_service.dart';
@@ -38,7 +36,6 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    final user = _user;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -48,12 +45,10 @@ class _MainShellState extends State<MainShell> {
         backgroundColor: const Color(0xFF0D1117),
         body: IndexedStack(
           index: _index,
-          children: [
-            const HomePage(),
-            UsersPage(currentUser: user),
-            const ChatHistoryPage(),
-            const ElevesPage(),
-            const ProfilePage(),
+          children: const [
+            HomePage(),
+            ElevesPage(),
+            ProfilePage(),
           ],
         ),
         bottomNavigationBar: BottomNavigationBar(
@@ -70,16 +65,6 @@ class _MainShellState extends State<MainShell> {
               icon: Icon(Icons.home_outlined),
               activeIcon: Icon(Icons.home),
               label: 'Accueil',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              activeIcon: Icon(Icons.chat_bubble),
-              label: 'Messages',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.auto_awesome_outlined),
-              activeIcon: Icon(Icons.auto_awesome),
-              label: 'Chat IA',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.school_outlined),

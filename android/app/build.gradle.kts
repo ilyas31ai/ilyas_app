@@ -9,7 +9,7 @@ android {
 
     namespace = "com.example.ilyas31ai_app"
 
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
