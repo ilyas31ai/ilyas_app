@@ -68,6 +68,23 @@ class EtudiantService {
     });
   }
 
+  // ── Profil complet de l'élève ────────────────────────────────────────────────
+  /// Retourne {categorie, niveau, classeNom, displayName} depuis users/{uid}.
+  static Stream<Map<String, String>> profilStream() {
+    final uid = _uid;
+    if (uid.isEmpty) return Stream.value({});
+    return _db.collection('users').doc(uid).snapshots().map((doc) {
+      if (!doc.exists) return <String, String>{};
+      final d = (doc.data() as Map<String, dynamic>?) ?? {};
+      return {
+        'categorie': (d['categorie'] as String?) ?? '',
+        'niveau': (d['niveau'] as String?) ?? '',
+        'classeNom': (d['classeNom'] as String?) ?? '',
+        'displayName': (d['displayName'] as String?) ?? '',
+      };
+    });
+  }
+
   // ── Devoirs ─────────────────────────────────────────────────────────────────
   static Stream<List<DevoirModel>> devoirsStream(String classeNom) {
     return _db

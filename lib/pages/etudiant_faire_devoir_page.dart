@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 
 import '../models/copie_model.dart';
 import '../models/devoir_model.dart';
@@ -225,7 +224,7 @@ class _EtudiantFaireDevoirPageState extends State<EtudiantFaireDevoirPage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        'Limite : ${DateFormat('dd/MM/yyyy HH:mm').format(d.dateLimite!)}',
+                        'Limite : ${_fmtDt(d.dateLimite!)}',
                         style: const TextStyle(fontSize: 12),
                       ),
                     ),
@@ -313,6 +312,10 @@ class _EtudiantFaireDevoirPageState extends State<EtudiantFaireDevoirPage> {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 }
+
+String _fmtDt(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}'
+    ' ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
 // ── Grade card ────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
 
 import '../models/devoir_model.dart';
 import '../models/copie_model.dart';
@@ -172,7 +171,7 @@ class _DevoirTile extends StatelessWidget {
                 Text('${devoir.matiere} · ${devoir.classeNom}'),
                 if (devoir.dateLimite != null)
                   Text(
-                    'Limite : ${DateFormat('dd/MM/yyyy HH:mm').format(devoir.dateLimite!)}',
+                    'Limite : ${_fmtDateTime(devoir.dateLimite!)}',
                     style: TextStyle(
                       fontSize: 12,
                       color: isExpired ? Colors.red : Colors.grey[600],
@@ -252,6 +251,10 @@ class _TypeIcon extends StatelessWidget {
     );
   }
 }
+
+String _fmtDateTime(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}'
+    ' ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
 class _StatusChip extends StatelessWidget {
   final CopieStatut? statut;

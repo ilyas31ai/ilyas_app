@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 
 import '../models/question_model.dart';
 import '../services/devoir_interactif_service.dart';
@@ -80,7 +79,7 @@ class _ProfesseurCreerDevoirPageState
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (date == null) return;
+    if (date == null || !mounted) return;
     final time = await showTimePicker(
       context: context,
       initialTime: const TimeOfDay(hour: 23, minute: 59),
@@ -232,7 +231,7 @@ class _ProfesseurCreerDevoirPageState
               leading: const Icon(Icons.calendar_today),
               title: Text(_dateLimite == null
                   ? 'Date limite (optionnel)'
-                  : 'Limite : ${DateFormat('dd/MM/yyyy HH:mm').format(_dateLimite!)}'),
+                  : 'Limite : ${_fmtDt(_dateLimite!)}'),
               trailing: _dateLimite != null
                   ? IconButton(
                       icon: const Icon(Icons.close),
@@ -316,6 +315,10 @@ class _ProfesseurCreerDevoirPageState
     );
   }
 }
+
+String _fmtDt(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}'
+    ' ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
 // ── Section title ─────────────────────────────────────────────────────────────
 
