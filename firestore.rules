@@ -14,49 +14,81 @@ service cloud.firestore {
                .data.get('role', '');
     }
 
-    function isDirection()  { return isAuth() && role() == 'admin';      }
+    function isDirection()  {
+      return isAuth() && (
+        role() == 'admin' ||
+        request.auth.token.email == 'ilyas31ai@outlook.fr'
+      );
+    }
     function isProfesseur() { return isAuth() && role() == 'professeur'; }
     function isEleve()      { return isAuth() && role() == 'eleve';      }
     function isParent()     { return isAuth() && role() == 'parent';     }
 
-    // Liste des uid enfants stockée dans users/{parentUid}.enfantIds
+    // Auth UIDs des enfants (stockés dans users/{parentUid}.enfantIds)
     function enfantIds() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid))
                .data.get('enfantIds', []);
+    }
+
+    // classeIds des enfants (pour filtrer devoirs / emplois du temps)
+    function enfantClasseIds() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid))
+               .data.get('enfantClasseIds', []);
     }
 
     function isParentOf(eleveUid) {
       return isParent() && eleveUid in enfantIds();
     }
 
+    // Parent peut lire les documents de la classe de son enfant
+    function isParentInClass(classeId) {
+      return isParent() && classeId in enfantClasseIds();
+    }
+
     // ── Profils utilisateurs ─────────────────────────────────────────────────
     match /users/{userId} {
-      // Direction lit tout ; professeur lit ses élèves ; propriétaire lit son propre doc
       allow read: if isAuth() && (
-        isDirection() ||
-        isProfesseur() ||
-        isParent() ||
-        request.auth.uid == userId
+        isDirection() || isProfesseur() || isParent() || isEleve() || request.auth.uid == userId
       );
 
-      // Tout utilisateur authentifié peut créer SON propre profil (premier login)
-      // Professeur peut créer un profil élève (ajout depuis Gestion des élèves)
+      // Création : l'utilisateur crée son propre profil, ou un prof crée un profil élève
       allow create: if isAuth() && (
         request.auth.uid == userId ||
         (isProfesseur() && request.resource.data.get('role', '') == 'eleve')
       );
 
-      // Direction peut tout écrire (création, modification, suppression de n'importe quel compte)
+      // Direction peut tout faire
       allow write: if isDirection();
 
-      // Propriétaire peut modifier son profil SANS pouvoir changer son rôle
-      allow update: if isAuth() &&
-        request.auth.uid == userId &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+      // Propriétaire peut modifier son profil avec des restrictions :
+      // - Impossible de changer role
+      // - Les parents peuvent mettre à jour enfantIds et enfantClasseIds (sync côté client)
+      // - Les non-parents ne peuvent pas modifier ces champs sensibles
+      allow update: if isAuth() && (
+        // Cas 1 : propriétaire modifie son propre profil, sauf role + champs famille
+        (request.auth.uid == userId &&
+          !request.resource.data.diff(resource.data)
+            .affectedKeys().hasAny(['role', 'enfantIds', 'enfantClasseIds'])) ||
 
-      // Sous-collections scan (privées au propriétaire)
-      match /scan_history/{id}   { allow read, write: if isAuth() && request.auth.uid == userId; }
-      match /scan_favorites/{id} { allow read, write: if isAuth() && request.auth.uid == userId; }
+        // Cas 2 : parent met à jour ses enfantIds/enfantClasseIds (synchronisation)
+        (isParent() && request.auth.uid == userId &&
+          request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['enfantIds', 'enfantClasseIds', 'lastSeen'])) ||
+
+        // Cas 3 : élève lie son uid à enfantIds d'un parent (et la classeId associée)
+        (isEleve() &&
+          request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['enfantIds', 'enfantClasseIds']) &&
+          request.auth.uid in request.resource.data.get('enfantIds', []))
+      );
+
+      // Maîtrise pédagogique : élève écrit ses propres données, prof/parent/direction lit
+      match /maitrise/{notionId} {
+        allow read: if isAuth() && (
+          isDirection() || isProfesseur() || isParentOf(userId) || request.auth.uid == userId
+        );
+        allow write: if isAuth() && (isDirection() || request.auth.uid == userId);
+      }
     }
 
     // ── Classes ──────────────────────────────────────────────────────────────
@@ -64,13 +96,28 @@ service cloud.firestore {
       allow read: if isAuth();
       allow create: if isDirection() ||
         (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
-      allow update, delete: if isDirection() ||
-        (isProfesseur() && resource.data.professeurId == request.auth.uid);
+      allow update: if isDirection() ||
+        (isProfesseur() && resource.data.professeurId == request.auth.uid) ||
+        // Professeur peut se lier à une classe sans professeur (champs prof uniquement)
+        (isProfesseur() &&
+          resource.data.get('professeurId', '') == '' &&
+          request.resource.data.professeurId == request.auth.uid &&
+          request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['professeurId', 'professeurEmail',
+                                     'professeurDisplayName', 'professeurMatiere'])) ||
+        // Élève peut s'ajouter à sa propre classe (première connexion après inscription validée)
+        (isEleve() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['eleveIds']) &&
+          request.auth.uid in request.resource.data.get('eleveIds', []));
+      allow delete: if isDirection();
     }
 
     // ── Emploi du temps ──────────────────────────────────────────────────────
     match /emplois_du_temps/{id} {
-      allow read: if isAuth();
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() || isEleve() ||
+        isParentInClass(resource.data.get('classeId', ''))
+      );
       allow create: if isDirection() ||
         (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow update, delete: if isDirection() ||
@@ -79,9 +126,8 @@ service cloud.firestore {
 
     // ── Devoirs ──────────────────────────────────────────────────────────────
     match /devoirs/{id} {
-      // Élèves et parents lisent les devoirs de leurs classes
       allow read: if isDirection() || isProfesseur() || isEleve() ||
-        isParentOf(resource.data.get('classeId', ''));
+        isParentInClass(resource.data.get('classeId', ''));
       allow create: if isDirection() ||
         (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow update, delete: if isDirection() ||
@@ -90,10 +136,6 @@ service cloud.firestore {
 
     // ── Notes ────────────────────────────────────────────────────────────────
     match /notes/{id} {
-      // Élève : lit uniquement ses propres notes
-      // Parent : lit les notes publiées de ses enfants
-      // Professeur : lit les notes qu'il a saisies
-      // Direction : accès complet
       allow read: if isDirection() ||
         (isProfesseur() && resource.data.professeurId == request.auth.uid) ||
         (isEleve() && resource.data.eleveId == request.auth.uid) ||
@@ -106,7 +148,10 @@ service cloud.firestore {
 
     // ── Documents pédagogiques ───────────────────────────────────────────────
     match /documents_prof/{id} {
-      allow read: if isAuth();
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() || isEleve() ||
+        isParentInClass(resource.data.get('classeId', ''))
+      );
       allow create: if isDirection() ||
         (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow update, delete: if isDirection() ||
@@ -121,42 +166,58 @@ service cloud.firestore {
 
     // ── Copies (devoirs interactifs) ──────────────────────────────────────────
     match /copies/{id} {
-      // Élève : accès à ses propres copies
-      // Professeur : accès aux copies de ses devoirs
-      // Direction : accès complet
-      allow read: if isDirection() ||
+      allow read: if isAuth() && (
+        isDirection() ||
         (isEleve() && resource.data.eleveId == request.auth.uid) ||
         (isProfesseur() && resource.data.professeurId == request.auth.uid) ||
-        isParentOf(resource.data.eleveId);
+        isParentOf(resource.data.eleveId)
+      );
+      // L'élève crée sa copie : eleveId doit être son uid, professeurId doit être renseigné
       allow create: if isEleve() &&
-        request.resource.data.eleveId == request.auth.uid;
+        request.resource.data.eleveId == request.auth.uid &&
+        request.resource.data.get('professeurId', '') is string;
+      // L'élève peut modifier sa copie uniquement si elle est encore en brouillon
       allow update: if isDirection() ||
         (isEleve() &&
           resource.data.eleveId == request.auth.uid &&
-          resource.data.statut == 'brouillon') ||
-        (isProfesseur() && resource.data.professeurId == request.auth.uid);
+          resource.data.statut == 'brouillon' &&
+          // Interdit de changer l'identifiant du devoir ou de l'élève
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['devoirId', 'eleveId'])) ||
+        // Prof peut corriger / ajouter sa note
+        (isProfesseur() && resource.data.professeurId == request.auth.uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['eleveId', 'devoirId']));
       allow delete: if isDirection();
     }
 
     // ── Remises de devoirs ────────────────────────────────────────────────────
     match /submissions/{id} {
-      allow read: if isDirection() ||
-        resource.data.studentId == request.auth.uid ||
-        (isProfesseur() && resource.data.teacherId == request.auth.uid);
+      allow read: if isAuth() && (
+        isDirection() ||
+        (isEleve() && resource.data.studentId == request.auth.uid) ||
+        (isProfesseur() && resource.data.teacherId == request.auth.uid) ||
+        isParentOf(resource.data.studentId)
+      );
       allow create: if isEleve() &&
         request.resource.data.studentId == request.auth.uid;
       allow update: if isDirection() ||
-        resource.data.studentId == request.auth.uid ||
-        (isProfesseur() && resource.data.teacherId == request.auth.uid);
+        // L'élève peut mettre à jour sa remise (resoumission)
+        (isEleve() && resource.data.studentId == request.auth.uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['studentId', 'assignmentId'])) ||
+        // Le prof peut annoter / changer le statut
+        (isProfesseur() && resource.data.teacherId == request.auth.uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['studentId', 'assignmentId']));
       allow delete: if isDirection() ||
         (isProfesseur() && resource.data.teacherId == request.auth.uid);
     }
 
     // ── Présences ────────────────────────────────────────────────────────────
     match /presences/{id} {
-      allow read: if isDirection() || isProfesseur() ||
+      allow read: if isAuth() && (
+        isDirection() ||
+        isProfesseur() ||
         (isEleve() && resource.data.eleveId == request.auth.uid) ||
-        isParentOf(resource.data.eleveId);
+        isParentOf(resource.data.eleveId)
+      );
       allow create: if isDirection() ||
         (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow update, delete: if isDirection() ||
@@ -164,16 +225,80 @@ service cloud.firestore {
     }
 
     // ── Élèves ────────────────────────────────────────────────────────────────
+    // FIX : les fiches élèves contiennent des données personnelles sensibles
+    // (adresse, parents, contact d'urgence). Accès restreint.
     match /eleves/{id} {
-      allow read: if isAuth();
+      allow read: if isAuth() && (
+        isDirection() ||
+        isProfesseur() ||
+        // L'élève peut lire sa propre fiche (identifiée par email ou authUid)
+        (isEleve() && (
+          resource.data.get('authUid', '') == request.auth.uid ||
+          resource.data.get('email', '') ==
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('email', '')
+        )) ||
+        // Parent peut lire les fiches de ses enfants
+        isParentOf(resource.data.get('authUid', ''))
+      );
       allow write: if isDirection();
+
+      // L'élève lie son propre authUid à sa fiche au premier login (uniquement
+      // ce champ), pour que profs/parents puissent ensuite le retrouver par uid.
+      allow update: if isAuth() && isEleve() &&
+        resource.data.get('email', '') == request.auth.token.email &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authUid']) &&
+        request.resource.data.get('authUid', '') == request.auth.uid;
     }
 
     // ── Parents ──────────────────────────────────────────────────────────────
     match /parents/{id} {
+      // Auto-détection du rôle au premier login : un utilisateur peut lire la
+      // fiche parent correspondant à SA PROPRE adresse email (vérifiée par Auth),
+      // même avant que son profil users/{uid} (et donc son rôle) n'existe.
       allow read: if isDirection() || isProfesseur() ||
-        (isParent() && request.auth.uid == id);
+        (isAuth() && resource.data.get('email', '') == request.auth.token.email);
       allow write: if isDirection();
+    }
+
+    // ── RDV Scolaires ─────────────────────────────────────────────────────────
+    match /rdv/{id} {
+      allow read: if isAuth() && (
+        isDirection() ||
+        resource.data.parentUid == request.auth.uid ||
+        resource.data.professeurId == request.auth.uid
+      );
+      allow create: if isParent() &&
+        request.resource.data.parentUid == request.auth.uid;
+
+      // FIX CRITIQUE : chaque acteur ne peut modifier que ses propres champs
+      allow update: if isDirection() ||
+
+        // Parent : peut uniquement annuler sa demande ou confirmer une contre-proposition
+        (isAuth() && resource.data.parentUid == request.auth.uid &&
+          request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['statut', 'updatedAt']) &&
+          request.resource.data.statut in ['annule', 'confirme'] &&
+          // Confirmer seulement si le prof a proposé une autre date
+          (request.resource.data.statut != 'confirme' ||
+            resource.data.statut == 'propose_autre_date')) ||
+
+        // Professeur : peut accepter, refuser, proposer une autre date
+        (isAuth() && resource.data.professeurId == request.auth.uid &&
+          request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['statut', 'notesProfesseur', 'contrePropositionDate', 'updatedAt']) &&
+          request.resource.data.statut in ['accepte', 'refuse', 'propose_autre_date']);
+
+      allow delete: if isDirection() ||
+        (isAuth() && resource.data.parentUid == request.auth.uid);
+    }
+
+    // ── Quotas IA ─────────────────────────────────────────────────────────────
+    match /quotas/{docId} {
+      // docId = "{uid}_{YYYYMMDD}" — chaque utilisateur gère son propre quota
+      // La regex vérifie que le docId COMMENCE par l'uid de l'utilisateur connecté
+      allow read, write: if isAuth() && docId.matches(request.auth.uid + '_[0-9]{8}');
+      // Direction peut lire tous les quotas (supervision)
+      allow read: if isDirection();
     }
 
     // ── Inscriptions ─────────────────────────────────────────────────────────

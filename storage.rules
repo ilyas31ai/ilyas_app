@@ -1,0 +1,54 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isDirection() {
+      return request.auth != null && (
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        request.auth.token.email == 'ilyas31ai@outlook.fr'
+      );
+    }
+
+    // Photos de profil — seul le propriétaire peut écrire
+    match /profile_photos/{uid}.jpg {
+      allow write: if request.auth != null && request.auth.uid == uid;
+      allow read:  if request.auth != null;
+    }
+
+    // Documents pédagogiques — le professeur écrit dans son dossier, la Direction peut tout gérer
+    match /documents_prof/{uid}/{fileName} {
+      allow write: if request.auth != null && (request.auth.uid == uid || isDirection());
+      allow read:  if request.auth != null;
+    }
+
+    // Fichiers joints aux devoirs — le professeur écrit dans son dossier
+    match /devoirs/{uid}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == uid;
+      allow read:  if request.auth != null;
+    }
+
+    // Photos de réponses des élèves (copies)
+    match /copies/{uid}/{devoirId}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == uid;
+      allow read:  if request.auth != null;
+    }
+
+    // Remises de devoirs par les élèves
+    match /submissions/{uid}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == uid;
+      allow read:  if request.auth != null;
+    }
+
+    // PDFs d'inscription — réservé à la Direction
+    match /inscriptions_pdf/{uid}/{fileName} {
+      allow write: if isDirection();
+      allow read:  if request.auth != null && (request.auth.uid == uid || isDirection());
+    }
+
+    // Fallback : tout chemin non explicitement couvert ci-dessus est refusé.
+    // Seule la Direction peut y accéder en cas de besoin de maintenance ponctuel.
+    match /{allPaths=**} {
+      allow read, write: if isDirection();
+    }
+  }
+}

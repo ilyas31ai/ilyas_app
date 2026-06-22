@@ -1,0 +1,112 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "role", "order": "ASCENDING" },
+        { "fieldPath": "classeNom", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "role", "order": "ASCENDING" },
+        { "fieldPath": "classeNom", "order": "ASCENDING" },
+        { "fieldPath": "maitrise_en_difficulte", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "rdv",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "parentUid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "rdv",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "professeurId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eleveId", "order": "ASCENDING" },
+        { "fieldPath": "publie", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classeId", "order": "ASCENDING" },
+        { "fieldPath": "professeurId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classeId", "order": "ASCENDING" },
+        { "fieldPath": "matiere", "order": "ASCENDING" },
+        { "fieldPath": "professeurId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "devoirs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classeNom", "order": "ASCENDING" },
+        { "fieldPath": "dateEnvoi", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "devoirs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "professeurId", "order": "ASCENDING" },
+        { "fieldPath": "dateEnvoi", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "presences",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eleveId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "presences",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classeId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "presences",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classeId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "documents_prof",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "professeurId", "order": "ASCENDING" },
+        { "fieldPath": "dateDepot", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

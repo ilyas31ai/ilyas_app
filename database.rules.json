@@ -1,0 +1,98 @@
+{
+  "rules": {
+
+    // ── Présence / profils RTDB ──────────────────────────────────────────────
+    // Clés encodées depuis l'email (. → ,).
+    "users": {
+      ".read":  "auth != null",
+      ".write": "auth != null",
+      "$emailKey": {
+        // Chaque utilisateur peut lire/écrire ses propres contacts.
+        // sendMessage() peut aussi écrire dans les contacts du destinataire (auto-liaison).
+        "contacts": {
+          ".read":  "auth != null && $emailKey == auth.token.email.replace('.', ',')",
+          ".write": "auth != null"
+        }
+      }
+    },
+
+    // ── Statut en ligne ──────────────────────────────────────────────────────
+    "status": {
+      ".read":  "auth != null",
+      ".write": "auth != null"
+    },
+
+    // ── Messages ─────────────────────────────────────────────────────────────
+    // chatId = "general" | "Classe" | "{encodedEmailA}__{encodedEmailB}" (trié)
+    // Seuls les participants d'une conversation privée peuvent la lire/écrire.
+    // Les emails sont encodés (. → ,) dans le chatId, via SocialService.encodeKey().
+    "messages": {
+      "general": {
+        ".read":  "auth != null",
+        ".write": "auth != null",
+        "$msgId": {
+          ".validate": "newData.hasChildren(['text','sender','time'])"
+        }
+      },
+      "Classe": {
+        ".read":  "auth != null",
+        ".write": "auth != null",
+        "$msgId": {
+          ".validate": "newData.hasChildren(['text','sender','time'])"
+        }
+      },
+      "$chatId": {
+        // Accès uniquement si l'email encodé de l'utilisateur fait partie du chatId.
+        // chatId = "email1@dom,ain__email2@dom,ain" (les . sont remplacés par ,).
+        ".read":  "auth != null && $chatId.contains(auth.token.email.replace('.', ','))",
+        ".write": "auth != null && $chatId.contains(auth.token.email.replace('.', ','))",
+        "$msgId": {
+          ".validate": "newData.hasChildren(['text','sender','time'])"
+        }
+      }
+    },
+
+    // ── Notifications in-app ─────────────────────────────────────────────────
+    // Seul le destinataire peut lire ses propres notifications.
+    // N'importe quel utilisateur authentifié peut en envoyer (messages entrants).
+    "notifications": {
+      "$recipientKey": {
+        ".read":  "auth != null && $recipientKey == auth.token.email.replace('.', ',')",
+        ".write": "auth != null",
+        "$notifId": {
+          ".validate": "newData.hasChildren(['title','body','time'])"
+        }
+      }
+    },
+
+    // ── Amis — DÉSACTIVÉ ─────────────────────────────────────────────────────
+    "friends": {
+      ".read":  false,
+      ".write": false
+    },
+
+    // ── Demandes d'amis — DÉSACTIVÉ ─────────────────────────────────────────
+    "friend_requests": {
+      ".read":  false,
+      ".write": false
+    },
+
+    // ── Blocages — DÉSACTIVÉ ─────────────────────────────────────────────────
+    "blocked": {
+      ".read":  false,
+      ".write": false
+    },
+
+    // ── Professeurs (legacy RTDB) ────────────────────────────────────────────
+    "professeurs": {
+      ".read":  "auth != null",
+      ".write": "auth != null"
+    },
+
+    // ── Fallback : refuse tout accès non couvert ─────────────────────────────
+    "$other": {
+      ".read":  false,
+      ".write": false
+    }
+  }
+}
