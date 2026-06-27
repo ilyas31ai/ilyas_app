@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 import 'package:flutter/material.dart';
 
 class AdditionGamePage extends StatefulWidget {
@@ -66,7 +66,7 @@ class _AdditionGamePageState extends State<AdditionGamePage> {
         padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [color.withOpacity(0.8), color.withOpacity(0.4)],
+            colors: [color.withValues(alpha: 0.8), color.withValues(alpha: 0.4)],
           ),
           borderRadius: BorderRadius.circular(20),
         ),

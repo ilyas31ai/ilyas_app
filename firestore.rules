@@ -45,15 +45,34 @@ service cloud.firestore {
       return isParent() && classeId in enfantClasseIds();
     }
 
+    // ── Multi-établissements (Phase 2, préparation) ───────────────────────────
+    // Ces fonctions ne sont utilisées par AUCUNE règle ci-dessous pour le
+    // moment : elles ne changent donc rien au comportement actuel. Elles
+    // seront branchées (en mode transition, avec repli sur l'ancienne
+    // logique) une fois le backfill `schoolId` confirmé à 100 % sur les
+    // données existantes — étape séparée, soumise à validation explicite.
+    function mySchoolId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid))
+               .data.get('schoolId', 'ecole_default');
+    }
+    function sameSchool(data) {
+      return isDirection() ||
+        data.get('schoolId', 'ecole_default') == mySchoolId();
+    }
+
     // ── Profils utilisateurs ─────────────────────────────────────────────────
     match /users/{userId} {
       allow read: if isAuth() && (
         isDirection() || isProfesseur() || isParent() || isEleve() || request.auth.uid == userId
       );
 
-      // Création : l'utilisateur crée son propre profil, ou un prof crée un profil élève
+      // Création : l'utilisateur crée son propre profil (rôle limité à eleve/parent —
+      // "parent" est déterminé par détection automatique côté client via l'email,
+      // jamais choisi librement ; professeur/admin ne sont jamais auto-attribuables),
+      // ou un prof crée un profil élève
       allow create: if isAuth() && (
-        request.auth.uid == userId ||
+        (request.auth.uid == userId &&
+          request.resource.data.get('role', '') in ['eleve', 'parent']) ||
         (isProfesseur() && request.resource.data.get('role', '') == 'eleve')
       );
 
@@ -296,7 +315,15 @@ service cloud.firestore {
     match /quotas/{docId} {
       // docId = "{uid}_{YYYYMMDD}" — chaque utilisateur gère son propre quota
       // La regex vérifie que le docId COMMENCE par l'uid de l'utilisateur connecté
-      allow read, write: if isAuth() && docId.matches(request.auth.uid + '_[0-9]{8}');
+      allow read: if isAuth() && docId.matches(request.auth.uid + '_[0-9]{8}');
+      // Création : uniquement le premier appel de la journée (count == 1)
+      allow create: if isAuth() && docId.matches(request.auth.uid + '_[0-9]{8}') &&
+        request.resource.data.count == 1;
+      // Mise à jour : incrément strict de 1, aucun autre champ modifiable
+      // (empêche la remise à zéro ou la falsification du quota par le client)
+      allow update: if isAuth() && docId.matches(request.auth.uid + '_[0-9]{8}') &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'updatedAt']) &&
+        request.resource.data.count == resource.data.count + 1;
       // Direction peut lire tous les quotas (supervision)
       allow read: if isDirection();
     }

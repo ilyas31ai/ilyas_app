@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="ilyas31ai_app"
+        android:label="ScolarAI Educative"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 

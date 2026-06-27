@@ -4,14 +4,25 @@
     // ── Présence / profils RTDB ──────────────────────────────────────────────
     // Clés encodées depuis l'email (. → ,).
     "users": {
+      // ".write" global retiré (DT-07 partiel) : aucun usage légitime n'écrit
+      // de champ autre que "name"/"contacts" sous users/{email} (vérifié dans
+      // social_service.dart) — la liste de tous les utilisateurs reste lisible
+      // (allUsersStream, fonctionnalité de contact existante).
       ".read":  "auth != null",
-      ".write": "auth != null",
       "$emailKey": {
-        // Chaque utilisateur peut lire/écrire ses propres contacts.
-        // sendMessage() peut aussi écrire dans les contacts du destinataire (auto-liaison).
+        // "name" : tout utilisateur authentifié peut l'initialiser sur le
+        // profil d'un tiers (addContact crée un stub de profil par nom),
+        // jamais d'autre champ.
+        "name": {
+          ".write": "auth != null && newData.isString()"
+        },
+        // Contacts : strictement réservé au propriétaire, en lecture comme en
+        // écriture (sendMessage()/addContact() n'écrivent que les contacts de
+        // l'utilisateur courant — vérifié, aucun usage légitime n'écrit les
+        // contacts d'un tiers).
         "contacts": {
           ".read":  "auth != null && $emailKey == auth.token.email.replace('.', ',')",
-          ".write": "auth != null"
+          ".write": "auth != null && $emailKey == auth.token.email.replace('.', ',')"
         }
       }
     },
@@ -58,8 +69,15 @@
     "notifications": {
       "$recipientKey": {
         ".read":  "auth != null && $recipientKey == auth.token.email.replace('.', ',')",
-        ".write": "auth != null",
         "$notifId": {
+          // Création (envoi d'une notification à un tiers, ex. message reçu) :
+          // tout utilisateur authentifié peut créer une notification chez le
+          // destinataire — restriction complète (limitée aux participants
+          // réels d'une conversation) prévue en Phase 2 avec migration RTDB.
+          // Modification d'une notification déjà existante (ex. marquage lu) :
+          // réservée au destinataire lui-même — aucun tiers ne peut altérer
+          // le contenu d'une notification après sa création (DT-07 partiel).
+          ".write": "auth != null && (!data.exists() || $recipientKey == auth.token.email.replace('.', ','))",
           ".validate": "newData.hasChildren(['title','body','time'])"
         }
       }

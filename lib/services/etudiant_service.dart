@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,9 +15,15 @@ import '../models/submission_model.dart';
 
 class EtudiantService {
   static final _db = FirebaseFirestore.instance;
-  static final _storage = FirebaseStorage.instance;
+  static final _storage = FirebaseStorage.instanceFor(bucket: 'gs://ilyasapp-4762c.firebasestorage.app');
 
   static String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  static String _storageToken() {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final rng = Random.secure();
+    return List.generate(36, (_) => chars[rng.nextInt(chars.length)]).join();
+  }
 
   // ── Classe de l'élève ───────────────────────────────────────────────────────
   static Stream<String?> classeNomStream() {
@@ -69,19 +76,66 @@ class EtudiantService {
   }
 
   // ── Profil complet de l'élève ────────────────────────────────────────────────
-  /// Retourne {categorie, niveau, classeNom, displayName} depuis users/{uid}.
+  /// Retourne {categorie, niveau, classeNom, displayName}.
+  /// Cherche dans users/{uid}, puis dans la collection classes (eleveIds),
+  /// puis via users/{uid}.classeId — en loggant chaque étape pour diagnostic.
   static Stream<Map<String, String>> profilStream() {
     final uid = _uid;
     if (uid.isEmpty) return Stream.value({});
-    return _db.collection('users').doc(uid).snapshots().map((doc) {
-      if (!doc.exists) return <String, String>{};
-      final d = (doc.data() as Map<String, dynamic>?) ?? {};
-      return {
-        'categorie': (d['categorie'] as String?) ?? '',
-        'niveau': (d['niveau'] as String?) ?? '',
-        'classeNom': (d['classeNom'] as String?) ?? '',
-        'displayName': (d['displayName'] as String?) ?? '',
-      };
+    return _db.collection('users').doc(uid).snapshots().asyncMap((doc) async {
+      final d = doc.exists ? (doc.data() ?? <String, dynamic>{}) : <String, dynamic>{};
+
+      debugPrint('[EtudiantService] profilStream users/$uid → tous les champs: ${d.keys.toList()}');
+      debugPrint('[EtudiantService] profilStream: categorie="${d['categorie']}" niveau="${d['niveau']}" classeNom="${d['classeNom']}" role="${d['role']}"');
+
+      var cat    = (d['categorie'] as String?) ?? '';
+      var niv    = (d['niveau'] as String?) ?? '';
+      var cn     = (d['classeNom'] as String?) ?? '';
+      final name = (d['displayName'] as String?) ?? '';
+
+      // Fallback 1 : collection classes (eleveIds contient uid)
+      if (cat.isEmpty || niv.isEmpty || cn.isEmpty) {
+        try {
+          final classSnap = await _db
+              .collection('classes')
+              .where('eleveIds', arrayContains: uid)
+              .limit(1)
+              .get();
+          if (classSnap.docs.isNotEmpty) {
+            final cd = classSnap.docs.first.data();
+            debugPrint('[EtudiantService] profilStream: classe trouvée → nom="${cd['nom']}" niveau="${cd['niveau']}" categorie="${cd['categorie']}"');
+            if (niv.isEmpty) niv = (cd['niveau'] as String?) ?? '';
+            if (cn.isEmpty)  cn  = (cd['nom'] as String?) ?? '';
+            if (cat.isEmpty) cat = (cd['categorie'] as String?) ?? '';
+          } else {
+            debugPrint('[EtudiantService] profilStream: aucune classe avec eleveIds contenant $uid');
+          }
+        } catch (e) {
+          debugPrint('[EtudiantService] profilStream: erreur lookup classes: $e');
+        }
+      }
+
+      // Fallback 2 : users/{uid}.classeId
+      if (cn.isEmpty || niv.isEmpty) {
+        final classeId = (d['classeId'] as String?) ?? '';
+        if (classeId.isNotEmpty) {
+          try {
+            final classeDoc = await _db.collection('classes').doc(classeId).get();
+            if (classeDoc.exists) {
+              final cd = classeDoc.data() ?? <String, dynamic>{};
+              debugPrint('[EtudiantService] profilStream: classeId=$classeId → nom="${cd['nom']}" niveau="${cd['niveau']}"');
+              if (niv.isEmpty) niv = (cd['niveau'] as String?) ?? '';
+              if (cn.isEmpty)  cn  = (cd['nom'] as String?) ?? '';
+              if (cat.isEmpty) cat = (cd['categorie'] as String?) ?? '';
+            }
+          } catch (e) {
+            debugPrint('[EtudiantService] profilStream: erreur lookup classeId=$classeId: $e');
+          }
+        }
+      }
+
+      debugPrint('[EtudiantService] profilStream RÉSULTAT → categorie="$cat" niveau="$niv" classeNom="$cn"');
+      return {'categorie': cat, 'niveau': niv, 'classeNom': cn, 'displayName': name};
     });
   }
 
@@ -148,10 +202,20 @@ class EtudiantService {
     String fileType = '';
 
     if (file != null && fileName != null) {
+      final token = _storageToken();
       final ts = DateTime.now().millisecondsSinceEpoch;
       final ref = _storage.ref('submissions/$uid/${ts}_$fileName');
-      await ref.putFile(file);
-      fileUrl = await ref.getDownloadURL();
+      final bytes = await file.readAsBytes();
+      final snap = await ref.putData(
+        bytes,
+        SettableMetadata(customMetadata: {'firebaseStorageDownloadTokens': token}),
+      );
+      if (snap.state != TaskState.success) {
+        throw Exception('Upload soumission échoué (état: ${snap.state}).');
+      }
+      final bucket      = snap.ref.bucket;
+      final encodedPath = Uri.encodeComponent(snap.ref.fullPath);
+      fileUrl = 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media&token=$token';
       final ext = fileName.split('.').last.toLowerCase();
       fileType = ext;
     }
@@ -314,6 +378,30 @@ class EtudiantService {
     return query.snapshots().handleError((Object e) {
       debugPrint('[Etudiant] documentsCountStream ERROR [classeNom=$classeNom, uid=$_uid]: $e');
       throw e;
+    }).map((s) => s.docs.length);
+  }
+
+  // ── Absences du mois en cours ─────────────────────────────────────────────
+  /// Compte les enregistrements de présence avec statut='absent' pour l'élève
+  /// courant sur le mois en cours. Les dates sont stockées en format 'YYYY-MM-DD'
+  /// — la comparaison lexicographique fonctionne pour les filtres >= et <=.
+  static Stream<int> absencesMonthStream() {
+    final uid = _uid;
+    if (uid.isEmpty) return Stream.value(0);
+    final now = DateTime.now();
+    final debut = '${now.year}-${now.month.toString().padLeft(2, '0')}-01';
+    final finMois = DateTime(now.year, now.month + 1, 0);
+    final fin = '${finMois.year}-${finMois.month.toString().padLeft(2, '0')}-${finMois.day.toString().padLeft(2, '0')}';
+    return _db
+        .collection('presences')
+        .where('eleveId', isEqualTo: uid)
+        .where('statut', isEqualTo: 'absent')
+        .where('date', isGreaterThanOrEqualTo: debut)
+        .where('date', isLessThanOrEqualTo: fin)
+        .snapshots()
+        .handleError((Object e) {
+      debugPrint('[Etudiant] absencesMonthStream ERROR [uid=$uid]: $e');
+      return;
     }).map((s) => s.docs.length);
   }
 }

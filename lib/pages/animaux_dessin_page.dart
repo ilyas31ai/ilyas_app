@@ -52,10 +52,12 @@ class _AnimauxDessinPageState extends State<AnimauxDessinPage> {
 
       if (byteData == null) return;
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Image sauvegardée 📸")),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Erreur sauvegarde ❌")),
       );

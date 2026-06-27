@@ -1,8 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'school_model.dart';
+
 class NoteModel {
   final String id;
+  final String schoolId;
   final String eleveId;
+  final String eleveUid;
   final String eleveNom;
   final String elevePrenom;
   final String classeId;
@@ -17,7 +21,9 @@ class NoteModel {
 
   const NoteModel({
     required this.id,
+    this.schoolId = kDefaultSchoolId,
     required this.eleveId,
+    this.eleveUid = '',
     required this.eleveNom,
     required this.elevePrenom,
     required this.classeId,
@@ -38,7 +44,9 @@ class NoteModel {
     final d = doc.data() as Map<String, dynamic>? ?? {};
     return NoteModel(
       id: doc.id,
+      schoolId: d['schoolId'] as String? ?? kDefaultSchoolId,
       eleveId: d['eleveId'] as String? ?? '',
+      eleveUid: d['eleveUid'] as String? ?? '',
       eleveNom: d['eleveNom'] as String? ?? '',
       elevePrenom: d['elevePrenom'] as String? ?? '',
       classeId: d['classeId'] as String? ?? '',
@@ -54,7 +62,9 @@ class NoteModel {
   }
 
   Map<String, dynamic> toMap() => {
+        'schoolId': schoolId,
         'eleveId': eleveId,
+        if (eleveUid.isNotEmpty) 'eleveUid': eleveUid,
         'eleveNom': eleveNom,
         'elevePrenom': elevePrenom,
         'classeId': classeId,
@@ -71,6 +81,7 @@ class NoteModel {
   NoteModel copyWith({double? note, String? intitule, bool? publie}) =>
       NoteModel(
         id: id,
+        schoolId: schoolId,
         eleveId: eleveId,
         eleveNom: eleveNom,
         elevePrenom: elevePrenom,

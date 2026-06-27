@@ -8,7 +8,9 @@ import '../models/copie_model.dart';
 import '../models/devoir_model.dart';
 import '../models/question_model.dart';
 import '../services/ai_assistant_service.dart';
+import '../services/ai_revision_service.dart';
 import '../services/devoir_interactif_service.dart';
+import '../services/maitrise_service.dart';
 
 class EtudiantFaireDevoirPage extends StatefulWidget {
   final DevoirModel devoir;
@@ -114,6 +116,64 @@ class _EtudiantFaireDevoirPageState extends State<EtudiantFaireDevoirPage> {
     }
   }
 
+  // ── IA mastery tracking after submission ──────────────────────────────────
+
+  Future<void> _trackMaitriseIA() async {
+    // Only gradeable question types (QCM + vrai/faux)
+    final gradeable = widget.devoir.questions
+        .where((q) => q.type == TypeQuestion.qcm || q.type == TypeQuestion.vraiFaux)
+        .toList();
+    if (gradeable.isEmpty) return;
+
+    final questionsIA = gradeable.map((q) {
+      String answer = '';
+      if (q.type == TypeQuestion.qcm &&
+          q.bonneReponseIndex != null &&
+          q.bonneReponseIndex! < q.choix.length) {
+        answer = q.choix[q.bonneReponseIndex!];
+      } else if (q.type == TypeQuestion.vraiFaux) {
+        answer = (q.bonneReponseVF == true) ? 'Vrai' : 'Faux';
+      }
+      return {
+        'q': q.enonce,
+        'choices': q.choix,
+        'answer': answer,
+        'explication': q.correctionModele,
+      };
+    }).toList();
+
+    final resultats = gradeable.map((q) {
+      final val = _getValeur(q.id);
+      if (q.type == TypeQuestion.qcm) return val == q.bonneReponseIndex;
+      if (q.type == TypeQuestion.vraiFaux) return val == q.bonneReponseVF;
+      return false;
+    }).toList();
+
+    final categorie = widget.devoir.categorie.isNotEmpty
+        ? widget.devoir.categorie
+        : 'Collège';
+
+    try {
+      final notions = await AiRevisionService.evaluerNotions(
+        matiere: widget.devoir.matiere,
+        categorie: categorie,
+        questions: questionsIA,
+        resultatEleve: resultats,
+      );
+      if (notions.isNotEmpty) {
+        await MaitriseService.enregistrer(
+          notions: notions,
+          matiere: widget.devoir.matiere,
+          categorie: categorie,
+          sourceType: 'quiz_devoir',
+          sourceTitre: widget.devoir.titre,
+        );
+      }
+    } catch (_) {
+      // Best-effort: don't block submission if IA tracking fails
+    }
+  }
+
   // ── Submit ────────────────────────────────────────────────────────────────
 
   Future<void> _submit({bool auto = false}) async {
@@ -149,6 +209,7 @@ class _EtudiantFaireDevoirPageState extends State<EtudiantFaireDevoirPage> {
         soumettre: true,
         copieId: _copieId,
       );
+      await _trackMaitriseIA();
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {

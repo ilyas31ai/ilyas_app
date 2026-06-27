@@ -1,6 +1,11 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/user_model.dart';
+import 'quota_service.dart';
 
 class AiAssistantService {
   static const _keyPref = 'anthropic_api_key';
@@ -22,6 +27,20 @@ class AiAssistantService {
     return key != null && key.isNotEmpty;
   }
 
+  static Future<UserRole> _currentRole() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return UserRole.eleve;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      return UserRoleX.fromString(snap.data()?['role'] as String?);
+    } catch (_) {
+      return UserRole.eleve;
+    }
+  }
+
   /// Returns a pedagogical hint for the given question.
   /// [niveau] 1=indice, 2=méthode, 3=résolution guidée
   static Future<String> getHint({
@@ -31,6 +50,14 @@ class AiAssistantService {
     String classeNom = '',
     String? reponseEleve,
   }) async {
+    // Quota check
+    try {
+      final role = await _currentRole();
+      await QuotaService.checkAndIncrement(role);
+    } on QuotaExceededException catch (e) {
+      return '⚠️ $e';
+    }
+
     final apiKey = await getApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       return _fallbackHint(niveau);
@@ -99,6 +126,13 @@ class AiAssistantService {
     required String matiere,
     String classeNom = '',
   }) async {
+    try {
+      final role = await _currentRole();
+      await QuotaService.checkAndIncrement(role);
+    } on QuotaExceededException catch (e) {
+      return '⚠️ $e';
+    }
+
     final apiKey = await getApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       return '💡 Configure la clé API dans les paramètres pour activer '

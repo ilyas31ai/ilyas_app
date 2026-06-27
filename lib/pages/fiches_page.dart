@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class FichesPage extends StatefulWidget {
   const FichesPage({super.key});
@@ -36,7 +36,7 @@ class _FichesPageState extends State<FichesPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          backgroundColor: Colors.black.withOpacity(0.8),
+          backgroundColor: Colors.black.withValues(alpha: 0.8),
           title: const Text("Ajouter une fiche",
               style: TextStyle(color: Colors.white)),
           content: Column(
@@ -143,8 +143,8 @@ class _FichesPageState extends State<FichesPage> {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          Colors.blue.withOpacity(0.6),
-                          Colors.blueAccent.withOpacity(0.3)
+                          Colors.blue.withValues(alpha: 0.6),
+                          Colors.blueAccent.withValues(alpha: 0.3)
                         ],
                       ),
                       borderRadius: BorderRadius.circular(15),

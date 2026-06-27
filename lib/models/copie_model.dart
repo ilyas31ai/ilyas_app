@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'school_model.dart';
+
 enum CopieStatut { brouillon, soumis, corrige }
 
 extension CopieStatutX on CopieStatut {
@@ -30,6 +32,7 @@ extension CopieStatutX on CopieStatut {
 /// Student's interactive submission for a devoir with questions.
 class CopieModel {
   final String id;
+  final String schoolId;
   final String devoirId;
   final String eleveId;
   final String eleveNom;
@@ -48,6 +51,7 @@ class CopieModel {
 
   const CopieModel({
     required this.id,
+    this.schoolId = kDefaultSchoolId,
     required this.devoirId,
     required this.eleveId,
     required this.eleveNom,
@@ -67,6 +71,7 @@ class CopieModel {
     final d = doc.data() as Map<String, dynamic>? ?? {};
     return CopieModel(
       id: doc.id,
+      schoolId: d['schoolId'] as String? ?? kDefaultSchoolId,
       devoirId: d['devoirId'] as String? ?? '',
       eleveId: d['eleveId'] as String? ?? '',
       eleveNom: d['eleveNom'] as String? ?? '',
@@ -84,6 +89,7 @@ class CopieModel {
   }
 
   Map<String, dynamic> toMap() => {
+        'schoolId': schoolId,
         'devoirId': devoirId,
         'eleveId': eleveId,
         'eleveNom': eleveNom,

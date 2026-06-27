@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/social_service.dart';
+import '../services/user_service.dart';
 import '../widgets/user_avatar.dart';
 
 class DiscussionPage extends StatefulWidget {
   final String name;
   final String user;
+  final String? displayName;
 
   const DiscussionPage({
     super.key,
     required this.name,
     required this.user,
+    this.displayName,
   });
 
   @override
@@ -23,6 +26,7 @@ class _DiscussionPageState extends State<DiscussionPage> {
   bool _sending = false;
   bool _blocked = false;
   bool _showScrollBtn = false;
+  String? _myDisplayName;
 
   // Stream stocké en initState → une seule souscription stable peu importe
   // le nombre de setState() appelés (envoi, scroll, etc.)
@@ -31,6 +35,10 @@ class _DiscussionPageState extends State<DiscussionPage> {
   String get _chatId => SocialService.chatId(widget.user, widget.name);
   bool get _isGroup =>
       widget.name == 'general' || widget.name == 'Classe';
+  String get _label =>
+      (widget.displayName != null && widget.displayName!.isNotEmpty)
+          ? widget.displayName!
+          : widget.name;
 
   @override
   void initState() {
@@ -38,6 +46,11 @@ class _DiscussionPageState extends State<DiscussionPage> {
     _messagesStream = SocialService.messagesStream(_chatId);
     _initPage();
     _scrollCtrl.addListener(_onScroll);
+    UserService.currentUserStream().first.then((u) {
+      if (mounted && u != null && u.displayName.isNotEmpty) {
+        _myDisplayName = u.displayName;
+      }
+    });
   }
 
   @override
@@ -93,6 +106,7 @@ class _DiscussionPageState extends State<DiscussionPage> {
       sender: widget.user,
       toUser: widget.name,
       text: text,
+      senderDisplayName: _myDisplayName,
     );
 
     if (mounted) setState(() => _sending = false);
@@ -106,7 +120,7 @@ class _DiscussionPageState extends State<DiscussionPage> {
         backgroundColor: const Color(0xFF1F2937),
         title: const Text('Bloquer ?', style: TextStyle(color: Colors.white)),
         content: Text(
-          'Bloquer ${widget.name} ? Vous ne recevrez plus ses messages.',
+          'Bloquer $_label ? Vous ne recevrez plus ses messages.',
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -132,7 +146,7 @@ class _DiscussionPageState extends State<DiscussionPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${widget.name} ajouté aux contacts'),
+          content: Text('$_label ajouté aux contacts'),
           backgroundColor: const Color(0xFF16A34A),
           behavior: SnackBarBehavior.floating,
         ),
@@ -207,7 +221,7 @@ class _DiscussionPageState extends State<DiscussionPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _isGroup ? 'Discussion générale' : widget.name,
+                  _isGroup ? 'Discussion générale' : _label,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
@@ -325,7 +339,7 @@ class _DiscussionPageState extends State<DiscussionPage> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Vous avez bloqué ${widget.name}.',
+                'Vous avez bloqué $_label.',
                 style: const TextStyle(color: Colors.white60, fontSize: 13),
               ),
             ),
@@ -366,7 +380,7 @@ class _DiscussionPageState extends State<DiscussionPage> {
                 decoration: InputDecoration(
                   hintText: _blocked
                       ? 'Utilisateur bloqué'
-                      : 'Message à ${_isGroup ? "la classe" : widget.name}…',
+                      : 'Message à ${_isGroup ? "la classe" : _label}…',
                   hintStyle:
                       const TextStyle(color: Colors.white38, fontSize: 14),
                   filled: true,

@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'school_model.dart';
+
 class AnnonceModel {
   final String id;
+  final String schoolId;
   final String titre;
   final String contenu;
   final String auteurId;
@@ -11,6 +14,7 @@ class AnnonceModel {
 
   const AnnonceModel({
     required this.id,
+    this.schoolId = kDefaultSchoolId,
     required this.titre,
     required this.contenu,
     required this.auteurId,
@@ -23,6 +27,7 @@ class AnnonceModel {
     final d = doc.data() as Map<String, dynamic>? ?? {};
     return AnnonceModel(
       id: doc.id,
+      schoolId: d['schoolId'] as String? ?? kDefaultSchoolId,
       titre: d['titre'] is String ? d['titre'] as String : '',
       contenu: d['contenu'] is String ? d['contenu'] as String : '',
       auteurId: d['auteurId'] is String ? d['auteurId'] as String : '',
@@ -35,6 +40,7 @@ class AnnonceModel {
   }
 
   Map<String, dynamic> toMap() => {
+        'schoolId': schoolId,
         'titre': titre,
         'contenu': contenu,
         'auteurId': auteurId,

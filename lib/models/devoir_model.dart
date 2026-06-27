@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'question_model.dart';
+import 'school_model.dart';
 
 class DevoirModel {
   final String id;
+  final String schoolId;
   final String titre;
   final String description;
   final String matiere;
@@ -22,6 +24,7 @@ class DevoirModel {
 
   const DevoirModel({
     required this.id,
+    this.schoolId = kDefaultSchoolId,
     required this.titre,
     required this.description,
     required this.matiere,
@@ -42,13 +45,14 @@ class DevoirModel {
   bool get aFichier => fichierUrl.isNotEmpty;
   bool get estInteractif => questions.isNotEmpty;
   double get totalPoints =>
-      questions.fold(0.0, (sum, q) => sum + q.points);
+      questions.fold(0.0, (acc, q) => acc + q.points);
 
   factory DevoirModel.fromFirestore(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>? ?? {};
     final rawQ = d['questions'] as List? ?? [];
     return DevoirModel(
       id: doc.id,
+      schoolId: d['schoolId'] as String? ?? kDefaultSchoolId,
       titre: d['titre'] as String? ?? '',
       description: d['description'] as String? ?? '',
       matiere: d['matiere'] as String? ?? '',
@@ -72,6 +76,7 @@ class DevoirModel {
   }
 
   Map<String, dynamic> toMap() => {
+        'schoolId': schoolId,
         'titre': titre,
         'description': description,
         'matiere': matiere,

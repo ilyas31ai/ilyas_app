@@ -296,6 +296,16 @@ class _AppelTabState extends State<_AppelTab> {
           ),
         );
       }
+    } catch (e) {
+      debugPrint('[ProfesseurPresences] _saveAppel ERROR: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'enregistrement : $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

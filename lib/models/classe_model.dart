@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'school_model.dart';
+
 class ClasseModel {
   final String id;
   final String nom;
@@ -8,6 +10,9 @@ class ClasseModel {
   final List<String> eleveIds;
   final int anneeScol;
 
+  /// Établissement d'appartenance (Phase 2). Voir [UserModel.schoolId].
+  final String schoolId;
+
   const ClasseModel({
     required this.id,
     required this.nom,
@@ -15,6 +20,7 @@ class ClasseModel {
     required this.professeurId,
     this.eleveIds = const [],
     required this.anneeScol,
+    this.schoolId = kDefaultSchoolId,
   });
 
   int get nbEleves => eleveIds.length;
@@ -28,6 +34,7 @@ class ClasseModel {
       professeurId: d['professeurId'] as String? ?? '',
       eleveIds: List<String>.from(d['eleveIds'] as List? ?? []),
       anneeScol: (d['anneeScol'] as num?)?.toInt() ?? DateTime.now().year,
+      schoolId: d['schoolId'] as String? ?? kDefaultSchoolId,
     );
   }
 
@@ -37,6 +44,7 @@ class ClasseModel {
         'professeurId': professeurId,
         'eleveIds': eleveIds,
         'anneeScol': anneeScol,
+        'schoolId': schoolId,
       };
 
   ClasseModel copyWith({List<String>? eleveIds}) => ClasseModel(
@@ -46,7 +54,14 @@ class ClasseModel {
         professeurId: professeurId,
         eleveIds: eleveIds ?? this.eleveIds,
         anneeScol: anneeScol,
+        schoolId: schoolId,
       );
+
+  @override
+  bool operator ==(Object other) => other is ClasseModel && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 class EmploiSlot {

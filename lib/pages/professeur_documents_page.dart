@@ -52,6 +52,18 @@ class _ProfesseurDocumentsPageState extends State<ProfesseurDocumentsPage> {
                       child: CircularProgressIndicator(
                           color: Color(0xFF0F766E)));
                 }
+                if (snap.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Erreur Firestore :\n${snap.error}',
+                        style: const TextStyle(color: Color(0xFFDC2626), fontSize: 13),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
                 var docs = snap.data ?? [];
                 if (_filterType.isNotEmpty) {
                   docs = docs.where((d) => d.type == _filterType).toList();
@@ -150,8 +162,8 @@ class _TypeFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final types = ['', 'cours', 'exercice', 'correction', 'autre'];
-    final labels = ['Tous', 'Cours', 'Exercice', 'Correction', 'Autre'];
+    final types = ['', 'cours', 'exercice', 'correction', 'video', 'autre'];
+    final labels = ['Tous', 'Cours', 'Exercice', 'Correction', 'Vidéo', 'Autre'];
     return Container(
       height: 44,
       color: const Color(0xFF161B22),
@@ -298,6 +310,7 @@ class _DocumentFormState extends State<_DocumentForm> {
   String? _fichierNom;
   bool _saving = false;
   List<ClasseModel> _classes = [];
+  ClasseModel? _selectedClasse;
 
   @override
   void initState() {
@@ -350,7 +363,7 @@ class _DocumentFormState extends State<_DocumentForm> {
                             style: const TextStyle(color: Colors.white))))
                     .toList(),
                 onChanged: (c) {
-                  if (c != null) _classeNom.text = c.nom;
+                  if (c != null) setState(() { _selectedClasse = c; _classeNom.text = c.nom; });
                 },
               )
             else
@@ -365,6 +378,7 @@ class _DocumentFormState extends State<_DocumentForm> {
                 DropdownMenuItem(value: 'cours', child: Text('Cours')),
                 DropdownMenuItem(value: 'exercice', child: Text('Exercice')),
                 DropdownMenuItem(value: 'correction', child: Text('Correction')),
+                DropdownMenuItem(value: 'video', child: Text('Vidéo pédagogique')),
                 DropdownMenuItem(value: 'autre', child: Text('Autre')),
               ],
               onChanged: (t) => setState(() => _type = t ?? 'cours'),
@@ -384,7 +398,7 @@ class _DocumentFormState extends State<_DocumentForm> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        _fichierNom ?? 'Joindre un fichier PDF (optionnel)',
+                        _fichierNom ?? 'Joindre un fichier PDF / Word / PPT / Vidéo',
                         style: TextStyle(
                             color: _fichierNom != null ? Colors.white : Colors.white38,
                             fontSize: 14),
@@ -417,8 +431,9 @@ class _DocumentFormState extends State<_DocumentForm> {
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform
-        .pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx']);
+    final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'mp4', 'mov', 'avi', 'mkv']);
     if (result != null && result.files.single.path != null) {
       setState(() {
         _fichier = File(result.files.single.path!);
@@ -428,23 +443,66 @@ class _DocumentFormState extends State<_DocumentForm> {
   }
 
   Future<void> _save() async {
-    if (_titre.text.trim().isEmpty) return;
+    debugPrint('[Documents] ── Bouton Déposer cliqué ──');
+
+    // Validation des champs obligatoires
+    if (_titre.text.trim().isEmpty) {
+      debugPrint('[Documents] Abandon : titre vide');
+      _showError('Le titre est obligatoire.');
+      return;
+    }
+    if (_matiere.text.trim().isEmpty) {
+      debugPrint('[Documents] Abandon : matière vide');
+      _showError('La matière est obligatoire.');
+      return;
+    }
+    if (_classeNom.text.trim().isEmpty) {
+      debugPrint('[Documents] Abandon : classe vide');
+      _showError('La classe est obligatoire.');
+      return;
+    }
+
+    debugPrint('[Documents] Validation OK → démarrage sauvegarde');
     setState(() => _saving = true);
+
     try {
+      debugPrint('[Documents] Appel ProfesseurService.addDocument...');
       await ProfesseurService.addDocument(
         titre: _titre.text.trim(),
         description: _desc.text.trim(),
         matiere: _matiere.text.trim(),
-        classeId: '',
+        classeId: _selectedClasse?.id ?? '',
         classeNom: _classeNom.text.trim(),
         type: _type,
         fichier: _fichier,
         fichierNom: _fichierNom,
       );
+      debugPrint('[Documents] addDocument terminé avec succès ✓');
       if (mounted) Navigator.pop(context);
+    } catch (e, st) {
+      final firstLine = st.toString().split('\n').firstWhere(
+            (l) => l.trim().isNotEmpty,
+            orElse: () => '(stack vide)',
+          );
+      debugPrint('[Documents] ERREUR [${e.runtimeType}] dans _save: $e');
+      debugPrint('[Documents] StackTrace:\n$st');
+      if (mounted) {
+        _showError(
+          '[${e.runtimeType}] $e\n\nSource: $firstLine',
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  void _showError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: const Color(0xFFDC2626),
+      duration: const Duration(seconds: 8),
+    ));
   }
 
   InputDecoration _inputDeco(String label) => InputDecoration(

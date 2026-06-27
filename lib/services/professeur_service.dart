@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,7 +15,7 @@ import '../models/user_model.dart';
 
 class ProfesseurService {
   static final _db = FirebaseFirestore.instance;
-  static final _storage = FirebaseStorage.instance;
+  static final _storage = FirebaseStorage.instanceFor(bucket: 'gs://ilyasapp-4762c.firebasestorage.app');
 
   static String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
 
@@ -53,10 +54,13 @@ class ProfesseurService {
       throw Exception('Utilisateur non authentifié (uid vide)');
     }
     try {
+      final user = FirebaseAuth.instance.currentUser;
       final doc = await _classes.add({
         'nom': nom,
         'niveau': niveau,
         'professeurId': uid,
+        'professeurEmail': user?.email ?? '',
+        'professeurDisplayName': user?.displayName ?? '',
         'eleveIds': <String>[],
         'anneeScol': DateTime.now().year,
       });
@@ -132,15 +136,32 @@ class ProfesseurService {
       String classeNom) {
     if (classeNom.isEmpty) return Stream.value(const []);
     return _db
-        .collection('eleves')
-        .where('classe', isEqualTo: classeNom)
+        .collection('users')
+        .where('role', isEqualTo: 'eleve')
+        .where('classeNom', isEqualTo: classeNom)
         .snapshots()
-        .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList()
-          ..sort((a, b) {
+        .map((s) {
+          final list = s.docs.map((d) {
+            final data = d.data();
+            // Dériver prenom/nom depuis displayName si les champs séparés sont absents
+            final displayName = (data['displayName'] as String? ?? '').trim();
+            final parts = displayName.isEmpty ? <String>[] : displayName.split(RegExp(r'\s+'));
+            final prenom = data['prenom'] as String? ?? (parts.isNotEmpty ? parts.first : '');
+            final nom = data['nom'] as String? ?? (parts.length > 1 ? parts.skip(1).join(' ') : '');
+            return {
+              'id': d.id,
+              ...data,
+              'prenom': prenom,
+              'nom': nom,
+            };
+          }).toList();
+          list.sort((a, b) {
             final na = '${a['prenom']} ${a['nom']}';
             final nb = '${b['prenom']} ${b['nom']}';
             return na.compareTo(nb);
-          }));
+          });
+          return list;
+        });
   }
 
   // ── Présences ─────────────────────────────────────────────────────────────
@@ -214,6 +235,7 @@ class ProfesseurService {
 
   static Future<void> addNote({
     required String eleveId,
+    String eleveUid = '',
     required String eleveNom,
     required String elevePrenom,
     required String classeId,
@@ -225,6 +247,7 @@ class ProfesseurService {
   }) async {
     await _notes.add({
       'eleveId': eleveId,
+      if (eleveUid.isNotEmpty) 'eleveUid': eleveUid,
       'eleveNom': eleveNom,
       'elevePrenom': elevePrenom,
       'classeId': classeId,
@@ -291,10 +314,23 @@ class ProfesseurService {
     String nom = '';
 
     if (fichier != null && fichierNom != null) {
+      final bytes = await fichier.readAsBytes();
+      final token = _generateDownloadToken();
       final ref = _storage
           .ref('devoirs/$_uid/${DateTime.now().millisecondsSinceEpoch}_$fichierNom');
-      await ref.putFile(fichier);
-      fichierUrl = await ref.getDownloadURL();
+      final snap = await ref.putData(
+        bytes,
+        SettableMetadata(
+          contentType: 'application/octet-stream',
+          customMetadata: {'firebaseStorageDownloadTokens': token},
+        ),
+      );
+      if (snap.state != TaskState.success) {
+        throw Exception('Upload devoir échoué (état: ${snap.state}).');
+      }
+      final bucket      = snap.ref.bucket;
+      final encodedPath = Uri.encodeComponent(snap.ref.fullPath);
+      fichierUrl = 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media&token=$token';
       nom = fichierNom;
     }
 
@@ -313,6 +349,15 @@ class ProfesseurService {
   }
 
   static Future<void> deleteDevoir(String id) async {
+    final doc = await _devoirs.doc(id).get();
+    final url = doc.data()?['fichierUrl'] as String?;
+    if (url != null && url.isNotEmpty) {
+      try {
+        await _storage.refFromURL(url).delete();
+      } catch (_) {
+        // Fichier déjà absent du Storage — on supprime l'entrée Firestore quand même.
+      }
+    }
     await _devoirs.doc(id).delete();
   }
 
@@ -321,9 +366,19 @@ class ProfesseurService {
   static Stream<List<DocumentPedagogique>> documentsStream() {
     return _documents
         .where('professeurId', isEqualTo: _uid)
-        .orderBy('dateDepot', descending: true)
         .snapshots()
-        .map((s) => s.docs.map(DocumentPedagogique.fromFirestore).toList());
+        .map((s) {
+          final list = s.docs.map(DocumentPedagogique.fromFirestore).toList();
+          list.sort((a, b) => b.dateDepot.compareTo(a.dateDepot));
+          return list;
+        });
+  }
+
+  // Génère un token aléatoire compatible Firebase Storage download token
+  static String _generateDownloadToken() {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final rng = Random.secure();
+    return List.generate(36, (_) => chars[rng.nextInt(chars.length)]).join();
   }
 
   static Future<void> addDocument({
@@ -335,33 +390,150 @@ class ProfesseurService {
     required String type,
     File? fichier,
     String? fichierNom,
+    String devoirId = '',
   }) async {
+    final uid = _uid;
+    debugPrint('══════════════════════════════════════════════════');
+    debugPrint('[addDocument] ► DÉBUT');
+    debugPrint('[addDocument] uid=$uid');
+    debugPrint('[addDocument] titre="$titre" matiere="$matiere" classeNom="$classeNom" type=$type');
+    debugPrint('[addDocument] fichier=${fichier?.path} | fichierNom=$fichierNom');
+
+    if (uid.isEmpty) {
+      throw Exception('Utilisateur non authentifié — reconnectez-vous.');
+    }
+
     String fichierUrl = '';
     String nom = '';
 
+    // ── BLOC STORAGE (ignoré si aucun fichier) ────────────────────────────────
     if (fichier != null && fichierNom != null) {
-      final ref = _storage
-          .ref('documents_prof/$_uid/${DateTime.now().millisecondsSinceEpoch}_$fichierNom');
-      await ref.putFile(fichier);
-      fichierUrl = await ref.getDownloadURL();
-      nom = fichierNom;
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final storagePath = 'documents_prof/$uid/${ts}_$fichierNom';
+
+      debugPrint('[addDocument] ► STORAGE');
+      debugPrint('[addDocument] bucket configuré : ${_storage.bucket}');
+      debugPrint('[addDocument] storagePath      : $storagePath');
+
+      try {
+        // 1. Lire les octets (putData évite les content-URI Android)
+        final bytes = await fichier.readAsBytes();
+        debugPrint('[addDocument] fichier lu : ${bytes.length} octets');
+
+        if (bytes.isEmpty) {
+          throw Exception('Fichier vide (0 octet) — upload annulé.');
+        }
+
+        // 2. Déterminer le content-type
+        final ext = fichierNom.split('.').last.toLowerCase();
+        final contentType = switch (ext) {
+          'pdf'  => 'application/pdf',
+          'doc'  => 'application/msword',
+          'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'ppt'  => 'application/vnd.ms-powerpoint',
+          'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          _      => 'application/octet-stream',
+        };
+        debugPrint('[addDocument] contentType : $contentType');
+
+        // 3. Générer un token de téléchargement (compatible appspot + firebasestorage.app)
+        //    → évite d'appeler getDownloadURL() qui échoue sur les buckets new-gen
+        final downloadToken = _generateDownloadToken();
+        debugPrint('[addDocument] downloadToken : $downloadToken');
+
+        final ref = _storage.ref(storagePath);
+        debugPrint('[addDocument] ref.bucket   : ${ref.bucket}');
+        debugPrint('[addDocument] ref.fullPath : ${ref.fullPath}');
+
+        // 4. Upload — le token est injecté dans les métadonnées
+        debugPrint('[addDocument] ► putData démarrage...');
+        TaskSnapshot snapshot;
+        try {
+          snapshot = await ref.putData(
+            bytes,
+            SettableMetadata(
+              contentType: contentType,
+              customMetadata: {'firebaseStorageDownloadTokens': downloadToken},
+            ),
+          );
+        } on FirebaseException catch (e, st) {
+          debugPrint('[addDocument] putData ÉCHEC');
+          debugPrint('[addDocument]   code    : ${e.code}');
+          debugPrint('[addDocument]   message : ${e.message}');
+          debugPrint('[addDocument]   stack   : $st');
+          rethrow;
+        }
+
+        debugPrint('[addDocument] putData OK');
+        debugPrint('[addDocument]   TaskState          : ${snapshot.state}');
+        debugPrint('[addDocument]   octets transférés  : ${snapshot.bytesTransferred}/${snapshot.totalBytes}');
+        debugPrint('[addDocument]   snapshot.ref.bucket: ${snapshot.ref.bucket}');
+        debugPrint('[addDocument]   snapshot.ref.path  : ${snapshot.ref.fullPath}');
+
+        if (snapshot.state != TaskState.success) {
+          throw Exception(
+              'Upload échoué (état: ${snapshot.state}) — le serveur a refusé le fichier.\n'
+              'Vérifiez les règles Firebase Storage sur le bucket "${snapshot.ref.bucket}".');
+        }
+
+        // 5. Construire l'URL directement avec le token — pas besoin de getDownloadURL()
+        //    Format : https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{path}?alt=media&token={token}
+        final bucket      = snapshot.ref.bucket;
+        final encodedPath = Uri.encodeComponent(snapshot.ref.fullPath);
+        fichierUrl = 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media&token=$downloadToken';
+        nom = fichierNom;
+
+        debugPrint('[addDocument] URL fichier : $fichierUrl');
+
+      } catch (e, st) {
+        debugPrint('[addDocument] ► ERREUR STORAGE : $e');
+        debugPrint('[addDocument]   stack : $st');
+        rethrow;
+      }
+    } else {
+      debugPrint('[addDocument] Aucun fichier joint → dépôt sans PDF');
     }
 
-    await _documents.add({
+    // ── BLOC FIRESTORE ─────────────────────────────────────────────────────────
+    debugPrint('[addDocument] ► FIRESTORE WRITE');
+    final data = {
       'titre': titre,
       'description': description,
       'matiere': matiere,
       'classeId': classeId,
       'classeNom': classeNom,
-      'professeurId': _uid,
+      'professeurId': uid,
       'fichierUrl': fichierUrl,
       'fichierNom': nom,
       'dateDepot': FieldValue.serverTimestamp(),
       'type': type,
-    });
+      if (devoirId.isNotEmpty) 'devoirId': devoirId,
+    };
+    debugPrint('[addDocument] data : $data');
+
+    try {
+      final docRef = await _documents.add(data);
+      debugPrint('[addDocument] ► FIRESTORE OK — docId: ${docRef.id}');
+    } catch (e, st) {
+      debugPrint('[addDocument] ► ERREUR FIRESTORE : $e');
+      debugPrint('[addDocument]   stack : $st');
+      rethrow;
+    }
+
+    debugPrint('[addDocument] ► TERMINÉ');
+    debugPrint('══════════════════════════════════════════════════');
   }
 
   static Future<void> deleteDocument(String id) async {
+    final doc = await _documents.doc(id).get();
+    final url = doc.data()?['fichierUrl'] as String?;
+    if (url != null && url.isNotEmpty) {
+      try {
+        await _storage.refFromURL(url).delete();
+      } catch (_) {
+        // Fichier déjà absent du Storage — on supprime l'entrée Firestore quand même.
+      }
+    }
     await _documents.doc(id).delete();
   }
 
@@ -380,8 +552,8 @@ class ProfesseurService {
         .snapshots()
         .map((s) => s.docs.fold<int>(
             0,
-            (sum, doc) =>
-                sum +
+            (acc, doc) =>
+                acc +
                 ((doc.data()['eleveIds'] as List?)?.length ?? 0)));
   }
 
@@ -399,6 +571,51 @@ class ProfesseurService {
         .map((s) => s.docs.length);
   }
 
+  // ── Suivi IA — élèves par classe (depuis users/{uid}) ────────────────────
+
+  /// Élèves qui ont utilisé l'app IA et ont enregistré `classeNom` dans leur profil.
+  /// Source : collection `users` (et non `eleves`), pour avoir accès au suivi maîtrise.
+  static Stream<List<UserModel>> elevesMaitriseStream(String classeNom) {
+    if (classeNom.isEmpty) return Stream.value(const []);
+    return _db
+        .collection('users')
+        .where('role', isEqualTo: 'eleve')
+        .where('classeNom', isEqualTo: classeNom)
+        .snapshots()
+        .map((s) {
+      final list = s.docs.map((d) => UserModel.fromDoc(d)).toList();
+      list.sort((a, b) => a.displayName.compareTo(b.displayName));
+      return list;
+    });
+  }
+
+  /// Nombre total d'élèves ayant au moins une notion 🔴 dans les classes du professeur.
+  static Stream<int> totalElevesEnDifficulteStream() {
+    final uid = _uid;
+    if (uid.isEmpty) return Stream.value(0);
+    return _classes
+        .where('professeurId', isEqualTo: uid)
+        .snapshots()
+        .asyncMap((classeSnap) async {
+      final noms = classeSnap.docs
+          .map((d) => d.data()['nom'] as String? ?? '')
+          .where((n) => n.isNotEmpty)
+          .toList();
+      if (noms.isEmpty) return 0;
+      int count = 0;
+      for (final nom in noms) {
+        final snap = await _db
+            .collection('users')
+            .where('role', isEqualTo: 'eleve')
+            .where('classeNom', isEqualTo: nom)
+            .where('maitrise_en_difficulte', isEqualTo: true)
+            .get();
+        count += snap.docs.length;
+      }
+      return count;
+    });
+  }
+
   // ── Communication — contacts autorisés (Direction uniquement) ────────────
 
   static Stream<List<UserModel>> contactsAutorises() {
@@ -406,9 +623,12 @@ class ProfesseurService {
         .collection('users')
         .where('role', isEqualTo: UserRole.admin.value)
         .snapshots()
-        .map((s) => s.docs
-            .map((d) => UserModel.fromDoc(d))
-            .where((u) => u.uid != _uid)
-            .toList());
+        .map((s) {
+          final seen = <String>{};
+          return s.docs
+              .map((d) => UserModel.fromDoc(d))
+              .where((u) => u.uid != _uid && seen.add(u.email))
+              .toList();
+        });
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/classe_model.dart';
@@ -390,6 +392,9 @@ class _NoteFormState extends State<_NoteForm> {
   late final TextEditingController _bareme;
   late final TextEditingController _matiere;
   bool _saving = false;
+  String? _eleveUid;
+  List<Map<String, dynamic>> _eleves = [];
+  StreamSubscription? _elevesSub;
 
   @override
   void initState() {
@@ -404,10 +409,15 @@ class _NoteFormState extends State<_NoteForm> {
         text: e != null ? e.bareme.toInt().toString() : '20');
     _matiere = TextEditingController(
         text: e?.matiere ?? widget.matiereDefault);
+    if (widget.existing == null && widget.classeNom.isNotEmpty) {
+      _elevesSub = ProfesseurService.elevesParClasseStream(widget.classeNom)
+          .listen((list) { if (mounted) setState(() => _eleves = list); });
+    }
   }
 
   @override
   void dispose() {
+    _elevesSub?.cancel();
     for (final c in [_eleveNom, _elevePrenom, _intitule, _note, _bareme, _matiere]) {
       c.dispose();
     }
@@ -432,6 +442,45 @@ class _NoteFormState extends State<_NoteForm> {
                   fontSize: 16,
                   fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
+          if (widget.existing == null && _eleves.isNotEmpty) ...[
+            DropdownButtonFormField<String>(
+              decoration: InputDecoration(
+                labelText: 'Sélectionner un élève',
+                labelStyle: const TextStyle(color: Color(0xFFD97706)),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Color(0xFFD97706)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Color(0xFFD97706), width: 2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              dropdownColor: const Color(0xFF1C2128),
+              style: const TextStyle(color: Colors.white),
+              initialValue: null,
+              items: _eleves.map((e) {
+                final label = '${e['prenom'] ?? ''} ${e['nom'] ?? ''}'.trim();
+                return DropdownMenuItem<String>(
+                  value: e['id'] as String? ?? '',
+                  child: Text(label),
+                );
+              }).toList(),
+              onChanged: (eleveDocId) {
+                if (eleveDocId == null) return;
+                final e = _eleves.firstWhere(
+                  (el) => (el['id'] as String?) == eleveDocId,
+                  orElse: () => {},
+                );
+                setState(() {
+                  _eleveUid = e['authUid'] as String? ?? '';
+                  _eleveNom.text = e['nom'] as String? ?? '';
+                  _elevePrenom.text = e['prenom'] as String? ?? '';
+                });
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
           Row(
             children: [
               Expanded(child: _Field(controller: _elevePrenom, label: 'Prénom', color: const Color(0xFFD97706))),
@@ -485,7 +534,8 @@ class _NoteFormState extends State<_NoteForm> {
             note: noteVal, intitule: _intitule.text.trim());
       } else {
         await ProfesseurService.addNote(
-          eleveId: '',
+          eleveId: _eleveUid ?? '',
+          eleveUid: _eleveUid ?? '',
           eleveNom: _eleveNom.text.trim(),
           elevePrenom: _elevePrenom.text.trim(),
           classeId: widget.classeId,

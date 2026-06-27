@@ -100,10 +100,13 @@ class _ProfesseurEmploiPageState extends State<ProfesseurEmploiPage> {
     int selectedJour = 1;
     final matiereCtrl = TextEditingController();
     final classeCtrl = TextEditingController();
-    final classeIdCtrl = TextEditingController();
     final salleCtrl = TextEditingController();
     TimeOfDay debut = const TimeOfDay(hour: 8, minute: 0);
     TimeOfDay fin = const TimeOfDay(hour: 9, minute: 0);
+
+    final classes = await ProfesseurService.classesStream().first;
+    if (!context.mounted) return;
+    ClasseModel? selectedClasse;
 
     await showModalBottomSheet(
       context: context,
@@ -205,7 +208,22 @@ class _ProfesseurEmploiPageState extends State<ProfesseurEmploiPage> {
               const SizedBox(height: 10),
               _Field(controller: matiereCtrl, label: 'Matière'),
               const SizedBox(height: 10),
-              _Field(controller: classeCtrl, label: 'Classe (ex: 6ème A)'),
+              if (classes.isNotEmpty)
+                DropdownButtonFormField<ClasseModel>(
+                  value: selectedClasse,
+                  dropdownColor: const Color(0xFF161B22),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _inputDeco('Classe'),
+                  items: classes
+                      .map((c) => DropdownMenuItem(
+                          value: c,
+                          child: Text(c.nom,
+                              style: const TextStyle(color: Colors.white))))
+                      .toList(),
+                  onChanged: (c) => setModal(() => selectedClasse = c),
+                )
+              else
+                _Field(controller: classeCtrl, label: 'Classe (ex: 6ème A)'),
               const SizedBox(height: 10),
               _Field(controller: salleCtrl, label: 'Salle (optionnel)'),
               const SizedBox(height: 20),
@@ -217,8 +235,11 @@ class _ProfesseurEmploiPageState extends State<ProfesseurEmploiPage> {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14)),
                   onPressed: () async {
+                    final classeNom = selectedClasse?.nom ?? classeCtrl.text.trim();
                     if (matiereCtrl.text.trim().isEmpty ||
-                        classeCtrl.text.trim().isEmpty) return;
+                        classeNom.isEmpty) {
+                      return;
+                    }
                     final fmt = (TimeOfDay t) =>
                         '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
                     await ProfesseurService.addSlot(
@@ -226,8 +247,8 @@ class _ProfesseurEmploiPageState extends State<ProfesseurEmploiPage> {
                       heureDebut: fmt(debut),
                       heureFin: fmt(fin),
                       matiere: matiereCtrl.text.trim(),
-                      classeNom: classeCtrl.text.trim(),
-                      classeId: classeIdCtrl.text.trim(),
+                      classeNom: classeNom,
+                      classeId: selectedClasse?.id ?? '',
                       salle: salleCtrl.text.trim(),
                     );
                     if (ctx.mounted) Navigator.pop(ctx);

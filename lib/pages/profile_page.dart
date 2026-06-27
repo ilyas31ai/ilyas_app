@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -26,7 +27,8 @@ class _ProfilePageState extends State<ProfilePage> {
   late final Stream<UserModel?> _profileStream;
 
   int _friendsCount = 0;
-  int _contactsCount = 0;
+  int _devoirsSubmis = 0;
+  String _scoreIA = '—';
   bool _statsLoading = true;
   bool _uploadingPhoto = false;
 
@@ -49,6 +51,18 @@ class _ProfilePageState extends State<ProfilePage> {
           await StorageService.uploadProfilePhoto(File(picked.path));
       if (url != null) {
         await UserService.updateProfile({'photoUrl': url});
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Échec de l\'envoi de la photo. Réessayez.'),
+          backgroundColor: Color(0xFFDC2626),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur lors de l\'envoi de la photo : $e'),
+          backgroundColor: const Color(0xFFDC2626),
+        ));
       }
     } finally {
       if (mounted) setState(() => _uploadingPhoto = false);
@@ -57,24 +71,52 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _loadStats() async {
     final email = _email;
-    if (email.isEmpty) return;
-    final k = SocialService.encodeKey(email);
-    final results = await Future.wait([
-      _db.child('friends/$k').get(),
-      _db.child('users/$k/contacts').get(),
-    ]);
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (email.isEmpty) {
+      if (mounted) setState(() => _statsLoading = false);
+      return;
+    }
 
-    final friendsSnap = results[0];
-    final contactsSnap = results[1];
+    int friendsCount = 0;
+    int devoirsCount = 0;
+    String scoreIA = '—';
+
+    try {
+      final k = SocialService.encodeKey(email);
+      final friendsSnap = await _db.child('friends/$k').get();
+      if (friendsSnap.exists && friendsSnap.value is Map) {
+        friendsCount =
+            Map<dynamic, dynamic>.from(friendsSnap.value as Map).length;
+      }
+    } catch (_) {}
+
+    if (uid.isNotEmpty) {
+      final fs = FirebaseFirestore.instance;
+      try {
+        final subSnap = await fs
+            .collection('submissions')
+            .where('studentId', isEqualTo: uid)
+            .get();
+        devoirsCount = subSnap.docs.length;
+      } catch (_) {}
+      try {
+        final userDoc = await fs.collection('users').doc(uid).get();
+        if (userDoc.exists) {
+          final d = userDoc.data() ?? {};
+          final summary = d['maitrise_summary'] as Map<String, dynamic>? ?? {};
+          final totaux = summary['totaux'] as Map<String, dynamic>? ?? {};
+          final total = (totaux['total'] as num?)?.toInt() ?? 0;
+          final maitrise = (totaux['maitrise'] as num?)?.toInt() ?? 0;
+          if (total > 0) scoreIA = '${(maitrise * 100 ~/ total)}%';
+        }
+      } catch (_) {}
+    }
 
     if (!mounted) return;
     setState(() {
-      _friendsCount = friendsSnap.exists
-          ? (Map<dynamic, dynamic>.from(friendsSnap.value as Map)).length
-          : 0;
-      _contactsCount = contactsSnap.exists
-          ? (Map<dynamic, dynamic>.from(contactsSnap.value as Map)).length
-          : 0;
+      _friendsCount = friendsCount;
+      _devoirsSubmis = devoirsCount;
+      _scoreIA = scoreIA;
       _statsLoading = false;
     });
   }
@@ -84,6 +126,17 @@ class _ProfilePageState extends State<ProfilePage> {
     return StreamBuilder<UserModel?>(
       stream: _profileStream,
       builder: (context, snap) {
+        if (snap.hasError) {
+          return Scaffold(
+            backgroundColor: const Color(0xFF0D1117),
+            body: Center(
+              child: Text(
+                'Erreur de chargement du profil.',
+                style: const TextStyle(color: Colors.white54, fontSize: 14),
+              ),
+            ),
+          );
+        }
         final loading = snap.connectionState == ConnectionState.waiting;
         final profile = snap.data;
         return Scaffold(
@@ -288,15 +341,15 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           _VertDivider(),
           _StatCell(
-            icon: Icons.contacts_outlined,
-            label: 'Contacts',
-            value: _statsLoading ? '…' : '$_contactsCount',
+            icon: Icons.assignment_turned_in_outlined,
+            label: 'Devoirs remis',
+            value: _statsLoading ? '…' : '$_devoirsSubmis',
           ),
           _VertDivider(),
-          const _StatCell(
-            icon: Icons.military_tech_outlined,
-            label: 'Badges',
-            value: '3',
+          _StatCell(
+            icon: Icons.psychology_outlined,
+            label: 'Score IA',
+            value: _statsLoading ? '…' : _scoreIA,
           ),
         ],
       ),
@@ -308,9 +361,11 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildInfoCard(UserModel? profile) {
     final memberSince = profile?.createdAt != null
         ? _formatDate(profile!.createdAt!.toDate())
-        : '…';
+        : '—';
     final niveau = profile?.niveau;
+    final classeNom = profile?.classeNom;
     final matiere = profile?.matiere;
+    final bio = profile?.bio;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -329,6 +384,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   fontSize: 15)),
           const SizedBox(height: 14),
           _InfoRow(Icons.email_outlined, 'Email', _email),
+          if (classeNom != null && classeNom.isNotEmpty) ...[
+            const Divider(color: Color(0xFF21262D), height: 22),
+            _InfoRow(Icons.class_outlined, 'Classe', classeNom),
+          ],
           if (niveau != null && niveau.isNotEmpty) ...[
             const Divider(color: Color(0xFF21262D), height: 22),
             _InfoRow(Icons.school_outlined, 'Niveau', niveau),
@@ -336,6 +395,10 @@ class _ProfilePageState extends State<ProfilePage> {
           if (matiere != null && matiere.isNotEmpty) ...[
             const Divider(color: Color(0xFF21262D), height: 22),
             _InfoRow(Icons.book_outlined, 'Matière', matiere),
+          ],
+          if (bio != null && bio.isNotEmpty) ...[
+            const Divider(color: Color(0xFF21262D), height: 22),
+            _InfoRow(Icons.info_outline, 'Bio', bio),
           ],
           const Divider(color: Color(0xFF21262D), height: 22),
           _InfoRow(
@@ -405,6 +468,7 @@ class _ProfilePageState extends State<ProfilePage> {
   // ─── Actions ──────────────────────────────────────────────────────────────
 
   Widget _buildActionsSection(BuildContext context, UserModel? profile) {
+    final isEleve = profile?.role == UserRole.eleve;
     return Column(
       children: [
         if (profile != null)
@@ -423,16 +487,18 @@ class _ProfilePageState extends State<ProfilePage> {
           label: 'Notifications',
           onTap: () => Navigator.pushNamed(context, '/notifications'),
         ),
-        const SizedBox(height: 8),
-        _ActionTile(
-          icon: Icons.people_outline,
-          label: 'Mes amis',
-          onTap: () => Navigator.pushNamed(context, '/amis'),
-        ),
+        if (isEleve) ...[
+          const SizedBox(height: 8),
+          _ActionTile(
+            icon: Icons.forum_outlined,
+            label: 'Contacter mes professeurs',
+            onTap: () => Navigator.pushNamed(context, '/eleve_discussion'),
+          ),
+        ],
         const SizedBox(height: 8),
         _ActionTile(
           icon: Icons.chat_bubble_outline,
-          label: 'Messages privés',
+          label: 'Messages',
           onTap: () => Navigator.pushNamed(context, '/users'),
         ),
         const SizedBox(height: 8),

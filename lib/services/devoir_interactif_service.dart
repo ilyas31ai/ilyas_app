@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -11,7 +12,7 @@ import '../models/question_model.dart';
 
 class DevoirInteractifService {
   static final _db = FirebaseFirestore.instance;
-  static final _storage = FirebaseStorage.instance;
+  static final _storage = FirebaseStorage.instanceFor(bucket: 'gs://ilyasapp-4762c.firebasestorage.app');
   static String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   // ── Professeur ───────────────────────────────────────────────────────────────
@@ -35,10 +36,23 @@ class DevoirInteractifService {
     String fichierNom = '';
 
     if (pdfFile != null && pdfNom != null) {
+      final token = _buildToken();
       final ref = _storage.ref(
           'devoirs/$_uid/${DateTime.now().millisecondsSinceEpoch}_$pdfNom');
-      await ref.putFile(pdfFile);
-      fichierUrl = await ref.getDownloadURL();
+      final bytes = await pdfFile.readAsBytes();
+      final snap = await ref.putData(
+        bytes,
+        SettableMetadata(
+          contentType: 'application/pdf',
+          customMetadata: {'firebaseStorageDownloadTokens': token},
+        ),
+      );
+      if (snap.state != TaskState.success) {
+        throw Exception('Upload devoir échoué (état: ${snap.state}).');
+      }
+      final bucket      = snap.ref.bucket;
+      final encodedPath = Uri.encodeComponent(snap.ref.fullPath);
+      fichierUrl = 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media&token=$token';
       fichierNom = pdfNom;
     }
 
@@ -160,8 +174,27 @@ class DevoirInteractifService {
     final ts = DateTime.now().millisecondsSinceEpoch;
     final ref =
         _storage.ref('copies/$uid/$devoirId/${ts}_photo.jpg');
-    await ref.putFile(photo);
-    return ref.getDownloadURL();
+    final token = _buildToken();
+    final bytes = await photo.readAsBytes();
+    final snap = await ref.putData(
+      bytes,
+      SettableMetadata(
+        contentType: 'image/jpeg',
+        customMetadata: {'firebaseStorageDownloadTokens': token},
+      ),
+    );
+    if (snap.state != TaskState.success) {
+      throw Exception('Upload photo réponse échoué (état: ${snap.state})');
+    }
+    final bucket      = snap.ref.bucket;
+    final encodedPath = Uri.encodeComponent(snap.ref.fullPath);
+    return 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media&token=$token';
+  }
+
+  static String _buildToken() {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final rng = Random.secure();
+    return List.generate(36, (_) => chars[rng.nextInt(chars.length)]).join();
   }
 
   // ── Professeur : corrections ─────────────────────────────────────────────────

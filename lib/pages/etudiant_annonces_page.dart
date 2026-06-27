@@ -1,10 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../models/annonce_model.dart';
-import '../models/user_model.dart';
 import '../services/etudiant_service.dart';
-import '../services/user_service.dart';
 
 class EtudiantAnnoncesPage extends StatelessWidget {
   const EtudiantAnnoncesPage({super.key});
@@ -24,7 +21,6 @@ class EtudiantAnnoncesPage extends StatelessWidget {
       ),
       body: Column(
         children: [
-          const _AnnoncesDebugBanner(),
           Expanded(
             child: StreamBuilder<List<AnnonceModel>>(
               stream: EtudiantService.annoncesStream(),
@@ -35,29 +31,28 @@ class EtudiantAnnoncesPage extends StatelessWidget {
                           color: Color(0xFF2563EB)));
                 }
                 if (snap.hasError) {
-                  final errStr = snap.error.toString();
-                  return Center(
+                  return const Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.all(24),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.lock_outline,
+                          Icon(Icons.campaign_outlined,
                               color: Colors.white24, size: 48),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Contenu non disponible',
+                          SizedBox(height: 12),
+                          Text(
+                            'Annonces non disponibles',
                             style: TextStyle(
                                 color: Colors.white60,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600),
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                           Text(
-                            errStr,
+                            'Vérifiez votre connexion ou contactez l\'administration.',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
-                                color: Colors.orange, fontSize: 11),
+                            style:
+                                TextStyle(color: Colors.white38, fontSize: 12),
                           ),
                         ],
                       ),
@@ -95,63 +90,6 @@ class EtudiantAnnoncesPage extends StatelessWidget {
   }
 }
 
-// ── DEBUG BANNER ──────────────────────────────────────────────────────────────
-class _AnnoncesDebugBanner extends StatelessWidget {
-  const _AnnoncesDebugBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return Container(
-        width: double.infinity,
-        color: const Color(0xFF0D2010),
-        padding: const EdgeInsets.all(8),
-        child: const Text(
-          'AUTH: NON AUTHENTIFIE - uid null',
-          style: TextStyle(color: Colors.red, fontSize: 10, fontFamily: 'monospace'),
-        ),
-      );
-    }
-    // StreamBuilder pour mise à jour automatique après affectation de classe
-    return StreamBuilder(
-      stream: UserService.currentUserStream(),
-      builder: (context, snap) {
-        final lines = <String>[
-          'uid      : ${user.uid}',
-          'email    : ${user.email ?? "null"}',
-          'collection: annonces',
-        ];
-        if (snap.connectionState == ConnectionState.waiting) {
-          lines.add('role     : chargement...');
-        } else if (snap.hasError) {
-          lines.add('users/uid: ERREUR ${snap.error}');
-        } else if (snap.data == null) {
-          lines.add('users/uid: DOCUMENT ABSENT');
-        } else {
-          final u = snap.data!;
-          lines.add('role     : ${u.role.value}');
-          lines.add('niveau   : ${u.niveau ?? "ABSENT"}');
-          lines.add('classeNom: ${u.classeNom ?? "ABSENT"}');
-          lines.add('classeId : ${u.classeId ?? "ABSENT"}');
-        }
-        return Container(
-          width: double.infinity,
-          color: const Color(0xFF0D2010),
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-          child: Text(
-            lines.join('\n'),
-            style: const TextStyle(
-                color: Color(0xFF4ADE80),
-                fontSize: 10,
-                fontFamily: 'monospace',
-                height: 1.5),
-          ),
-        );
-      },
-    );
-  }
-}
 
 // ── CARTE ANNONCE ─────────────────────────────────────────────────────────────
 class _AnnonceCard extends StatelessWidget {

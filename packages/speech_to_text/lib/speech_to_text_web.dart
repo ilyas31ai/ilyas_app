@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
-import 'dart:js_util' as js_util;
 
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
@@ -140,7 +139,8 @@ class SpeechToTextPlugin extends SpeechToTextPlatform {
       partialResults = true,
       onDevice = false,
       int listenMode = 0,
-      sampleRate = 0}) async {
+      sampleRate = 0,
+      SpeechListenOptions? options}) async {
     if (null == _webSpeech) return false;
     _webSpeech!.onResult.listen((speechEvent) => _onResult(speechEvent));
     _webSpeech!.interimResults = partialResults;
@@ -204,10 +204,13 @@ class SpeechToTextPlugin extends SpeechToTextPlatform {
         continue;
       }
       for (var altIndex = 0; altIndex < recognitionResult.length!; ++altIndex) {
-        var alt = js_util.callMethod(recognitionResult, 'item', [altIndex]);
+        // ignore: avoid_dynamic_calls
+        final alt = (recognitionResult as dynamic).item(altIndex);
         if (null == alt) continue;
-        String? transcript = js_util.getProperty(alt, 'transcript');
-        num? confidence = js_util.getProperty(alt, 'confidence');
+        // ignore: avoid_dynamic_calls
+        final String? transcript = (alt as dynamic).transcript as String?;
+        // ignore: avoid_dynamic_calls
+        final num? confidence = (alt as dynamic).confidence as num?;
         if (null != transcript && null != confidence) {
           recogResults
               .add(SpeechRecognitionWords(transcript, confidence.toDouble()));

@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../models/user_model.dart';
 import '../services/user_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -17,7 +16,6 @@ class _LoginPageState extends State<LoginPage> {
 
   bool isLogin = true;
   bool loading = false;
-  UserRole _selectedRole = UserRole.eleve;
 
   // 🔐 LOGIN / SIGNUP
   void submit() async {
@@ -53,7 +51,11 @@ class _LoginPageState extends State<LoginPage> {
           email: mail,
           password: pass,
         );
-        await UserService.syncProfile(role: _selectedRole);
+        // Le rôle n'est plus auto-déclarable : seul "élève" peut s'inscrire
+        // librement (détection automatique de "parent" par email côté
+        // serveur). Professeur/Direction sont attribués manuellement
+        // jusqu'à l'écran d'administration des comptes (Phase 3).
+        await UserService.syncProfile();
       }
     } on FirebaseAuthException catch (e) {
       String msg;
@@ -198,50 +200,6 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
               ),
-
-              // 🎭 ROLE SELECTOR (signup only)
-              if (!isLogin) ...[
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<UserRole>(
-                      value: _selectedRole,
-                      isExpanded: true,
-                      dropdownColor: const Color(0xFF203A43),
-                      style: const TextStyle(color: Colors.white, fontSize: 15),
-                      items: [
-                        DropdownMenuItem(
-                          value: UserRole.eleve,
-                          child: Row(children: [
-                            const Icon(Icons.school_outlined,
-                                color: Colors.white54, size: 18),
-                            const SizedBox(width: 8),
-                            const Text('Élève'),
-                          ]),
-                        ),
-                        DropdownMenuItem(
-                          value: UserRole.professeur,
-                          child: Row(children: [
-                            const Icon(Icons.person_outline,
-                                color: Colors.white54, size: 18),
-                            const SizedBox(width: 8),
-                            const Text('Professeur'),
-                          ]),
-                        ),
-                      ],
-                      onChanged: (r) {
-                        if (r != null) setState(() => _selectedRole = r);
-                      },
-                    ),
-                  ),
-                ),
-              ],
 
               const SizedBox(height: 10),
 

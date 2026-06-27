@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'dart:math';
 
 class MathPage extends StatefulWidget {
@@ -105,8 +105,8 @@ class _MathPageState extends State<MathPage> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              color.withOpacity(0.8),
-              color.withOpacity(0.4),
+              color.withValues(alpha: 0.8),
+              color.withValues(alpha: 0.4),
             ],
           ),
           borderRadius: BorderRadius.circular(30),

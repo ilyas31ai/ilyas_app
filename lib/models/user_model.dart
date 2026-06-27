@@ -1,7 +1,25 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'school_model.dart';
+
 /// Rôles stockés dans Firestore users/{uid}.role
-enum UserRole { eleve, professeur, admin, parent }
+///
+/// `direction`, `adminEtablissement` et `superAdmin` sont des valeurs
+/// nouvelles (Phase 2, architecture multi-établissements) : aucun compte
+/// existant ne les porte encore. `admin` reste le rôle actif pour tous les
+/// comptes Direction actuels — son remplacement progressif par `direction`
+/// est une migration distincte, non effectuée par cet ajout (additif, zéro
+/// régression : tout code existant testant `UserRole.admin` continue de
+/// fonctionner à l'identique).
+enum UserRole {
+  eleve,
+  professeur,
+  admin,
+  parent,
+  direction,
+  adminEtablissement,
+  superAdmin,
+}
 
 extension UserRoleX on UserRole {
   String get label {
@@ -14,6 +32,12 @@ extension UserRoleX on UserRole {
         return 'Direction';
       case UserRole.parent:
         return 'Parent';
+      case UserRole.direction:
+        return 'Direction';
+      case UserRole.adminEtablissement:
+        return 'Administrateur Établissement';
+      case UserRole.superAdmin:
+        return 'Super Administrateur';
     }
   }
 
@@ -27,6 +51,12 @@ extension UserRoleX on UserRole {
         return 'admin';
       case UserRole.parent:
         return 'parent';
+      case UserRole.direction:
+        return 'direction';
+      case UserRole.adminEtablissement:
+        return 'adminEtablissement';
+      case UserRole.superAdmin:
+        return 'superAdmin';
     }
   }
 
@@ -38,6 +68,12 @@ extension UserRoleX on UserRole {
         return UserRole.admin;
       case 'parent':
         return UserRole.parent;
+      case 'direction':
+        return UserRole.direction;
+      case 'adminEtablissement':
+        return UserRole.adminEtablissement;
+      case 'superAdmin':
+        return UserRole.superAdmin;
       default:
         return UserRole.eleve;
     }
@@ -50,6 +86,11 @@ class UserModel {
   final String displayName;
   final UserRole role;
   final String? photoUrl;
+
+  /// Établissement d'appartenance (Phase 2, multi-établissements).
+  /// Toujours renseigné en mémoire : vaut [kDefaultSchoolId] si absent du
+  /// document Firestore (cas de tous les comptes existants avant backfill).
+  final String schoolId;
 
   // Élève
   final String? categorie;  // 'Maternelle', 'Primaire', 'Collège', 'Lycée', 'Université'
@@ -77,6 +118,7 @@ class UserModel {
     required this.displayName,
     required this.role,
     this.photoUrl,
+    this.schoolId = kDefaultSchoolId,
     this.categorie,
     this.niveau,
     this.classeId,
@@ -100,6 +142,7 @@ class UserModel {
       displayName: d['displayName'] as String? ?? '',
       role: UserRoleX.fromString(d['role'] as String?),
       photoUrl: d['photoUrl'] as String?,
+      schoolId: d['schoolId'] as String? ?? kDefaultSchoolId,
       categorie: d['categorie'] as String?,
       niveau: d['niveau'] as String?,
       classeId: d['classeId'] as String?,
@@ -118,6 +161,7 @@ class UserModel {
         'email': email,
         'displayName': displayName,
         'role': role.value,
+        'schoolId': schoolId,
         if (photoUrl != null) 'photoUrl': photoUrl,
         if (categorie != null) 'categorie': categorie,
         if (niveau != null) 'niveau': niveau,
@@ -133,6 +177,7 @@ class UserModel {
     String? displayName,
     UserRole? role,
     String? photoUrl,
+    String? schoolId,
     String? categorie,
     String? niveau,
     String? classeId,
@@ -148,6 +193,7 @@ class UserModel {
         displayName: displayName ?? this.displayName,
         role: role ?? this.role,
         photoUrl: photoUrl ?? this.photoUrl,
+        schoolId: schoolId ?? this.schoolId,
         categorie: categorie ?? this.categorie,
         niveau: niveau ?? this.niveau,
         classeId: classeId ?? this.classeId,

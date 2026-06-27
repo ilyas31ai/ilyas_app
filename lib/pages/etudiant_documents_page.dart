@@ -199,29 +199,26 @@ class _DocumentsList extends StatelessWidget {
                   color: Color(0xFF2563EB)));
         }
         if (snap.hasError) {
-          final errStr = snap.error.toString();
-          return Center(
+          return const Center(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(24),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.lock_outline,
-                      color: Colors.white24, size: 48),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Contenu non disponible',
+                  Icon(Icons.lock_outline, color: Colors.white24, size: 48),
+                  SizedBox(height: 12),
+                  Text(
+                    'Documents non disponibles',
                     style: TextStyle(
                         color: Colors.white60,
                         fontSize: 15,
                         fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
-                    errStr,
+                    'Contactez votre professeur si le problème persiste.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: Colors.orange, fontSize: 11),
+                    style: TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 ],
               ),

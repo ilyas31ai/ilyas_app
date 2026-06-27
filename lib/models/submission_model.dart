@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'school_model.dart';
+
 enum SubmissionStatus { pending, corrected }
 
 extension SubmissionStatusX on SubmissionStatus {
@@ -33,6 +35,7 @@ extension SubmissionStatusX on SubmissionStatus {
 
 class SubmissionModel {
   final String id;
+  final String schoolId;
   final String studentId;
   final String studentEmail;
   final String assignmentId;
@@ -47,6 +50,7 @@ class SubmissionModel {
 
   const SubmissionModel({
     required this.id,
+    this.schoolId = kDefaultSchoolId,
     required this.studentId,
     required this.studentEmail,
     required this.assignmentId,
@@ -64,6 +68,7 @@ class SubmissionModel {
     final d = doc.data() as Map<String, dynamic>? ?? {};
     return SubmissionModel(
       id: doc.id,
+      schoolId: d['schoolId'] as String? ?? kDefaultSchoolId,
       studentId: d['studentId'] as String? ?? '',
       studentEmail: d['studentEmail'] as String? ?? '',
       assignmentId: d['assignmentId'] as String? ?? '',
@@ -79,6 +84,7 @@ class SubmissionModel {
   }
 
   Map<String, dynamic> toMap() => {
+        'schoolId': schoolId,
         'studentId': studentId,
         'studentEmail': studentEmail,
         'assignmentId': assignmentId,

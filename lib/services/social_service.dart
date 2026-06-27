@@ -88,6 +88,7 @@ class SocialService {
     required String sender,
     required String toUser,
     required String text,
+    String? senderDisplayName,
   }) async {
     final time = DateTime.now().millisecondsSinceEpoch;
     await _db.child('messages/$chatIdStr').push().set({
@@ -97,13 +98,30 @@ class SocialService {
       'seen': false,
     });
     if (toUser != 'general' && toUser != 'Classe') {
-      final k = encodeKey(toUser);
-      await _db.child('notifications/$k').push().set({
-        'title': sender,
-        'body': text,
-        'time': time,
-      });
+      final kTo = encodeKey(toUser);
+      final kSender = encodeKey(sender);
+      // Enregistrer le destinataire dans les contacts de l'expéditeur.
+      // Le destinataire verra l'expéditeur dans ses contacts quand il répondra.
+      await Future.wait([
+        _db.child('users/$kSender/contacts/$kTo').set(true),
+        _db.child('notifications/$kTo').push().set({
+          'title': (senderDisplayName != null && senderDisplayName.isNotEmpty)
+              ? senderDisplayName
+              : sender,
+          'body': text,
+          'time': time,
+          'isRead': false,
+        }),
+      ]);
     }
+  }
+
+  static Future<void> markNotificationRead(String user, String notifId) async {
+    final k = encodeKey(user);
+    await _db.child('notifications/$k/$notifId').update({
+      'isRead': true,
+      'readAt': DateTime.now().millisecondsSinceEpoch,
+    });
   }
 
   static Future<void> markSeen(String chatIdStr, String viewer) async {

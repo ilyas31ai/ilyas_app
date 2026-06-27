@@ -6,6 +6,7 @@ import '../models/copie_model.dart';
 import '../services/devoir_interactif_service.dart';
 import '../services/etudiant_service.dart';
 import 'etudiant_faire_devoir_page.dart';
+import 'etudiant_revisions_ia_page.dart';
 
 class EtudiantDevoirsPage extends StatefulWidget {
   const EtudiantDevoirsPage({super.key});
@@ -165,6 +166,7 @@ class _DevoirTile extends StatelessWidget {
             leading: _TypeIcon(devoir: devoir),
             title: Text(devoir.titre,
                 style: const TextStyle(fontWeight: FontWeight.bold)),
+            trailing: _StatusChip(statut: statut, isExpired: isExpired),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -183,9 +185,40 @@ class _DevoirTile extends StatelessWidget {
                     style: const TextStyle(
                         color: Colors.green, fontWeight: FontWeight.w600),
                   ),
+                // Bouton Réviser avec l'IA
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EtudiantRevisionsIaPage(devoir: devoir),
+                    ),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F766E).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: const Color(0xFF0F766E).withValues(alpha: 0.4)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.smart_toy_outlined,
+                            size: 13, color: Color(0xFF0F766E)),
+                        SizedBox(width: 4),
+                        Text('Réviser avec l\'IA',
+                            style: TextStyle(
+                                color: Color(0xFF0F766E),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
-            trailing: _StatusChip(statut: statut, isExpired: isExpired),
             onTap: () {
               if (isDone) {
                 // Show result/review

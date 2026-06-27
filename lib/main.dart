@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 // 🔥 FIREBASE
@@ -9,12 +10,97 @@ import 'firebase_options.dart';
 import 'pages/login_page.dart';
 import 'pages/main_shell.dart';
 import 'pages/eleves_page.dart';
-import 'pages/scan_page.dart';
+import 'pages/amis_page.dart';
+import 'pages/users_page.dart';
+import 'pages/discussion_page.dart';
+import 'pages/eleve_discussion_page.dart';
 import 'pages/espace_direction_page.dart';
+import 'pages/espace_parent_page.dart';
 import 'pages/espace_professeur_page.dart';
 import 'pages/monde_enfants_page.dart';
 import 'pages/jeux_scolaires_page.dart';
 import 'pages/leaderboard_page.dart';
+import 'pages/professeur_rdv_page.dart';
+import 'services/notification_service.dart';
+
+// 🏫 ROUTES — Architecture multi-cycles
+import 'routes/app_routes.dart';
+import 'pages/cycle_placeholder_page.dart';
+
+// 👩‍🏫 PROFESSEUR — sous-pages (deep-link direct)
+import 'pages/professeur_dashboard_page.dart';
+import 'pages/professeur_emploi_page.dart';
+import 'pages/professeur_notes_page.dart';
+import 'pages/professeur_devoirs_page.dart';
+import 'pages/professeur_eleves_page.dart';
+import 'pages/professeur_presences_page.dart';
+import 'pages/professeur_documents_page.dart';
+import 'pages/professeur_bibliotheque_page.dart';
+import 'pages/professeur_corrige_page.dart';
+import 'pages/professeur_evaluations_qualitative_page.dart';
+import 'pages/professeur_messagerie_page.dart';
+
+// 🏛️ DIRECTION — sous-pages (deep-link direct)
+import 'pages/direction_dashboard_page.dart';
+import 'pages/direction_classes_page.dart';
+import 'pages/direction_eleves_page.dart';
+import 'pages/direction_statistiques_page.dart';
+
+// 🏫 PRIMAIRE — écrans de production
+import 'pages/primaire_dashboard_page.dart';
+import 'pages/primaire_bulletin_page.dart';
+
+// 🌸 MATERNELLE — écrans de production (Lots 6 & 8)
+import 'pages/maternelle_dashboard_page.dart';
+import 'pages/maternelle_activites_page.dart';
+import 'pages/maternelle_competences_page.dart';
+import 'pages/maternelle_observations_page.dart';
+import 'pages/maternelle_presences_page.dart';
+import 'pages/maternelle_communication_page.dart';
+import 'pages/maternelle_cahier_vie_page.dart';
+import 'pages/maternelle_albums_page.dart';
+import 'pages/maternelle_histoires_page.dart';
+import 'pages/maternelle_galerie_page.dart';
+import 'pages/maternelle_coloriages_page.dart';
+import 'pages/maternelle_comptines_page.dart';
+import 'pages/maternelle_repas_page.dart';
+import 'pages/maternelle_sieste_page.dart';
+import 'pages/maternelle_calendrier_page.dart';
+
+// 🎓 UNIVERSITÉ — écrans de production (Lot 6)
+import 'pages/universite_dashboard_page.dart';
+import 'pages/universite_ues_page.dart';
+import 'pages/universite_ects_page.dart';
+import 'pages/universite_semestres_page.dart';
+import 'pages/universite_parcours_page.dart';
+import 'pages/universite_options_page.dart';
+import 'pages/universite_examens_page.dart';
+import 'pages/universite_rattrapages_page.dart';
+import 'pages/universite_stages_page.dart';
+import 'pages/universite_memoires_page.dart';
+import 'pages/universite_soutenances_page.dart';
+
+// 🏫 COLLÈGE — écrans de production (Lot 5)
+import 'pages/college_dashboard_page.dart';
+import 'pages/college_matieres_page.dart';
+import 'pages/college_devoirs_page.dart';
+import 'pages/college_notes_page.dart';
+import 'pages/college_bulletin_page.dart';
+import 'pages/college_brevet_page.dart';
+import 'pages/college_orientation_page.dart';
+import 'pages/college_presences_page.dart';
+
+// 🎓 LYCÉE — écrans de production (Lot 5)
+import 'pages/lycee_dashboard_page.dart';
+import 'pages/lycee_matieres_page.dart';
+import 'pages/lycee_devoirs_page.dart';
+import 'pages/lycee_notes_page.dart';
+import 'pages/lycee_bulletin_page.dart';
+import 'pages/lycee_bac_page.dart';
+import 'pages/lycee_orientation_page.dart';
+import 'pages/lycee_presences_page.dart';
+import 'pages/lycee_controle_continu_page.dart';
+import 'pages/lycee_specialites_page.dart';
 
 // 🧠 ÉLÈVES
 import 'pages/quiz_page.dart';
@@ -23,6 +109,7 @@ import 'pages/flashcards_page.dart';
 import 'pages/devoirs_page.dart';
 import 'pages/etudiant_devoirs_page.dart';
 import 'pages/etudiant_revisions_page.dart';
+import 'pages/ai_scolaire_page.dart';
 import 'pages/notes_page.dart';
 import 'pages/emploi_page.dart';
 import 'pages/notifications_page.dart';
@@ -43,16 +130,40 @@ import 'pages/compter_page.dart';
 import 'pages/comparer_page.dart';
 import 'pages/math_page.dart';
 
+// Évite de ré-initialiser NotificationService à chaque rebuild du StreamBuilder
+// pour le même utilisateur déjà connecté.
+String? _notifInitializedFor;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔥 INITIALISATION FIREBASE
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Capture TOUTES les erreurs Flutter non gérées avec stacktrace complet
+  FlutterError.onError = (FlutterErrorDetails details) {
+    debugPrint('══════════════════════════════════════════');
+    debugPrint('[FLUTTER_ERROR] ${details.exceptionAsString()}');
+    debugPrint('[FLUTTER_ERROR] Stack:\n${details.stack}');
+    debugPrint('══════════════════════════════════════════');
+    FlutterError.presentError(details);
+  };
 
-  // 🔕 NOTIFICATIONS DÉSACTIVÉES TEMPORAIREMENT
-  // await NotificationService.init("ilyas");
+  // Capture les erreurs async non rattrapées (Futures, Streams)
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('══════════════════════════════════════════');
+    debugPrint('[PLATFORM_ERROR] ${error.runtimeType}: $error');
+    debugPrint('[PLATFORM_ERROR] Stack:\n$stack');
+    debugPrint('══════════════════════════════════════════');
+    return true;
+  };
+
+  // 🔥 INITIALISATION FIREBASE
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
+    // duplicate-app = hot restart ou pré-init native Android, app déjà prête
+  }
 
   runApp(const MyApp());
 }
@@ -67,7 +178,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'ILYAS APP',
+      title: 'ScolarAI Educative',
 
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -91,18 +202,42 @@ class MyApp extends StatelessWidget {
               ),
             );
           }
-          if (snapshot.hasData) return const MainShell();
+          if (snapshot.hasData) {
+            final email = snapshot.data!.email ?? '';
+            if (email.isNotEmpty && email != _notifInitializedFor) {
+              _notifInitializedFor = email;
+              NotificationService.init(email);
+            }
+            return const MainShell();
+          }
+          _notifInitializedFor = null;
           return const LoginPage();
         },
       ),
+
+      // /discussion prend des arguments → onGenerateRoute
+      onGenerateRoute: (settings) {
+        if (settings.name == '/discussion') {
+          final args =
+              settings.arguments as Map<String, dynamic>? ?? {};
+          return MaterialPageRoute(
+            builder: (_) => DiscussionPage(
+              name: args['name'] as String? ?? '',
+              user: args['user'] as String? ?? currentUser,
+              displayName: args['displayName'] as String?,
+            ),
+          );
+        }
+        return null;
+      },
 
       routes: {
         // 📌 PRINCIPAL
         '/eleves': (context) => const ElevesPage(),
 
-        '/scan': (context) => const ScanPage(),
-
         '/espace_direction': (context) => const EspaceDirectionPage(),
+
+        '/espace_parent': (context) => const EspaceParentPage(),
 
         '/espace_professeur': (context) => const EspaceProfesseurPage(),
 
@@ -126,6 +261,8 @@ class MyApp extends StatelessWidget {
         '/etudiant_devoirs': (context) => const EtudiantDevoirsPage(),
 
         '/etudiant_revisions': (context) => const EtudiantRevisionsPage(),
+
+        '/ai_scolaire': (context) => const AiScolairePage(),
 
         '/notes': (context) => const NotesPage(),
 
@@ -168,6 +305,109 @@ class MyApp extends StatelessWidget {
         '/comparer': (context) => const ComparerPage(),
 
         '/math': (context) => const MathPage(),
+
+        '/professeur_rdv': (context) => const ProfesseurRdvPage(),
+
+        // ── Professeur — deep-link sous-pages ──────────────────────────────
+        AppRoutes.professeurTableauBord: (_) =>
+            const ProfesseurDashboardPage(),
+        AppRoutes.professeurEmploi: (_) => const ProfesseurEmploiPage(),
+        AppRoutes.professeurNotes: (_) => const ProfesseurNotesPage(),
+        AppRoutes.professeurDevoirs: (_) => const ProfesseurDevoirsPage(),
+        AppRoutes.professeurEleves: (_) => const ProfesseurElevesPage(),
+        AppRoutes.professeurPresences: (_) =>
+            const ProfesseurPresencesPage(),
+        AppRoutes.professeurDocuments: (_) =>
+            const ProfesseurDocumentsPage(),
+        AppRoutes.professeurBibliotheque: (_) =>
+            const ProfesseurBibliothequePage(),
+        AppRoutes.professeurCorrige: (_) => const ProfesseurCorrigePage(),
+        AppRoutes.professeurMessagerie: (_) =>
+            const ProfesseurMessageriePage(),
+        AppRoutes.professeurEvaluationsQualitatives: (_) =>
+            const ProfesseurEvaluationsQualitativePage(),
+
+        // ── Direction — deep-link sous-pages ───────────────────────────────
+        AppRoutes.directionTableauBord: (_) =>
+            const DirectionDashboardPage(),
+        AppRoutes.directionClasses: (_) => const DirectionClassesPage(),
+        AppRoutes.directionEleves: (_) => const DirectionElevesPage(),
+        AppRoutes.directionStatistiques: (_) => const DirectionStatistiquesPage(),
+        AppRoutes.directionSeedReferentiel: (_) =>
+            const CyclePlaceholderPage(
+              title: 'Initialisation Référentiel',
+              subtitle:
+                  'Initialiser les cycles scolaires, niveaux et l\'établissement dans Firestore',
+              cycleId: 'direction',
+              icon: Icons.cloud_upload_outlined,
+              features: [
+                'Seed cycles : Maternelle → Université',
+                'Seed niveaux : PS, 1AP, 1AM, 1AS, L1…',
+                'Seed établissement par défaut',
+                'Idempotent — peut être relancé sans risque',
+              ],
+            ),
+
+        // ── Maternelle ─────────────────────────────────────────────────────
+        AppRoutes.maternelleTableauBord: (_) => const MaternelleDashboardPage(),
+        AppRoutes.maternelleActivites: (_) => const MaterneileActivitesPage(),
+        AppRoutes.maternelleEvaluations: (_) => const MaterneileCompetencesPage(),
+        AppRoutes.maternellePortfolio: (_) => const MaterneileObservationsPage(),
+        AppRoutes.maternellePresences: (_) => const MaterneilePresencesPage(),
+        AppRoutes.maternelleCommunication: (_) => const MaternelleCommunicationPage(),
+        AppRoutes.maternelleCahierVie: (_) => const MaternelleCahierViePage(),
+        AppRoutes.maternelleAlbums: (_) => const MaternelleAlbumsPage(),
+        AppRoutes.maternelleHistoires: (_) => const MaternelleHistoiresPage(),
+        AppRoutes.maternelleGalerie: (_) => const MaternelleGaleriePage(),
+        AppRoutes.maternelleColoriages: (_) => const MaternelleColoriagesPage(),
+        AppRoutes.maternelleComptines: (_) => const MaternelleComptinesPage(),
+        AppRoutes.maternelleRepas: (_) => const MaternelleRepasPage(),
+        AppRoutes.maternelleSieste: (_) => const MaternelleSiestePage(),
+        AppRoutes.maternelleCalendrier: (_) => const MaternelleCalendrierPage(),
+
+        // ── Primaire ───────────────────────────────────────────────────────
+        AppRoutes.primaireTableauBord: (_) => const PrimaireDashboardPage(),
+        AppRoutes.primaireBulletin: (_) => const PrimaireBulletinPage(),
+
+        // ── Collège ────────────────────────────────────────────────────────
+        AppRoutes.collegeTableauBord: (_) => const CollegeDashboardPage(),
+        AppRoutes.collegeMatieres: (_) => const CollegeMatieresPage(),
+        AppRoutes.collegeDevoirs: (_) => const CollegeDevoirs(),
+        AppRoutes.collegeNotes: (_) => const CollegeNotesPage(),
+        AppRoutes.collegeBulletin: (_) => const CollegeBulletinPage(),
+        AppRoutes.collegeBrevet: (_) => const CollegeBrevePage(),
+        AppRoutes.collegeOrientation: (_) => const CollegeOrientationPage(),
+        AppRoutes.collegePresences: (_) => const CollegePresencesPage(),
+
+        // ── Lycée ──────────────────────────────────────────────────────────
+        AppRoutes.lyceeTableauBord: (_) => const LyceeDashboardPage(),
+        AppRoutes.lyceeMatieres: (_) => const LyceeMatieresPage(),
+        AppRoutes.lyceeDevoirs: (_) => const LyceeDevoirs(),
+        AppRoutes.lyceeNotes: (_) => const LyceeNotesPage(),
+        AppRoutes.lyceeBulletin: (_) => const LyceeBulletinPage(),
+        AppRoutes.lyceeBacBlanc: (_) => const LyceeBacPage(),
+        AppRoutes.lyceeOrientation: (_) => const LyceeOrientationPage(),
+        AppRoutes.lyceePresences: (_) => const LyceePresencesPage(),
+        AppRoutes.lyceeControleConu: (_) => const LyceeControleContinuPage(),
+        AppRoutes.lyceeSpecialites: (_) => const LyceeSpecialitesPage(),
+
+        // ── Université ─────────────────────────────────────────────────────
+        AppRoutes.universiteTableauBord: (_) => const UniversiteDashboardPage(),
+        AppRoutes.universiteUes: (_) => const UniversiteUesPage(),
+        AppRoutes.universiteEcts: (_) => const UniversiteEctsPage(),
+        AppRoutes.universiteSemestres: (_) => const UniversiteSemestresPage(),
+        AppRoutes.universiteParcours: (_) => const UniversiteParcoursPage(),
+        AppRoutes.universiteOptions: (_) => const UniversiteOptionsPage(),
+        AppRoutes.universiteExamens: (_) => const UniversiteExamensPage(),
+        AppRoutes.universiteRattrapages: (_) => const UniversiteRattrapagesPage(),
+        AppRoutes.universiteStage: (_) => const UniversiteStagesPage(),
+        AppRoutes.universiteMemoire: (_) => const UniversiteMemoiresPage(),
+        AppRoutes.universiteSoutenances: (_) => const UniversiteSoutenancesPage(),
+
+        // 💬 DISCUSSION & SOCIAL
+        '/amis': (context) => AmisPage(currentUser: currentUser),
+        '/users': (context) => UsersPage(currentUser: currentUser),
+        '/eleve_discussion': (context) => const EleveDiscussionPage(),
       },
 
     );

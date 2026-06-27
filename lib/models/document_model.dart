@@ -1,7 +1,43 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'school_model.dart';
+
+/// Workflow de publication d'un document pédagogique (DT-06, ajout additif).
+/// Champ optionnel : les documents existants sans valeur sont traités comme
+/// "publie" (comportement historique, aucune régression d'affichage).
+enum DocumentStatut { televerse, valide, publie, archive }
+
+extension DocumentStatutX on DocumentStatut {
+  String get value {
+    switch (this) {
+      case DocumentStatut.televerse:
+        return 'televerse';
+      case DocumentStatut.valide:
+        return 'valide';
+      case DocumentStatut.publie:
+        return 'publie';
+      case DocumentStatut.archive:
+        return 'archive';
+    }
+  }
+
+  static DocumentStatut fromString(String? s) {
+    switch (s) {
+      case 'televerse':
+        return DocumentStatut.televerse;
+      case 'valide':
+        return DocumentStatut.valide;
+      case 'archive':
+        return DocumentStatut.archive;
+      default:
+        return DocumentStatut.publie;
+    }
+  }
+}
+
 class DocumentPedagogique {
   final String id;
+  final String schoolId;
   final String titre;
   final String description;
   final String matiere;
@@ -11,10 +47,13 @@ class DocumentPedagogique {
   final String fichierUrl;
   final String fichierNom;
   final DateTime dateDepot;
-  final String type; // 'cours', 'exercice', 'correction', 'autre'
+  final String type; // 'cours', 'exercice', 'correction', 'video', 'autre'
+  final DocumentStatut statut;
+  final String devoirId; // lien vers DevoirModel.id si type='correction'
 
   const DocumentPedagogique({
     required this.id,
+    this.schoolId = kDefaultSchoolId,
     required this.titre,
     required this.description,
     required this.matiere,
@@ -25,6 +64,8 @@ class DocumentPedagogique {
     required this.fichierNom,
     required this.dateDepot,
     this.type = 'cours',
+    this.statut = DocumentStatut.publie,
+    this.devoirId = '',
   });
 
   bool get aFichier => fichierUrl.isNotEmpty;
@@ -33,6 +74,7 @@ class DocumentPedagogique {
     final d = doc.data() as Map<String, dynamic>? ?? {};
     return DocumentPedagogique(
       id: doc.id,
+      schoolId: d['schoolId'] as String? ?? kDefaultSchoolId,
       titre: d['titre'] is String ? d['titre'] as String : '',
       description: d['description'] is String ? d['description'] as String : '',
       matiere: d['matiere'] is String ? d['matiere'] as String : '',
@@ -46,10 +88,13 @@ class DocumentPedagogique {
           ? (d['dateDepot'] as Timestamp).toDate()
           : DateTime.now(),
       type: d['type'] is String ? d['type'] as String : 'cours',
+      statut: DocumentStatutX.fromString(d['statut'] as String?),
+      devoirId: d['devoirId'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toMap() => {
+        'schoolId': schoolId,
         'titre': titre,
         'description': description,
         'matiere': matiere,
@@ -60,5 +105,7 @@ class DocumentPedagogique {
         'fichierNom': fichierNom,
         'dateDepot': Timestamp.fromDate(dateDepot),
         'type': type,
+        'statut': statut.value,
+        if (devoirId.isNotEmpty) 'devoirId': devoirId,
       };
 }
