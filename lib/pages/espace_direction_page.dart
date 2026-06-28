@@ -4,9 +4,13 @@ import '../models/permission_model.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
 import 'direction_classes_page.dart';
+import 'fiche_enseignant_page.dart';
 import 'direction_dashboard_page.dart';
+import 'direction_disponibilites_page.dart';
 import 'direction_eleves_page.dart';
+import 'direction_historique_remplacements_page.dart';
 import 'direction_statistiques_page.dart';
+import 'direction_stats_remplacements_page.dart';
 import 'inscription_import_page.dart';
 import 'inscription_recherche_page.dart';
 import 'inscription_validation_page.dart';
@@ -175,6 +179,44 @@ class _DirectionHome extends StatelessWidget {
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const DirectionElevesPage())),
               ),
+              const SizedBox(height: 4),
+              _buildSectionLabel('Gestion des disponibilités'),
+              const SizedBox(height: 8),
+              _ModuleCard(
+                icon: Icons.event_available_outlined,
+                title: 'Disponibilités & Remplacements',
+                subtitle: 'Gérer les disponibilités et les remplacements intelligents',
+                colors: const [Color(0xFF6C47FF), Color(0xFF8B5CF6)],
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const DirectionDisponibilitesPage())),
+              ),
+              _ModuleCard(
+                icon: Icons.history_edu_outlined,
+                title: 'Historique',
+                subtitle: 'Consulter l\'historique complet des remplacements',
+                colors: const [Color(0xFF0F766E), Color(0xFF0891B2)],
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const DirectionHistoriqueRemplacementsPage())),
+              ),
+              _ModuleCard(
+                icon: Icons.analytics_outlined,
+                title: 'Statistiques remplacements',
+                subtitle: 'Taux d\'acceptation, absences, profils les plus sollicités',
+                colors: const [Color(0xFFD97706), Color(0xFFF59E0B)],
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const DirectionStatsRemplacementsPage())),
+              ),
+              const SizedBox(height: 4),
+              _buildSectionLabel('Gestion des enseignants'),
+              const SizedBox(height: 8),
+              _ModuleCard(
+                icon: Icons.badge_outlined,
+                title: 'Fiches enseignants',
+                subtitle: 'Profils complets, disponibilités et statistiques',
+                colors: const [Color(0xFF6C47FF), Color(0xFF2563EB)],
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const DirectionEnseignantsListPage())),
+              ),
             ]),
           ),
         ),
@@ -287,6 +329,195 @@ class _ModuleCard extends StatelessWidget {
                 ],
               ),
             ),
+            const Icon(Icons.chevron_right, color: Colors.white24, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Liste des enseignants ────────────────────────────────────────────────────
+
+class DirectionEnseignantsListPage extends StatefulWidget {
+  const DirectionEnseignantsListPage({super.key});
+
+  @override
+  State<DirectionEnseignantsListPage> createState() =>
+      _DirectionEnseignantsListPageState();
+}
+
+class _DirectionEnseignantsListPageState
+    extends State<DirectionEnseignantsListPage> {
+  String _search = '';
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D1117),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF161B22),
+        elevation: 0,
+        title: const Text(
+          'Fiches enseignants',
+          style: TextStyle(
+              color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: Column(
+        children: [
+          // Barre de recherche
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+            child: TextField(
+              style: const TextStyle(color: Colors.white),
+              onChanged: (v) => setState(() => _search = v.toLowerCase()),
+              decoration: InputDecoration(
+                hintText: 'Rechercher un enseignant…',
+                hintStyle: const TextStyle(color: Colors.white38),
+                prefixIcon:
+                    const Icon(Icons.search, color: Colors.white38, size: 20),
+                filled: true,
+                fillColor: const Color(0xFF161B22),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+            ),
+          ),
+          // Liste
+          Expanded(
+            child: StreamBuilder<List<UserModel>>(
+              stream: UserService.usersByRoleStream('professeur'),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child:
+                        CircularProgressIndicator(color: Color(0xFF6C47FF)),
+                  );
+                }
+                var teachers = snap.data ?? [];
+                if (_search.isNotEmpty) {
+                  teachers = teachers
+                      .where((u) =>
+                          u.displayName.toLowerCase().contains(_search) ||
+                          (u.matiere ?? '').toLowerCase().contains(_search) ||
+                          u.email.toLowerCase().contains(_search))
+                      .toList();
+                }
+                if (teachers.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'Aucun enseignant trouvé',
+                      style: TextStyle(color: Colors.white38),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  itemCount: teachers.length,
+                  itemBuilder: (context, i) =>
+                      _EnseignantTile(user: teachers[i]),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EnseignantTile extends StatelessWidget {
+  final UserModel user;
+  const _EnseignantTile({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = user.displayName.isNotEmpty
+        ? user.displayName[0].toUpperCase()
+        : '?';
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => FicheEnseignantPage(
+            uid: user.uid,
+            displayName: user.displayName,
+          ),
+        ),
+      ),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161B22),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: Colors.white.withValues(alpha: 0.05)),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor:
+                  const Color(0xFF6C47FF).withValues(alpha: 0.25),
+              backgroundImage: user.photoUrl != null
+                  ? NetworkImage(user.photoUrl!)
+                  : null,
+              child: user.photoUrl == null
+                  ? Text(initials,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold))
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.displayName,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14),
+                  ),
+                  if (user.matiere != null && user.matiere!.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        user.matiere!,
+                        style: const TextStyle(
+                            color: Color(0xFF2563EB),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Statut dot
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                  color: Colors.green, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 8),
             const Icon(Icons.chevron_right, color: Colors.white24, size: 20),
           ],
         ),

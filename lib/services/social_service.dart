@@ -89,6 +89,7 @@ class SocialService {
     required String toUser,
     required String text,
     String? senderDisplayName,
+    Map<String, dynamic>? replyTo,
   }) async {
     final time = DateTime.now().millisecondsSinceEpoch;
     await _db.child('messages/$chatIdStr').push().set({
@@ -96,6 +97,7 @@ class SocialService {
       'sender': sender,
       'time': time,
       'seen': false,
+      if (replyTo != null) 'replyTo': replyTo,
     });
     if (toUser != 'general' && toUser != 'Classe') {
       final kTo = encodeKey(toUser);

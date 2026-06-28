@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_database/firebase_database.dart' hide Query;
 import '../services/social_service.dart';
 import '../services/user_service.dart';
 import '../widgets/user_avatar.dart';
@@ -30,6 +32,14 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
   String? _myDisplayName;
   late final Stream<List<Map<String, dynamic>>> _messagesStream;
 
+  // ── Typing indicator ──────────────────────────────────────────────────────
+  bool _isTyping = false;
+  Timer? _typingDebounce;
+  late final Stream<DatabaseEvent> _typingStream;
+
+  // ── Reply ─────────────────────────────────────────────────────────────────
+  Map<String, dynamic>? _replyToMsg;
+
   String get _chatId => SocialService.chatId(widget.user, widget.name);
   bool get _isGroup =>
       widget.name == 'general' || widget.name == 'Classe';
@@ -42,8 +52,12 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
   void initState() {
     super.initState();
     _messagesStream = SocialService.messagesStream(_chatId);
+    _typingStream = FirebaseDatabase.instance
+        .ref('typing/$_chatId')
+        .onValue;
     _init();
     _scrollCtrl.addListener(_onScroll);
+    _textCtrl.addListener(_onTextChanged);
     UserService.currentUserStream().first.then((u) {
       if (mounted && u != null && u.displayName.isNotEmpty) {
         _myDisplayName = u.displayName;
@@ -53,9 +67,45 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
 
   @override
   void dispose() {
+    _typingDebounce?.cancel();
+    _clearTyping();
     _textCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  void _onTextChanged() {
+    if (_textCtrl.text.isNotEmpty) {
+      if (!_isTyping) {
+        _isTyping = true;
+        _writeTyping(true);
+      }
+      _typingDebounce?.cancel();
+      _typingDebounce = Timer(const Duration(milliseconds: 1500), () {
+        _isTyping = false;
+        _clearTyping();
+      });
+    } else {
+      _typingDebounce?.cancel();
+      _isTyping = false;
+      _clearTyping();
+    }
+  }
+
+  void _writeTyping(bool typing) {
+    final k = SocialService.encodeKey(widget.user);
+    if (typing) {
+      FirebaseDatabase.instance
+          .ref('typing/$_chatId/$k')
+          .set(DateTime.now().millisecondsSinceEpoch);
+    } else {
+      FirebaseDatabase.instance.ref('typing/$_chatId/$k').remove();
+    }
+  }
+
+  void _clearTyping() {
+    final k = SocialService.encodeKey(widget.user);
+    FirebaseDatabase.instance.ref('typing/$_chatId/$k').remove();
   }
 
   Future<void> _init() async {
@@ -96,13 +146,25 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
     final text = _textCtrl.text.trim();
     if (text.isEmpty) return;
     _textCtrl.clear();
-    setState(() => _sending = true);
+    _typingDebounce?.cancel();
+    _isTyping = false;
+    _clearTyping();
+    final reply = _replyToMsg;
+    if (mounted) setState(() { _sending = true; _replyToMsg = null; });
     await SocialService.sendMessage(
       chatIdStr: _chatId,
       sender: widget.user,
       toUser: widget.name,
       text: text,
       senderDisplayName: _myDisplayName,
+      replyTo: reply != null
+          ? {
+              'sender': reply['sender'] as String? ?? '',
+              'text': (reply['text'] as String? ?? '').length > 60
+                  ? '${(reply['text'] as String).substring(0, 60)}…'
+                  : reply['text'] as String? ?? '',
+            }
+          : null,
     );
     if (mounted) setState(() => _sending = false);
     _scrollToBottom();
@@ -148,7 +210,9 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
           Column(
             children: [
               Expanded(child: _buildMessages()),
+              _buildTypingIndicator(),
               if (_blocked) _buildBlockedBanner(),
+              if (_replyToMsg != null) _buildReplyPreview(),
               _buildInput(),
             ],
           ),
@@ -316,11 +380,123 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
             return Column(children: [
               if (showDate) _buildDateChip(msg['time'] as int? ?? 0),
               _MessageBubble(
-                  msg: msg, isMe: isMe, isGroup: _isGroup),
+                msg: msg,
+                isMe: isMe,
+                isGroup: _isGroup,
+                chatId: _chatId,
+                onReply: (m) => setState(() => _replyToMsg = m),
+              ),
             ]);
           },
         );
       },
+    );
+  }
+
+  Widget _buildTypingIndicator() {
+    return StreamBuilder<DatabaseEvent>(
+      stream: _typingStream,
+      builder: (context, snap) {
+        if (!snap.hasData || snap.data!.snapshot.value == null) {
+          return const SizedBox.shrink();
+        }
+        final raw =
+            Map<dynamic, dynamic>.from(snap.data!.snapshot.value as Map);
+        final myKey = SocialService.encodeKey(widget.user);
+        final now = DateTime.now().millisecondsSinceEpoch;
+        // Find other users typing (activity within last 3 seconds)
+        final typingUsers = raw.entries.where((e) {
+          if (e.key.toString() == myKey) return false;
+          final ts = e.value as int? ?? 0;
+          return (now - ts) < 3000;
+        }).map((e) => SocialService.decodeKey(e.key.toString())).toList();
+
+        if (typingUsers.isEmpty) return const SizedBox.shrink();
+
+        final name = typingUsers.first.contains('@')
+            ? typingUsers.first.split('@').first
+            : typingUsers.first;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Row(
+            children: [
+              const SizedBox(width: 44),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1F2937),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(18),
+                    topRight: Radius.circular(18),
+                    bottomLeft: Radius.circular(4),
+                    bottomRight: Radius.circular(18),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$name est en train d\'écrire',
+                      style: const TextStyle(
+                          color: Colors.white54, fontSize: 12),
+                    ),
+                    const SizedBox(width: 6),
+                    const _TypingDots(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildReplyPreview() {
+    final reply = _replyToMsg;
+    if (reply == null) return const SizedBox.shrink();
+    final sender = reply['sender'] as String? ?? '';
+    final text = reply['text'] as String? ?? '';
+    final name = sender.contains('@') ? sender.split('@').first : sender;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1F2937),
+        border: Border(
+            top: BorderSide(color: Color(0xFF21262D)),
+            left: BorderSide(color: Color(0xFF6C47FF), width: 3)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Répondre à $name',
+                  style: const TextStyle(
+                      color: Color(0xFF6C47FF),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  text.length > 80 ? '${text.substring(0, 80)}…' : text,
+                  style: const TextStyle(
+                      color: Colors.white54, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => setState(() => _replyToMsg = null),
+            child: const Icon(Icons.close,
+                color: Colors.white38, size: 18),
+          ),
+        ],
+      ),
     );
   }
 
@@ -485,16 +661,82 @@ class _MessageBubble extends StatelessWidget {
   final Map<String, dynamic> msg;
   final bool isMe;
   final bool isGroup;
+  final String chatId;
+  final ValueChanged<Map<String, dynamic>> onReply;
 
-  const _MessageBubble(
-      {required this.msg,
-      required this.isMe,
-      required this.isGroup});
+  const _MessageBubble({
+    required this.msg,
+    required this.isMe,
+    required this.isGroup,
+    required this.chatId,
+    required this.onReply,
+  });
 
   String _fmt(int? ts) {
     if (ts == null) return '';
     final d = DateTime.fromMillisecondsSinceEpoch(ts);
     return '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _showActionSheet(BuildContext context, String text, int? ts) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1F2937),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2))),
+              // Emoji reactions
+              _ReactionBar(chatId: chatId, messageTime: ts ?? 0),
+              const SizedBox(height: 12),
+              const Divider(color: Color(0xFF374151)),
+              // Copy
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.copy_outlined,
+                    color: Colors.white70, size: 20),
+                title: const Text('Copier',
+                    style: TextStyle(color: Colors.white70)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Clipboard.setData(ClipboardData(text: text));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Message copié'),
+                      duration: Duration(seconds: 1),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+              // Reply
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.reply_outlined,
+                    color: Color(0xFF6C47FF), size: 20),
+                title: const Text('Répondre',
+                    style: TextStyle(color: Color(0xFF6C47FF))),
+                onTap: () {
+                  Navigator.pop(context);
+                  onReply(msg);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -503,6 +745,7 @@ class _MessageBubble extends StatelessWidget {
     final text = msg['text'] as String? ?? '';
     final ts = msg['time'] as int?;
     final seen = msg['seen'] == true;
+    final replyTo = msg['replyTo'] as Map<dynamic, dynamic>?;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -521,98 +764,302 @@ class _MessageBubble extends StatelessWidget {
             const SizedBox(width: 6),
           ],
           Flexible(
-            child: GestureDetector(
-              onLongPress: () {
-                Clipboard.setData(ClipboardData(text: text));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Message copié'),
-                    duration: Duration(seconds: 1),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  gradient: isMe
-                      ? const LinearGradient(
-                          colors: [
-                            Color(0xFF6C47FF),
-                            Color(0xFF2563EB)
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : null,
-                  color:
-                      isMe ? null : const Color(0xFF1F2937),
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(18),
-                    topRight: const Radius.circular(18),
-                    bottomLeft: Radius.circular(isMe ? 18 : 4),
-                    bottomRight:
-                        Radius.circular(isMe ? 4 : 18),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color:
-                          Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (!isMe && isGroup)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          sender.contains('@')
-                              ? sender.split('@').first
-                              : sender,
-                          style: const TextStyle(
-                            color: Color(0xFF6C47FF),
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+            child: Column(
+              crossAxisAlignment:
+                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onLongPress: () => _showActionSheet(context, text, ts),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      gradient: isMe
+                          ? const LinearGradient(
+                              colors: [
+                                Color(0xFF6C47FF),
+                                Color(0xFF2563EB)
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: isMe ? null : const Color(0xFF1F2937),
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(18),
+                        topRight: const Radius.circular(18),
+                        bottomLeft: Radius.circular(isMe ? 18 : 4),
+                        bottomRight: Radius.circular(isMe ? 4 : 18),
                       ),
-                    Text(text,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            height: 1.4)),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(_fmt(ts),
-                            style: const TextStyle(
-                                color: Colors.white38,
-                                fontSize: 10)),
-                        if (isMe) ...[
-                          const SizedBox(width: 4),
-                          Icon(
-                            seen ? Icons.done_all : Icons.done,
-                            size: 14,
-                            color: seen
-                                ? const Color(0xFF60A5FA)
-                                : Colors.white38,
-                          ),
-                        ],
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
                       ],
                     ),
-                  ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!isMe && isGroup)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              sender.contains('@')
+                                  ? sender.split('@').first
+                                  : sender,
+                              style: const TextStyle(
+                                color: Color(0xFF6C47FF),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        // Reply preview
+                        if (replyTo != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            margin: const EdgeInsets.only(bottom: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.black26,
+                              borderRadius: BorderRadius.circular(8),
+                              border: const Border(
+                                  left: BorderSide(
+                                      color: Color(0xFF6C47FF),
+                                      width: 3)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  (replyTo['sender'] as String? ?? '')
+                                      .split('@')
+                                      .first,
+                                  style: const TextStyle(
+                                      color: Color(0xFF6C47FF),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  replyTo['text'] as String? ?? '',
+                                  style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 11),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        Text(text,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                height: 1.4)),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_fmt(ts),
+                                style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 10)),
+                            if (isMe) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                seen ? Icons.done_all : Icons.done,
+                                size: 14,
+                                color: seen
+                                    ? const Color(0xFF60A5FA)
+                                    : Colors.white38,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+                // Reaction display
+                _ReactionsDisplay(chatId: chatId, messageTime: ts ?? 0),
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Reaction Bar (bottom sheet) ──────────────────────────────────────────────
+
+class _ReactionBar extends StatelessWidget {
+  final String chatId;
+  final int messageTime;
+  const _ReactionBar({required this.chatId, required this.messageTime});
+
+  static const _emojis = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: _emojis.map((emoji) {
+        return GestureDetector(
+          onTap: () async {
+            Navigator.pop(context);
+            final ref = FirebaseDatabase.instance
+                .ref('reactions/$chatId/$messageTime/$emoji');
+            final snap = await ref.get();
+            final count = (snap.value as int? ?? 0) + 1;
+            await ref.set(count);
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 6),
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: const Color(0xFF374151),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Text(emoji, style: const TextStyle(fontSize: 22)),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ─── Reactions Display (on bubble) ───────────────────────────────────────────
+
+class _ReactionsDisplay extends StatelessWidget {
+  final String chatId;
+  final int messageTime;
+  const _ReactionsDisplay(
+      {required this.chatId, required this.messageTime});
+
+  @override
+  Widget build(BuildContext context) {
+    if (messageTime == 0) return const SizedBox.shrink();
+    return StreamBuilder<DatabaseEvent>(
+      stream: FirebaseDatabase.instance
+          .ref('reactions/$chatId/$messageTime')
+          .onValue,
+      builder: (context, snap) {
+        if (!snap.hasData || snap.data!.snapshot.value == null) {
+          return const SizedBox.shrink();
+        }
+        final raw =
+            Map<dynamic, dynamic>.from(snap.data!.snapshot.value as Map);
+        if (raw.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Wrap(
+            spacing: 4,
+            children: raw.entries.map((e) {
+              final emoji = e.key.toString();
+              final count = e.value as int? ?? 0;
+              if (count <= 0) return const SizedBox.shrink();
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF374151),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(emoji,
+                        style: const TextStyle(fontSize: 13)),
+                    const SizedBox(width: 4),
+                    Text('$count',
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 11)),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─── Typing Dots Animation ────────────────────────────────────────────────────
+
+class _TypingDots extends StatefulWidget {
+  const _TypingDots();
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with TickerProviderStateMixin {
+  late final List<AnimationController> _controllers;
+  late final List<Animation<double>> _anims;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List.generate(
+      3,
+      (i) => AnimationController(
+          vsync: this, duration: const Duration(milliseconds: 400))
+        ..repeat(reverse: true),
+    );
+    _anims = _controllers
+        .asMap()
+        .entries
+        .map((e) => CurvedAnimation(
+              parent: e.value,
+              curve: Interval(e.key * 0.2, 1.0, curve: Curves.easeInOut),
+            ))
+        .toList();
+
+    for (int i = 0; i < 3; i++) {
+      Future.delayed(Duration(milliseconds: i * 150), () {
+        if (mounted) {
+          _controllers[i].repeat(reverse: true);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (i) {
+        return AnimatedBuilder(
+          animation: _anims[i],
+          builder: (_, __) => Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            width: 5,
+            height: 5 + _anims[i].value * 4,
+            decoration: const BoxDecoration(
+              color: Colors.white38,
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      }),
     );
   }
 }

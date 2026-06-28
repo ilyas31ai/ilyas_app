@@ -6,8 +6,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../services/social_service.dart';
 import '../services/user_service.dart';
+import '../services/scolar_gamification_service.dart';
 import '../widgets/user_avatar.dart';
 import 'scolar_chat_room_page.dart';
+import 'scolar_profile_page.dart';
+import 'scolar_salle_page.dart';
+import 'scolar_groupe_detail_page.dart';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const _bg = Color(0xFF0D1117);
@@ -169,6 +173,14 @@ class _AccueilTab extends StatelessWidget {
               const SizedBox(height: 20),
             ],
             _buildBadgesSection(friends.length),
+            const SizedBox(height: 20),
+            _buildSallesSection(context),
+            const SizedBox(height: 20),
+            _buildObjectifsSection(context),
+            const SizedBox(height: 20),
+            _buildActivitySection(context),
+            const SizedBox(height: 20),
+            _buildProfilButton(context),
           ],
         );
       },
@@ -223,6 +235,60 @@ class _AccueilTab extends StatelessWidget {
                         value: '—',
                         label: 'groupes'),
                   ],
+                ),
+                const SizedBox(height: 10),
+                // XP bar
+                StreamBuilder<Map<String, dynamic>>(
+                  stream: ScolarGamificationService.statsStream(
+                      FirebaseAuth.instance.currentUser?.uid ?? ''),
+                  builder: (context, snapStats) {
+                    final stats = snapStats.data ?? {};
+                    final xp = stats['xp'] as int? ?? 0;
+                    final level = stats['level'] as int? ?? 1;
+                    final xpProgress = (xp % 100) / 100.0;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                    colors: [_purple, _blue]),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'Niv. $level',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            Text(
+                              '$xp XP',
+                              style: const TextStyle(
+                                  color: Colors.white38, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: LinearProgressIndicator(
+                            value: xpProgress,
+                            minHeight: 5,
+                            backgroundColor: Colors.white12,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                                _purple),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -397,6 +463,242 @@ class _AccueilTab extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildSallesSection(BuildContext context) {
+    final salles = [
+      ('Salle Mathématiques', 'Mathématiques'),
+      ('Salle Sciences', 'Sciences'),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader('Salles actives'),
+        const SizedBox(height: 10),
+        ...salles.map((s) {
+          final (nom, matiere) = s;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      SCOLARSallePage(salleNom: nom, matiere: matiere),
+                ),
+              ),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _card,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _border),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                            colors: [_purple, _blue]),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.meeting_room_outlined,
+                          color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(nom,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600)),
+                          Text(matiere,
+                              style: const TextStyle(
+                                  color: Colors.white38, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                          color: Colors.greenAccent,
+                          shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 4),
+                    const Text('Active',
+                        style: TextStyle(
+                            color: Colors.greenAccent, fontSize: 11)),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.chevron_right,
+                        color: Colors.white24, size: 20),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildObjectifsSection(BuildContext context) {
+    final objectifs = [
+      ('Envoyer 5 messages', Icons.chat_bubble_outline, 0.4),
+      ('Rejoindre 1 groupe', Icons.groups_outlined, 0.0),
+      ('Partager 1 fiche', Icons.folder_shared_outlined, 0.0),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader('Objectifs de la semaine'),
+        const SizedBox(height: 10),
+        ...objectifs.map((o) {
+          final (label, icon, progress) = o;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: progress >= 1.0
+                        ? const Color(0xFF16A34A).withValues(alpha: 0.15)
+                        : _purple.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    progress >= 1.0 ? Icons.check_circle_outlined : icon,
+                    color: progress >= 1.0
+                        ? const Color(0xFF16A34A)
+                        : _purple,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 4,
+                          backgroundColor: Colors.white12,
+                          valueColor:
+                              const AlwaysStoppedAnimation<Color>(_purple),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  '${(progress * 100).round()}%',
+                  style: const TextStyle(
+                      color: Colors.white38, fontSize: 12),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildActivitySection(BuildContext context) {
+    final activities = [
+      (Icons.chat_bubble_outline, _blue, 'Vous avez envoyé un message dans Général', '2 min'),
+      (Icons.group_add_outlined, _purple, 'Vous avez rejoint "Groupe Mathématiques"', '15 min'),
+      (Icons.upload_outlined, const Color(0xFF0D9488), 'Vous avez partagé une fiche', '1 h'),
+      (Icons.person_add_outlined, const Color(0xFFD97706), 'Nouvelle connexion ajoutée', '3 h'),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader('Activité récente'),
+        const SizedBox(height: 10),
+        ...activities.map((a) {
+          final (icon, color, text, time) = a;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(text,
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 12),
+                          maxLines: 2),
+                      Text(time,
+                          style: const TextStyle(
+                              color: Colors.white24, fontSize: 11)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildProfilButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                SCOLARProfilePage(email: _me, isOwn: true),
+          ),
+        ),
+        icon: const Icon(Icons.person_outline, size: 18),
+        label: const Text('Mon profil SCOLAR'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _purple,
+          side: BorderSide(color: _purple.withValues(alpha: 0.5)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
     );
   }
 }
@@ -1576,10 +1878,10 @@ class _GroupCard extends StatelessWidget {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => SCOLARChatRoomPage(
-            name: 'groupe_${data['id']}',
-            user: _me,
-            displayName: name,
+          builder: (_) => SCOLARGroupeDetailPage(
+            groupeId: data['id'] as String? ?? '',
+            groupeNom: name,
+            groupeData: data,
           ),
         ),
       ),

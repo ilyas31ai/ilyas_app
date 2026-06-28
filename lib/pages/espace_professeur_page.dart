@@ -12,6 +12,7 @@ import 'professeur_documents_page.dart';
 import 'professeur_bibliotheque_page.dart';
 import 'professeur_corrige_page.dart';
 import 'professeur_evaluations_qualitative_page.dart';
+import 'professeur_disponibilite_page.dart';
 import 'professeur_messagerie_page.dart';
 import 'professeur_rdv_page.dart';
 
@@ -220,6 +221,17 @@ class _ProfesseurHome extends StatelessWidget {
                 colors: const [Color(0xFF1E3A5F), Color(0xFF2563EB)],
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const ProfesseurMessageriePage())),
+              ),
+              const SizedBox(height: 4),
+              _buildSectionLabel('Disponibilités'),
+              const SizedBox(height: 8),
+              _ModuleCard(
+                icon: Icons.event_available_outlined,
+                title: 'Mes disponibilités',
+                subtitle: 'Gérer mes horaires et déclarer une absence',
+                colors: const [Color(0xFF6C47FF), Color(0xFF8B5CF6)],
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const ProfesseurDisponibilitePage())),
               ),
             ]),
           ),

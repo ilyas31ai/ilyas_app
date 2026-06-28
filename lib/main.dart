@@ -25,6 +25,11 @@ import 'services/notification_service.dart';
 import 'routes/app_routes.dart';
 import 'pages/cycle_placeholder_page.dart';
 
+// 🆕 NOUVEAUX MODULES
+import 'pages/inscription_wizard_page.dart';
+import 'pages/scolar_profile_page.dart';
+import 'pages/scolar_salle_page.dart';
+
 // 👩‍🏫 PROFESSEUR — sous-pages (deep-link direct)
 import 'pages/professeur_dashboard_page.dart';
 import 'pages/professeur_emploi_page.dart';
@@ -39,10 +44,15 @@ import 'pages/professeur_evaluations_qualitative_page.dart';
 import 'pages/professeur_messagerie_page.dart';
 
 // 🏛️ DIRECTION — sous-pages (deep-link direct)
+import 'pages/fiche_enseignant_page.dart';
 import 'pages/direction_dashboard_page.dart';
 import 'pages/direction_classes_page.dart';
+import 'pages/direction_disponibilites_page.dart';
 import 'pages/direction_eleves_page.dart';
+import 'pages/direction_historique_remplacements_page.dart';
 import 'pages/direction_statistiques_page.dart';
+import 'pages/direction_stats_remplacements_page.dart';
+import 'pages/professeur_disponibilite_page.dart';
 
 // 🏫 PRIMAIRE — écrans de production
 import 'pages/primaire_dashboard_page.dart';
@@ -331,6 +341,24 @@ class MyApp extends StatelessWidget {
         AppRoutes.directionClasses: (_) => const DirectionClassesPage(),
         AppRoutes.directionEleves: (_) => const DirectionElevesPage(),
         AppRoutes.directionStatistiques: (_) => const DirectionStatistiquesPage(),
+
+        // ── Direction — disponibilités & remplacements ─────────────────────
+        '/direction_disponibilites': (_) =>
+            const DirectionDisponibilitesPage(),
+        '/direction_historique_remplacements': (_) =>
+            const DirectionHistoriqueRemplacementsPage(),
+        '/direction_stats_remplacements': (_) =>
+            const DirectionStatsRemplacementsPage(),
+        '/fiche_enseignant': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>? ?? {};
+          return FicheEnseignantPage(
+            uid: args['uid'] as String? ?? '',
+            displayName: args['displayName'] as String? ?? '',
+          );
+        },
+        '/professeur_disponibilite': (_) =>
+            const ProfesseurDisponibilitePage(),
         AppRoutes.directionSeedReferentiel: (_) =>
             const CyclePlaceholderPage(
               title: 'Initialisation Référentiel',
@@ -407,6 +435,32 @@ class MyApp extends StatelessWidget {
         '/amis': (context) => const SCOLARConnectPage(),
         '/users': (context) => const SCOLARConnectPage(),
         '/eleve_discussion': (context) => const SCOLARConnectPage(),
+
+        // 🆕 INSCRIPTION WIZARD
+        '/inscription_wizard': (context) =>
+            const InscriptionWizardPage(),
+
+        // 🆕 SCOLAR PROFILE
+        '/scolar_profile': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>? ??
+              {};
+          return SCOLARProfilePage(
+            email: args['email'] as String? ?? '',
+            isOwn: args['isOwn'] as bool? ?? false,
+          );
+        },
+
+        // 🆕 SCOLAR SALLE
+        '/scolar_salle': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>? ??
+              {};
+          return SCOLARSallePage(
+            salleNom: args['salleNom'] as String? ?? 'Salle 1',
+            matiere: args['matiere'] as String? ?? '',
+          );
+        },
       },
 
     );
