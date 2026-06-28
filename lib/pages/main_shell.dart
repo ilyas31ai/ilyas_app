@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'home_page.dart';
 import 'eleves_page.dart';
 import 'profile_page.dart';
+import 'scolar_connect_page.dart';
 import '../services/notification_service.dart';
 import '../services/social_service.dart';
 import '../services/user_service.dart';
@@ -48,12 +49,13 @@ class _MainShellState extends State<MainShell> {
           children: const [
             HomePage(),
             ElevesPage(),
+            SCOLARConnectPage(),
             ProfilePage(),
           ],
         ),
         bottomNavigationBar: BottomNavigationBar(
           backgroundColor: const Color(0xFF161B22),
-          selectedItemColor: const Color(0xFF2563EB),
+          selectedItemColor: const Color(0xFF6C47FF),
           unselectedItemColor: Colors.white38,
           type: BottomNavigationBarType.fixed,
           selectedFontSize: 11,
@@ -70,6 +72,11 @@ class _MainShellState extends State<MainShell> {
               icon: Icon(Icons.school_outlined),
               activeIcon: Icon(Icons.school),
               label: 'Révision',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.hub_outlined),
+              activeIcon: Icon(Icons.hub),
+              label: 'Connect',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),

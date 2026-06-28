@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
 import '../services/professeur_service.dart';
 import '../widgets/user_avatar.dart';
-import 'discussion_page.dart';
+import 'scolar_chat_room_page.dart';
 
 /// Messagerie professeur — trois onglets :
 ///   1. Direction (admin) : messagerie interne
@@ -174,7 +174,7 @@ class _ElevesTabState extends State<_ElevesTab> {
           .collection('classes')
           .where('professeurId', isEqualTo: uid)
           .get();
-      for (final d in snap.docs) classeIds.add(d.id);
+      for (final d in snap.docs) { classeIds.add(d.id); }
     } catch (_) {}
 
     // Approche 3 — classes où professeurEmail == email (si uid non trouvé)
@@ -184,7 +184,7 @@ class _ElevesTabState extends State<_ElevesTab> {
             .collection('classes')
             .where('professeurEmail', isEqualTo: currentEmail)
             .get();
-        for (final d in snap.docs) classeIds.add(d.id);
+        for (final d in snap.docs) { classeIds.add(d.id); }
       } catch (_) {}
     }
 
@@ -401,7 +401,7 @@ class _UserTile extends StatelessWidget {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => DiscussionPage(
+          builder: (_) => SCOLARChatRoomPage(
             name: email,
             user: currentUser,
             displayName: displayName.isNotEmpty ? displayName : null,

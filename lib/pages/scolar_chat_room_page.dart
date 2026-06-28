@@ -4,12 +4,13 @@ import '../services/social_service.dart';
 import '../services/user_service.dart';
 import '../widgets/user_avatar.dart';
 
-class DiscussionPage extends StatefulWidget {
+// Remplace discussion_page.dart — même API, design entièrement nouveau.
+class SCOLARChatRoomPage extends StatefulWidget {
   final String name;
   final String user;
   final String? displayName;
 
-  const DiscussionPage({
+  const SCOLARChatRoomPage({
     super.key,
     required this.name,
     required this.user,
@@ -17,19 +18,16 @@ class DiscussionPage extends StatefulWidget {
   });
 
   @override
-  State<DiscussionPage> createState() => _DiscussionPageState();
+  State<SCOLARChatRoomPage> createState() => _SCOLARChatRoomPageState();
 }
 
-class _DiscussionPageState extends State<DiscussionPage> {
+class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
   final _textCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   bool _sending = false;
   bool _blocked = false;
   bool _showScrollBtn = false;
   String? _myDisplayName;
-
-  // Stream stocké en initState → une seule souscription stable peu importe
-  // le nombre de setState() appelés (envoi, scroll, etc.)
   late final Stream<List<Map<String, dynamic>>> _messagesStream;
 
   String get _chatId => SocialService.chatId(widget.user, widget.name);
@@ -44,7 +42,7 @@ class _DiscussionPageState extends State<DiscussionPage> {
   void initState() {
     super.initState();
     _messagesStream = SocialService.messagesStream(_chatId);
-    _initPage();
+    _init();
     _scrollCtrl.addListener(_onScroll);
     UserService.currentUserStream().first.then((u) {
       if (mounted && u != null && u.displayName.isNotEmpty) {
@@ -60,12 +58,12 @@ class _DiscussionPageState extends State<DiscussionPage> {
     super.dispose();
   }
 
-  Future<void> _initPage() async {
+  Future<void> _init() async {
     if (!_isGroup) {
       _blocked = await SocialService.isBlocked(widget.user, widget.name);
       if (mounted) setState(() {});
     }
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 400));
     if (mounted) await SocialService.markSeen(_chatId, widget.user);
   }
 
@@ -97,10 +95,8 @@ class _DiscussionPageState extends State<DiscussionPage> {
     if (_sending || _blocked) return;
     final text = _textCtrl.text.trim();
     if (text.isEmpty) return;
-
     _textCtrl.clear();
     setState(() => _sending = true);
-
     await SocialService.sendMessage(
       chatIdStr: _chatId,
       sender: widget.user,
@@ -108,7 +104,6 @@ class _DiscussionPageState extends State<DiscussionPage> {
       text: text,
       senderDisplayName: _myDisplayName,
     );
-
     if (mounted) setState(() => _sending = false);
     _scrollToBottom();
   }
@@ -126,11 +121,13 @@ class _DiscussionPageState extends State<DiscussionPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler', style: TextStyle(color: Colors.white54)),
+            child: const Text('Annuler',
+                style: TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Bloquer', style: TextStyle(color: Colors.redAccent)),
+            child: const Text('Bloquer',
+                style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -138,19 +135,6 @@ class _DiscussionPageState extends State<DiscussionPage> {
     if (ok == true && mounted) {
       await SocialService.blockUser(widget.user, widget.name);
       setState(() => _blocked = true);
-    }
-  }
-
-  Future<void> _addContact() async {
-    await SocialService.addContact(widget.user, widget.name);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$_label ajouté aux contacts'),
-          backgroundColor: const Color(0xFF16A34A),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
     }
   }
 
@@ -175,10 +159,12 @@ class _DiscussionPageState extends State<DiscussionPage> {
               child: GestureDetector(
                 onTap: () => _scrollToBottom(),
                 child: Container(
-                  width: 36,
-                  height: 36,
+                  width: 40,
+                  height: 40,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF2563EB),
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF6C47FF), Color(0xFF2563EB)],
+                    ),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.keyboard_arrow_down,
@@ -191,9 +177,17 @@ class _DiscussionPageState extends State<DiscussionPage> {
     );
   }
 
-  AppBar _buildAppBar() {
+  PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: const Color(0xFF161B22),
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF1A1040), Color(0xFF161B22)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+      ),
       elevation: 0,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -204,35 +198,39 @@ class _DiscussionPageState extends State<DiscussionPage> {
         children: [
           _isGroup
               ? Container(
-                  width: 38,
-                  height: 38,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFF6C47FF), Color(0xFF2563EB)],
                     ),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(11),
                   ),
-                  child: const Icon(Icons.groups, color: Colors.white, size: 20),
+                  child: const Icon(Icons.groups, color: Colors.white, size: 22),
                 )
-              : UserAvatar(username: widget.name, radius: 19, showStatus: true),
+              : UserAvatar(
+                  username: widget.name, radius: 20, showStatus: true),
           const SizedBox(width: 10),
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _isGroup ? 'Discussion générale' : _label,
+                  _isGroup
+                      ? (widget.name == 'general'
+                          ? 'Canal Général'
+                          : 'Canal de Classe')
+                      : _label,
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (!_isGroup)
                   OnlineLabel(username: widget.name)
                 else
-                  const Text('Groupe',
+                  const Text('SCOLAR Connect',
                       style: TextStyle(color: Colors.white38, fontSize: 11)),
               ],
             ),
@@ -245,24 +243,16 @@ class _DiscussionPageState extends State<DiscussionPage> {
             icon: const Icon(Icons.more_vert, color: Colors.white54),
             color: const Color(0xFF1F2937),
             onSelected: (v) {
-              if (v == 'add') _addContact();
               if (v == 'block') _blockUser();
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'add',
-                child: Row(children: [
-                  Icon(Icons.person_add_outlined, color: Colors.white70, size: 18),
-                  SizedBox(width: 10),
-                  Text('Ajouter contact', style: TextStyle(color: Colors.white)),
-                ]),
-              ),
               const PopupMenuItem(
                 value: 'block',
                 child: Row(children: [
                   Icon(Icons.block, color: Colors.redAccent, size: 18),
                   SizedBox(width: 10),
-                  Text('Bloquer', style: TextStyle(color: Colors.redAccent)),
+                  Text('Bloquer',
+                      style: TextStyle(color: Colors.redAccent)),
                 ]),
               ),
             ],
@@ -276,80 +266,86 @@ class _DiscussionPageState extends State<DiscussionPage> {
       stream: _messagesStream,
       builder: (context, snap) {
         final msgs = snap.data ?? [];
-        if (msgs.isEmpty) return _buildEmpty();
-
+        if (msgs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6C47FF), Color(0xFF2563EB)],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(Icons.chat_bubble_outline,
+                      color: Colors.white54, size: 36),
+                ),
+                const SizedBox(height: 18),
+                const Text('Démarrez la conversation',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                Text(
+                  _isGroup
+                      ? 'Partagez avec le groupe !'
+                      : 'Premier message à $_label…',
+                  style:
+                      const TextStyle(color: Colors.white38, fontSize: 13),
+                ),
+              ],
+            ),
+          );
+        }
         WidgetsBinding.instance
             .addPostFrameCallback((_) => _scrollToBottom(animated: false));
-
         return ListView.builder(
           controller: _scrollCtrl,
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+          padding:
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
           itemCount: msgs.length,
           itemBuilder: (_, i) {
             final msg = msgs[i];
             final isMe = msg['sender'] == widget.user;
             final showDate = i == 0 ||
                 _dayOf(msgs[i]['time']) != _dayOf(msgs[i - 1]['time']);
-            return Column(
-              children: [
-                if (showDate) _buildDateChip(msg['time'] as int? ?? 0),
-                _MessageBubble(
-                  msg: msg,
-                  isMe: isMe,
-                  isGroup: _isGroup,
-                ),
-              ],
-            );
+            return Column(children: [
+              if (showDate) _buildDateChip(msg['time'] as int? ?? 0),
+              _MessageBubble(
+                  msg: msg, isMe: isMe, isGroup: _isGroup),
+            ]);
           },
         );
       },
     );
   }
 
-  Widget _buildEmpty() => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: const Color(0xFF161B22),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.chat_bubble_outline,
-                  color: Colors.white24, size: 32),
-            ),
-            const SizedBox(height: 16),
-            const Text('Aucun message',
-                style: TextStyle(color: Colors.white38, fontSize: 16)),
-            const SizedBox(height: 6),
-            const Text('Envoyez le premier message !',
-                style: TextStyle(color: Colors.white24, fontSize: 13)),
-          ],
-        ),
-      );
-
   Widget _buildBlockedBanner() => Container(
         color: const Color(0xFF1F2937),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+        padding:
+            const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         child: Row(
           children: [
             const Icon(Icons.block, color: Colors.redAccent, size: 16),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                'Vous avez bloqué $_label.',
-                style: const TextStyle(color: Colors.white60, fontSize: 13),
-              ),
+              child: Text('Vous avez bloqué $_label.',
+                  style: const TextStyle(
+                      color: Colors.white60, fontSize: 13)),
             ),
             TextButton(
               onPressed: () async {
-                await SocialService.unblockUser(widget.user, widget.name);
+                await SocialService.unblockUser(
+                    widget.user, widget.name);
                 if (mounted) setState(() => _blocked = false);
               },
               child: const Text('Débloquer',
-                  style: TextStyle(color: Color(0xFF2563EB), fontSize: 13)),
+                  style: TextStyle(
+                      color: Color(0xFF2563EB), fontSize: 13)),
             ),
           ],
         ),
@@ -357,10 +353,11 @@ class _DiscussionPageState extends State<DiscussionPage> {
 
   Widget _buildInput() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(6, 8, 6, 12),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
       decoration: const BoxDecoration(
         color: Color(0xFF161B22),
-        border: Border(top: BorderSide(color: Color(0xFF21262D))),
+        border:
+            Border(top: BorderSide(color: Color(0xFF21262D))),
       ),
       child: SafeArea(
         top: false,
@@ -371,7 +368,8 @@ class _DiscussionPageState extends State<DiscussionPage> {
               child: TextField(
                 controller: _textCtrl,
                 enabled: !_blocked,
-                style: const TextStyle(color: Colors.white, fontSize: 15),
+                style:
+                    const TextStyle(color: Colors.white, fontSize: 15),
                 maxLines: 5,
                 minLines: 1,
                 keyboardType: TextInputType.multiline,
@@ -380,9 +378,9 @@ class _DiscussionPageState extends State<DiscussionPage> {
                 decoration: InputDecoration(
                   hintText: _blocked
                       ? 'Utilisateur bloqué'
-                      : 'Message à ${_isGroup ? "la classe" : _label}…',
-                  hintStyle:
-                      const TextStyle(color: Colors.white38, fontSize: 14),
+                      : 'Votre message…',
+                  hintStyle: const TextStyle(
+                      color: Colors.white38, fontSize: 14),
                   filled: true,
                   fillColor: const Color(0xFF21262D),
                   contentPadding: const EdgeInsets.symmetric(
@@ -402,28 +400,36 @@ class _DiscussionPageState extends State<DiscussionPage> {
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2.5, color: Color(0xFF2563EB)),
+                          strokeWidth: 2.5,
+                          color: Color(0xFF6C47FF)),
                     ),
                   )
                 : GestureDetector(
                     onTap: _blocked ? null : _send,
                     child: Container(
-                      width: 44,
-                      height: 44,
+                      width: 46,
+                      height: 46,
                       decoration: BoxDecoration(
                         gradient: _blocked
                             ? null
                             : const LinearGradient(
-                                colors: [Color(0xFF6C47FF), Color(0xFF2563EB)],
+                                colors: [
+                                  Color(0xFF6C47FF),
+                                  Color(0xFF2563EB)
+                                ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
-                        color: _blocked ? const Color(0xFF1F2937) : null,
+                        color: _blocked
+                            ? const Color(0xFF1F2937)
+                            : null,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.send_rounded,
-                        color: _blocked ? Colors.white24 : Colors.white,
+                        color: _blocked
+                            ? Colors.white24
+                            : Colors.white,
                         size: 20,
                       ),
                     ),
@@ -434,14 +440,16 @@ class _DiscussionPageState extends State<DiscussionPage> {
     );
   }
 
-  Widget _buildDateChip(int timestamp) {
-    final d = DateTime.fromMillisecondsSinceEpoch(timestamp);
+  Widget _buildDateChip(int ts) {
+    final d = DateTime.fromMillisecondsSinceEpoch(ts);
     final now = DateTime.now();
-    String label;
-    if (_dayOf(timestamp) == _dayOf(now.millisecondsSinceEpoch)) {
+    final String label;
+    if (_dayOf(ts) == _dayOf(now.millisecondsSinceEpoch)) {
       label = "Aujourd'hui";
-    } else if (_dayOf(timestamp) ==
-        _dayOf(now.subtract(const Duration(days: 1)).millisecondsSinceEpoch)) {
+    } else if (_dayOf(ts) ==
+        _dayOf(now
+            .subtract(const Duration(days: 1))
+            .millisecondsSinceEpoch)) {
       label = 'Hier';
     } else {
       label = '${d.day}/${d.month}/${d.year}';
@@ -450,13 +458,15 @@ class _DiscussionPageState extends State<DiscussionPage> {
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Center(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
             color: const Color(0xFF21262D),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(label,
-              style: const TextStyle(color: Colors.white38, fontSize: 11)),
+              style: const TextStyle(
+                  color: Colors.white38, fontSize: 11)),
         ),
       ),
     );
@@ -469,20 +479,19 @@ class _DiscussionPageState extends State<DiscussionPage> {
   }
 }
 
-// ─── Message Bubble ────────────────────────────────────────────────────────
+// ─── Bulle de message ─────────────────────────────────────────────────────────
 
 class _MessageBubble extends StatelessWidget {
   final Map<String, dynamic> msg;
   final bool isMe;
   final bool isGroup;
 
-  const _MessageBubble({
-    required this.msg,
-    required this.isMe,
-    required this.isGroup,
-  });
+  const _MessageBubble(
+      {required this.msg,
+      required this.isMe,
+      required this.isGroup});
 
-  String _formatTime(int? ts) {
+  String _fmt(int? ts) {
     if (ts == null) return '';
     final d = DateTime.fromMillisecondsSinceEpoch(ts);
     return '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
@@ -497,8 +506,8 @@ class _MessageBubble extends StatelessWidget {
 
     return Padding(
       padding: EdgeInsets.only(
-        left: isMe ? 50 : 8,
-        right: isMe ? 8 : 50,
+        left: isMe ? 52 : 8,
+        right: isMe ? 8 : 52,
         top: 3,
         bottom: 3,
       ),
@@ -529,21 +538,27 @@ class _MessageBubble extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: isMe
                       ? const LinearGradient(
-                          colors: [Color(0xFF2563EB), Color(0xFF1E40AF)],
+                          colors: [
+                            Color(0xFF6C47FF),
+                            Color(0xFF2563EB)
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         )
                       : null,
-                  color: isMe ? null : const Color(0xFF1F2937),
+                  color:
+                      isMe ? null : const Color(0xFF1F2937),
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(18),
                     topRight: const Radius.circular(18),
                     bottomLeft: Radius.circular(isMe ? 18 : 4),
-                    bottomRight: Radius.circular(isMe ? 4 : 18),
+                    bottomRight:
+                        Radius.circular(isMe ? 4 : 18),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
+                      color:
+                          Colors.black.withValues(alpha: 0.2),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -566,20 +581,19 @@ class _MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ),
-                    Text(
-                      text,
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 15, height: 1.4),
-                    ),
+                    Text(text,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            height: 1.4)),
                     const SizedBox(height: 4),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          _formatTime(ts),
-                          style: const TextStyle(
-                              color: Colors.white38, fontSize: 10),
-                        ),
+                        Text(_fmt(ts),
+                            style: const TextStyle(
+                                color: Colors.white38,
+                                fontSize: 10)),
                         if (isMe) ...[
                           const SizedBox(width: 4),
                           Icon(

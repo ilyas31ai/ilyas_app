@@ -10,10 +10,8 @@ import 'firebase_options.dart';
 import 'pages/login_page.dart';
 import 'pages/main_shell.dart';
 import 'pages/eleves_page.dart';
-import 'pages/amis_page.dart';
-import 'pages/users_page.dart';
-import 'pages/discussion_page.dart';
-import 'pages/eleve_discussion_page.dart';
+import 'pages/scolar_connect_page.dart';
+import 'pages/scolar_chat_room_page.dart';
 import 'pages/espace_direction_page.dart';
 import 'pages/espace_parent_page.dart';
 import 'pages/espace_professeur_page.dart';
@@ -221,7 +219,7 @@ class MyApp extends StatelessWidget {
           final args =
               settings.arguments as Map<String, dynamic>? ?? {};
           return MaterialPageRoute(
-            builder: (_) => DiscussionPage(
+            builder: (_) => SCOLARChatRoomPage(
               name: args['name'] as String? ?? '',
               user: args['user'] as String? ?? currentUser,
               displayName: args['displayName'] as String?,
@@ -404,10 +402,11 @@ class MyApp extends StatelessWidget {
         AppRoutes.universiteMemoire: (_) => const UniversiteMemoiresPage(),
         AppRoutes.universiteSoutenances: (_) => const UniversiteSoutenancesPage(),
 
-        // 💬 DISCUSSION & SOCIAL
-        '/amis': (context) => AmisPage(currentUser: currentUser),
-        '/users': (context) => UsersPage(currentUser: currentUser),
-        '/eleve_discussion': (context) => const EleveDiscussionPage(),
+        // 💬 SCOLAR CONNECT
+        '/scolar_connect': (context) => const SCOLARConnectPage(),
+        '/amis': (context) => const SCOLARConnectPage(),
+        '/users': (context) => const SCOLARConnectPage(),
+        '/eleve_discussion': (context) => const SCOLARConnectPage(),
       },
 
     );

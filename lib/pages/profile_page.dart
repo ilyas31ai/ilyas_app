@@ -492,14 +492,14 @@ class _ProfilePageState extends State<ProfilePage> {
           _ActionTile(
             icon: Icons.forum_outlined,
             label: 'Contacter mes professeurs',
-            onTap: () => Navigator.pushNamed(context, '/eleve_discussion'),
+            onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
           ),
         ],
         const SizedBox(height: 8),
         _ActionTile(
-          icon: Icons.chat_bubble_outline,
-          label: 'Messages',
-          onTap: () => Navigator.pushNamed(context, '/users'),
+          icon: Icons.hub_outlined,
+          label: 'SCOLAR Connect',
+          onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
         ),
         const SizedBox(height: 8),
         _ActionTile(

@@ -363,7 +363,7 @@ class _HomePageState extends State<HomePage> {
             title: 'Contacter mes professeurs',
             subtitle: 'Questions pédagogiques privées',
             colors: const [Color(0xFF2563EB), Color(0xFF6C47FF)],
-            onTap: () => Navigator.pushNamed(context, '/eleve_discussion'),
+            onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
           ),
         if (isEleve) const SizedBox(height: 8),
         if (isProfOrDirection)
@@ -380,7 +380,7 @@ class _HomePageState extends State<HomePage> {
           title: 'Messages',
           subtitle: 'Discussions avec vos contacts',
           colors: const [Color(0xFF374151), Color(0xFF1F2937)],
-          onTap: () => Navigator.pushNamed(context, '/users'),
+          onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
         ),
       ],
     );
@@ -1422,7 +1422,7 @@ class _EleveCommunicationTools extends StatelessWidget {
             title: 'Contacter mes professeurs',
             subtitle: 'Questions pédagogiques privées',
             colors: const [Color(0xFF2563EB), Color(0xFF6C47FF)],
-            onTap: () => Navigator.pushNamed(context, '/eleve_discussion'),
+            onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
           ),
         const SizedBox(height: 8),
         _CommCard(
@@ -1430,7 +1430,7 @@ class _EleveCommunicationTools extends StatelessWidget {
           title: 'Messages',
           subtitle: 'Discussions avec vos contacts',
           colors: const [Color(0xFF374151), Color(0xFF1F2937)],
-          onTap: () => Navigator.pushNamed(context, '/users'),
+          onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
         ),
       ],
     );
