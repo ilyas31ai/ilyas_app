@@ -1,5 +1,58 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// ─── Rareté ───────────────────────────────────────────────────────────────────
+
+enum BadgeRarity { commun, rare, epique, legendaire }
+
+extension BadgeRarityX on BadgeRarity {
+  String get label {
+    switch (this) {
+      case BadgeRarity.commun:     return 'Commun';
+      case BadgeRarity.rare:       return 'Rare';
+      case BadgeRarity.epique:     return 'Épique';
+      case BadgeRarity.legendaire: return 'Légendaire';
+    }
+  }
+
+  int get colorValue {
+    switch (this) {
+      case BadgeRarity.commun:     return 0xFF6B7280;
+      case BadgeRarity.rare:       return 0xFF2563EB;
+      case BadgeRarity.epique:     return 0xFF6C47FF;
+      case BadgeRarity.legendaire: return 0xFFF59E0B;
+    }
+  }
+
+  int get glowColorValue {
+    switch (this) {
+      case BadgeRarity.commun:     return 0x006B7280;
+      case BadgeRarity.rare:       return 0x332563EB;
+      case BadgeRarity.epique:     return 0x336C47FF;
+      case BadgeRarity.legendaire: return 0x33F59E0B;
+    }
+  }
+}
+
+// ─── Métadonnées badge ────────────────────────────────────────────────────────
+
+class BadgeInfo {
+  final String name;
+  final String emoji;
+  final int colorValue;
+  final BadgeRarity rarity;
+  final String description;
+  final int xpRequired; // XP minimum pour débloquer (0 = autre condition)
+
+  const BadgeInfo({
+    required this.name,
+    required this.emoji,
+    required this.colorValue,
+    required this.rarity,
+    required this.description,
+    this.xpRequired = 0,
+  });
+}
+
 /// Gère la gamification pour SCOLAR Connect.
 /// Collection Firestore : scolar_gamification/{uid}
 /// Champs : xp, level, badges, streak, weeklyXp, lastActivity
@@ -109,45 +162,115 @@ class ScolarGamificationService {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  /// Liste de tous les badges possibles.
-  static const List<String> allBadges = [
-    'Explorateur',
-    'Communicateur',
-    'Connecté',
-    'Partageur',
-    'Leader',
-    'Studieux',
-    'Persévérant',
-    'Expert',
-  ];
+  /// Catalogue complet des badges, groupés par rareté.
+  static const Map<String, BadgeInfo> badgeCatalogue = {
+    // ── Commun ────────────────────────────────────────────────────
+    'Premier Pas': BadgeInfo(
+      name: 'Premier Pas', emoji: '👋', colorValue: 0xFF9CA3AF,
+      rarity: BadgeRarity.commun,
+      description: 'Bienvenue sur SCOLAR Connect !',
+    ),
+    'Curieux': BadgeInfo(
+      name: 'Curieux', emoji: '🔍', colorValue: 0xFF6B7280,
+      rarity: BadgeRarity.commun,
+      description: 'Vous avez exploré votre profil.',
+    ),
+    'Explorateur': BadgeInfo(
+      name: 'Explorateur', emoji: '🌟', colorValue: 0xFFD1D5DB,
+      rarity: BadgeRarity.commun,
+      description: 'Premier message envoyé.', xpRequired: 5,
+    ),
+    'Actif': BadgeInfo(
+      name: 'Actif', emoji: '⚡', colorValue: 0xFF9CA3AF,
+      rarity: BadgeRarity.commun,
+      description: 'Connecté 3 jours de suite.', xpRequired: 15,
+    ),
+    // ── Rare ──────────────────────────────────────────────────────
+    'Communicateur': BadgeInfo(
+      name: 'Communicateur', emoji: '💬', colorValue: 0xFF2563EB,
+      rarity: BadgeRarity.rare,
+      description: '50 messages envoyés.', xpRequired: 100,
+    ),
+    'Connecté': BadgeInfo(
+      name: 'Connecté', emoji: '🤝', colorValue: 0xFF3B82F6,
+      rarity: BadgeRarity.rare,
+      description: '10 connexions établies.', xpRequired: 150,
+    ),
+    'Partageur': BadgeInfo(
+      name: 'Partageur', emoji: '📚', colorValue: 0xFF0D9488,
+      rarity: BadgeRarity.rare,
+      description: '5 fiches partagées.', xpRequired: 200,
+    ),
+    'Studieux': BadgeInfo(
+      name: 'Studieux', emoji: '📖', colorValue: 0xFF16A34A,
+      rarity: BadgeRarity.rare,
+      description: '10 sessions de révision.', xpRequired: 250,
+    ),
+    // ── Épique ────────────────────────────────────────────────────
+    'Leader': BadgeInfo(
+      name: 'Leader', emoji: '🏆', colorValue: 0xFF6C47FF,
+      rarity: BadgeRarity.epique,
+      description: 'Créateur de 3 groupes actifs.', xpRequired: 500,
+    ),
+    'Persévérant': BadgeInfo(
+      name: 'Persévérant', emoji: '🔥', colorValue: 0xFFDC2626,
+      rarity: BadgeRarity.epique,
+      description: 'Streak de 30 jours consécutifs.', xpRequired: 600,
+    ),
+    'Collaborateur': BadgeInfo(
+      name: 'Collaborateur', emoji: '🧑‍🤝‍🧑', colorValue: 0xFF7C3AED,
+      rarity: BadgeRarity.epique,
+      description: 'Participation active dans 5 groupes.', xpRequired: 700,
+    ),
+    'Animateur': BadgeInfo(
+      name: 'Animateur', emoji: '🎤', colorValue: 0xFFEC4899,
+      rarity: BadgeRarity.epique,
+      description: '100 messages dans les groupes.', xpRequired: 800,
+    ),
+    // ── Légendaire ────────────────────────────────────────────────
+    'Expert': BadgeInfo(
+      name: 'Expert', emoji: '🎓', colorValue: 0xFFF59E0B,
+      rarity: BadgeRarity.legendaire,
+      description: 'Niveau 20 atteint.', xpRequired: 2000,
+    ),
+    'Maître': BadgeInfo(
+      name: 'Maître', emoji: '👑', colorValue: 0xFFD97706,
+      rarity: BadgeRarity.legendaire,
+      description: 'Tous les badges Épiques débloqués.', xpRequired: 3000,
+    ),
+    'Champion': BadgeInfo(
+      name: 'Champion', emoji: '🥇', colorValue: 0xFFFBBF24,
+      rarity: BadgeRarity.legendaire,
+      description: 'Top 1 du classement hebdomadaire.', xpRequired: 4000,
+    ),
+    'Légende': BadgeInfo(
+      name: 'Légende', emoji: '⭐', colorValue: 0xFFEF4444,
+      rarity: BadgeRarity.legendaire,
+      description: 'Niveau 50 atteint — statut ultime.', xpRequired: 5000,
+    ),
+  };
 
-  /// Emoji associé à chaque badge.
-  static String badgeEmoji(String badge) {
-    const map = {
-      'Explorateur': '🌟',
-      'Communicateur': '💬',
-      'Connecté': '🤝',
-      'Partageur': '📚',
-      'Leader': '🏆',
-      'Studieux': '📖',
-      'Persévérant': '🔥',
-      'Expert': '🎓',
-    };
-    return map[badge] ?? '⭐';
-  }
+  /// Liste ordonnée : communs en premier, légendaires en dernier.
+  static List<String> get allBadges => badgeCatalogue.keys.toList();
 
-  /// Couleur associée à chaque badge.
-  static int badgeColorValue(String badge) {
-    const map = {
-      'Explorateur': 0xFFD97706,
-      'Communicateur': 0xFF2563EB,
-      'Connecté': 0xFF6C47FF,
-      'Partageur': 0xFF0D9488,
-      'Leader': 0xFFEC4899,
-      'Studieux': 0xFF16A34A,
-      'Persévérant': 0xFFDC2626,
-      'Expert': 0xFF7C3AED,
-    };
-    return map[badge] ?? 0xFF6C47FF;
-  }
+  /// Badges filtrés par rareté.
+  static List<String> badgesByRarity(BadgeRarity rarity) => badgeCatalogue.entries
+      .where((e) => e.value.rarity == rarity)
+      .map((e) => e.key)
+      .toList();
+
+  /// Infos complètes d'un badge.
+  static BadgeInfo? badgeInfo(String badge) => badgeCatalogue[badge];
+
+  /// Emoji associé à chaque badge (rétrocompatible).
+  static String badgeEmoji(String badge) =>
+      badgeCatalogue[badge]?.emoji ?? '⭐';
+
+  /// Couleur associée à chaque badge (rétrocompatible).
+  static int badgeColorValue(String badge) =>
+      badgeCatalogue[badge]?.colorValue ?? 0xFF6C47FF;
+
+  /// Rareté d'un badge.
+  static BadgeRarity badgeRarity(String badge) =>
+      badgeCatalogue[badge]?.rarity ?? BadgeRarity.commun;
 }

@@ -497,63 +497,194 @@ class _SCOLARProfilePageState extends State<SCOLARProfilePage> {
   }
 
   Widget _buildBadgesSection(List<String> earnedBadges) {
+    final rarities = BadgeRarity.values;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Badges',
-            style: TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8)),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: ScolarGamificationService.allBadges.map((badge) {
-            final earned = earnedBadges.contains(badge);
-            final color = Color(
-                ScolarGamificationService.badgeColorValue(badge));
-            final emoji = ScolarGamificationService.badgeEmoji(badge);
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: earned
-                    ? color.withValues(alpha: 0.15)
-                    : _spCard2,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: earned
-                      ? color.withValues(alpha: 0.5)
-                      : _spBorder,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+        Row(
+          children: [
+            const Text('Badges',
+                style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8)),
+            const Spacer(),
+            Text('${earnedBadges.length} / ${ScolarGamificationService.allBadges.length}',
+                style: const TextStyle(color: Colors.white38, fontSize: 11)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...rarities.map((rarity) {
+          final badges = ScolarGamificationService.badgesByRarity(rarity);
+          final rarityColor = Color(rarity.colorValue);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Rarity header
+              Row(
                 children: [
-                  Text(emoji,
-                      style: TextStyle(
-                          fontSize: 14,
-                          color: earned ? null : Colors.grey)),
-                  const SizedBox(width: 6),
-                  Text(
-                    badge,
-                    style: TextStyle(
-                      color: earned ? color : Colors.white24,
-                      fontSize: 12,
-                      fontWeight: earned
-                          ? FontWeight.w700
-                          : FontWeight.normal,
+                  Container(
+                    width: 8, height: 8,
+                    decoration: BoxDecoration(
+                      color: rarityColor,
+                      shape: BoxShape.circle,
+                      boxShadow: rarity != BadgeRarity.commun
+                          ? [BoxShadow(color: rarityColor.withValues(alpha: 0.6), blurRadius: 4)]
+                          : null,
                     ),
                   ),
+                  const SizedBox(width: 6),
+                  Text(
+                    rarity.label.toUpperCase(),
+                    style: TextStyle(
+                      color: rarityColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Divider(color: rarityColor.withValues(alpha: 0.2), height: 1)),
                 ],
               ),
-            );
-          }).toList(),
-        ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: badges.map((badge) {
+                  final info = ScolarGamificationService.badgeInfo(badge)!;
+                  final earned = earnedBadges.contains(badge);
+                  final color = Color(info.colorValue);
+                  return GestureDetector(
+                    onTap: () => _showBadgeDetail(badge, info, earned),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: earned ? color.withValues(alpha: 0.15) : _spCard2,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: earned
+                              ? color.withValues(alpha: rarity == BadgeRarity.legendaire ? 0.9 : 0.5)
+                              : _spBorder,
+                          width: rarity == BadgeRarity.legendaire ? 1.5 : 1.0,
+                        ),
+                        boxShadow: earned && rarity != BadgeRarity.commun
+                            ? [BoxShadow(color: Color(rarity.glowColorValue), blurRadius: 8, spreadRadius: 1)]
+                            : null,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(info.emoji,
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      color: earned ? null : Colors.grey)),
+                              const SizedBox(width: 5),
+                              Text(
+                                badge,
+                                style: TextStyle(
+                                  color: earned ? color : Colors.white24,
+                                  fontSize: 12,
+                                  fontWeight: earned ? FontWeight.w700 : FontWeight.normal,
+                                ),
+                              ),
+                              if (rarity == BadgeRarity.legendaire && earned) ...[
+                                const SizedBox(width: 4),
+                                const Text('✨', style: TextStyle(fontSize: 10)),
+                              ],
+                            ],
+                          ),
+                          if (!earned && info.xpRequired > 0) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              '${info.xpRequired} XP',
+                              style: const TextStyle(color: Colors.white24, fontSize: 9),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 14),
+            ],
+          );
+        }),
       ],
+    );
+  }
+
+  void _showBadgeDetail(String badge, BadgeInfo info, bool earned) {
+    final color = Color(info.colorValue);
+    final rarityColor = Color(info.rarity.colorValue);
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _spCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72, height: 72,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: earned ? 0.2 : 0.07),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: earned ? color.withValues(alpha: 0.7) : _spBorder,
+                  width: info.rarity == BadgeRarity.legendaire ? 2.0 : 1.0,
+                ),
+                boxShadow: earned && info.rarity != BadgeRarity.commun
+                    ? [BoxShadow(color: Color(info.rarity.glowColorValue), blurRadius: 12)]
+                    : null,
+              ),
+              child: Center(child: Text(info.emoji, style: const TextStyle(fontSize: 32))),
+            ),
+            const SizedBox(height: 12),
+            Text(badge,
+                style: TextStyle(color: earned ? color : Colors.white54,
+                    fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: rarityColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: rarityColor.withValues(alpha: 0.4)),
+              ),
+              child: Text(info.rarity.label.toUpperCase(),
+                  style: TextStyle(color: rarityColor, fontSize: 10,
+                      fontWeight: FontWeight.w800, letterSpacing: 1.1)),
+            ),
+            const SizedBox(height: 10),
+            Text(info.description,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            if (info.xpRequired > 0) ...[
+              const SizedBox(height: 6),
+              Text(
+                earned ? '✅ Débloqué' : '🔒 Requis : ${info.xpRequired} XP',
+                style: TextStyle(
+                  color: earned ? const Color(0xFF10B981) : Colors.white38,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer', style: TextStyle(color: Color(0xFF6C47FF))),
+          ),
+        ],
+      ),
     );
   }
 
