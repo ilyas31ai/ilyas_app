@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 // 🔥 FIREBASE
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 
 // 📄 PAGES
@@ -26,6 +27,8 @@ import 'routes/app_routes.dart';
 import 'pages/cycle_placeholder_page.dart';
 
 // 🆕 NOUVEAUX MODULES
+import 'pages/register_page.dart';
+import 'pages/pending_validation_page.dart';
 import 'pages/inscription_wizard_page.dart';
 import 'pages/scolar_profile_page.dart';
 import 'pages/scolar_salle_page.dart';
@@ -211,12 +214,52 @@ class MyApp extends StatelessWidget {
             );
           }
           if (snapshot.hasData) {
+            final uid = snapshot.data!.uid;
             final email = snapshot.data!.email ?? '';
-            if (email.isNotEmpty && email != _notifInitializedFor) {
-              _notifInitializedFor = email;
-              NotificationService.init(email);
-            }
-            return const MainShell();
+            return StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(uid)
+                  .snapshots(),
+              builder: (context, userSnap) {
+                if (userSnap.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    backgroundColor: Color(0xFF0D1117),
+                    body: Center(
+                      child: CircularProgressIndicator(
+                          color: Color(0xFF2563EB)),
+                    ),
+                  );
+                }
+                final data =
+                    userSnap.data?.data() as Map<String, dynamic>? ?? {};
+                final statut = data['statut'] as String? ?? 'actif';
+
+                if (statut == 'en_attente') {
+                  return PendingValidationPage(
+                    displayName: data['displayName'] as String? ?? '',
+                    role: data['role'] as String? ?? 'eleve',
+                    cycle: data['categorie'] as String?,
+                    classeDemandee: data['classeDemandee'] as String?,
+                    matiere: data['matiere'] as String?,
+                  );
+                }
+
+                if (statut == 'refuse') {
+                  return _RefusedPage(
+                    displayName: data['displayName'] as String? ?? '',
+                    motif: data['refusMotif'] as String?,
+                  );
+                }
+
+                // statut == 'actif' (or any unknown value — backwards compat)
+                if (email.isNotEmpty && email != _notifInitializedFor) {
+                  _notifInitializedFor = email;
+                  NotificationService.init(email);
+                }
+                return const MainShell();
+              },
+            );
           }
           _notifInitializedFor = null;
           return const LoginPage();
@@ -436,6 +479,9 @@ class MyApp extends StatelessWidget {
         '/users': (context) => const SCOLARConnectPage(),
         '/eleve_discussion': (context) => const SCOLARConnectPage(),
 
+        // 🆕 REGISTER
+        '/register': (context) => const RegisterPage(),
+
         // 🆕 INSCRIPTION WIZARD
         '/inscription_wizard': (context) =>
             const InscriptionWizardPage(),
@@ -463,6 +509,71 @@ class MyApp extends StatelessWidget {
         },
       },
 
+    );
+  }
+}
+
+// ─── Refused page (shown when statut == 'refuse') ─────────────────────────────
+
+class _RefusedPage extends StatelessWidget {
+  final String displayName;
+  final String? motif;
+  const _RefusedPage({required this.displayName, this.motif});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D1117),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1F2937),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.block_outlined,
+                    color: Color(0xFFEF4444), size: 40),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Demande refusée',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              if (motif != null && motif!.isNotEmpty)
+                Text(
+                  'Motif : $motif',
+                  style: const TextStyle(
+                      color: Colors.white54, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+              const SizedBox(height: 8),
+              const Text(
+                "Contactez votre établissement pour plus d'informations.",
+                style: TextStyle(color: Colors.white38, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              TextButton(
+                onPressed: () => FirebaseAuth.instance.signOut(),
+                child: const Text(
+                  'Se déconnecter',
+                  style: TextStyle(color: Color(0xFFEF4444)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/user_service.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,10 +15,9 @@ class _LoginPageState extends State<LoginPage> {
   final email = TextEditingController();
   final password = TextEditingController();
 
-  bool isLogin = true;
   bool loading = false;
 
-  // 🔐 LOGIN / SIGNUP
+  // 🔐 LOGIN
   void submit() async {
     final mail = email.text.trim();
     final pass = password.text.trim();
@@ -40,23 +40,11 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => loading = true);
 
     try {
-      if (isLogin) {
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: mail,
-          password: pass,
-        );
-        await UserService.syncProfile();
-      } else {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: mail,
-          password: pass,
-        );
-        // Le rôle n'est plus auto-déclarable : seul "élève" peut s'inscrire
-        // librement (détection automatique de "parent" par email côté
-        // serveur). Professeur/Direction sont attribués manuellement
-        // jusqu'à l'écran d'administration des comptes (Phase 3).
-        await UserService.syncProfile();
-      }
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: mail,
+        password: pass,
+      );
+      await UserService.syncProfile();
     } on FirebaseAuthException catch (e) {
       String msg;
       switch (e.code) {
@@ -226,21 +214,25 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 child: loading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(isLogin ? "Connexion" : "Créer compte"),
+                    : const Text("Connexion"),
               ),
 
               const SizedBox(height: 10),
 
-              // 🔁 SWITCH
+              // 📝 REGISTER
               TextButton(
-                onPressed: () {
-                  setState(() => isLogin = !isLogin);
-                },
-                child: Text(
-                  isLogin
-                      ? "Créer un compte"
-                      : "Déjà un compte ?",
-                  style: const TextStyle(color: Colors.white),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const RegisterPage(),
+                  ),
+                ),
+                child: const Text(
+                  "Créer un compte",
+                  style: TextStyle(
+                    color: Color(0xFF6C47FF),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],

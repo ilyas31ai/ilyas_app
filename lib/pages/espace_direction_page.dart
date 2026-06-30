@@ -1,8 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../models/permission_model.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
+import 'direction_comptes_attente_page.dart';
 import 'direction_classes_page.dart';
 import 'fiche_enseignant_page.dart';
 import 'direction_dashboard_page.dart';
@@ -115,6 +117,7 @@ class _DirectionHome extends StatelessWidget {
             delegate: SliverChildListDelegate([
               _buildSectionLabel('Gestion des inscriptions'),
               const SizedBox(height: 8),
+              _buildComptesAttenteCard(context),
               _ModuleCard(
                 icon: Icons.dashboard_customize_outlined,
                 title: 'Tableau de bord',
@@ -221,6 +224,98 @@ class _DirectionHome extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildComptesAttenteCard(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where('statut', isEqualTo: 'en_attente')
+          .snapshots(),
+      builder: (context, snap) {
+        final count = snap.data?.docs.length ?? 0;
+        return InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const DirectionComptesAttentePage(),
+            ),
+          ),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B22),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: count > 0
+                    ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
+                    : Colors.white.withValues(alpha: 0.05),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF59E0B), Color(0xFFEF4444)],
+                    ),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: const Icon(Icons.how_to_reg_outlined,
+                      color: Colors.white, size: 21),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Comptes en attente',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Approuver ou refuser les nouvelles demandes',
+                        style: TextStyle(
+                          color: Colors.white38,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (count > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF59E0B),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

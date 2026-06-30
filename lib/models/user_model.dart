@@ -107,6 +107,9 @@ class UserModel {
   /// classeIds des enfants (pour filtrer devoirs/docs par classe)
   final List<String> enfantClasseIds;
 
+  // Validation
+  final String statut; // 'actif' | 'en_attente' | 'refuse'
+
   // Commun
   final String? bio;
   final Timestamp? createdAt;
@@ -126,6 +129,7 @@ class UserModel {
     this.matiere,
     this.enfantIds = const [],
     this.enfantClasseIds = const [],
+    this.statut = 'actif',
     this.bio,
     this.createdAt,
     this.lastSeen,
@@ -150,6 +154,7 @@ class UserModel {
       matiere: d['matiere'] as String?,
       enfantIds: List<String>.from(d['enfantIds'] as List? ?? []),
       enfantClasseIds: List<String>.from(d['enfantClasseIds'] as List? ?? []),
+      statut: (d['statut'] as String?) ?? 'actif',
       bio: d['bio'] as String?,
       createdAt: d['createdAt'] as Timestamp?,
       lastSeen: d['lastSeen'] as Timestamp?,
@@ -170,6 +175,7 @@ class UserModel {
         if (matiere != null) 'matiere': matiere,
         if (enfantIds.isNotEmpty) 'enfantIds': enfantIds,
         if (enfantClasseIds.isNotEmpty) 'enfantClasseIds': enfantClasseIds,
+        'statut': statut,
         if (bio != null) 'bio': bio,
       };
 
@@ -185,6 +191,7 @@ class UserModel {
     String? matiere,
     List<String>? enfantIds,
     List<String>? enfantClasseIds,
+    String? statut,
     String? bio,
   }) =>
       UserModel(
@@ -201,6 +208,7 @@ class UserModel {
         matiere: matiere ?? this.matiere,
         enfantIds: enfantIds ?? this.enfantIds,
         enfantClasseIds: enfantClasseIds ?? this.enfantClasseIds,
+        statut: statut ?? this.statut,
         bio: bio ?? this.bio,
         createdAt: createdAt,
         lastSeen: lastSeen,
