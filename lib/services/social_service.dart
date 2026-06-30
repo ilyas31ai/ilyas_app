@@ -90,27 +90,50 @@ class SocialService {
     required String text,
     String? senderDisplayName,
     Map<String, dynamic>? replyTo,
+    // New optional params:
+    String? fileUrl,
+    String? fileName,
+    String? fileType,   // 'image'|'pdf'|'doc'|'audio'|'other'
+    int? fileSize,
+    String? audioUrl,
+    String? audioDuration, // '0:45'
   }) async {
     final time = DateTime.now().millisecondsSinceEpoch;
+
+    // Determine message type
+    final String type = audioUrl != null ? 'audio'
+        : fileUrl != null ? 'file'
+        : 'text';
+
+    // Build notification body
+    final notifBody = type == 'audio' ? '🎤 Message vocal'
+        : type == 'file' ? '📎 ${fileName ?? 'Fichier'}'
+        : text;
+
     await _db.child('messages/$chatIdStr').push().set({
       'text': text,
       'sender': sender,
       'time': time,
       'seen': false,
+      'type': type,
       if (replyTo != null) 'replyTo': replyTo,
+      if (fileUrl != null) 'fileUrl': fileUrl,
+      if (fileName != null) 'fileName': fileName,
+      if (fileType != null) 'fileType': fileType,
+      if (fileSize != null) 'fileSize': fileSize,
+      if (audioUrl != null) 'audioUrl': audioUrl,
+      if (audioDuration != null) 'audioDuration': audioDuration,
     });
+
     if (toUser != 'general' && toUser != 'Classe') {
       final kTo = encodeKey(toUser);
       final kSender = encodeKey(sender);
-      // Enregistrer le destinataire dans les contacts de l'expéditeur.
-      // Le destinataire verra l'expéditeur dans ses contacts quand il répondra.
       await Future.wait([
         _db.child('users/$kSender/contacts/$kTo').set(true),
         _db.child('notifications/$kTo').push().set({
           'title': (senderDisplayName != null && senderDisplayName.isNotEmpty)
-              ? senderDisplayName
-              : sender,
-          'body': text,
+              ? senderDisplayName : sender,
+          'body': notifBody,
           'time': time,
           'isRead': false,
         }),

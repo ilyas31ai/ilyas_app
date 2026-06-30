@@ -40,6 +40,10 @@ dependencies:
   # 🔐 PERMISSIONS
   permission_handler: ^11.0.1
 
+  # 🎙 AUDIO RECORDING & PLAYBACK
+  record: ^5.0.4
+  audioplayers: ^6.1.0
+
   # 🌍 INTERNATIONALISATION
   intl: ^0.19.0
 
@@ -67,6 +71,10 @@ dependencies:
 dependency_overrides:
   speech_to_text:
     path: packages/speech_to_text
+  # record_linux 0.7.2 is missing startStream from record_platform_interface 1.6.0.
+  # record_linux 2.1.0 + record_platform_interface 2.1.0 form a consistent set.
+  record_linux: 2.1.0
+  record_platform_interface: 2.1.0
 
 dev_dependencies:
   flutter_test:
