@@ -4,8 +4,10 @@ import 'package:firebase_database/firebase_database.dart' hide Query;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/user_model.dart';
+import '../models/school_model.dart';
 import '../services/social_service.dart';
 import '../services/user_service.dart';
+import '../services/school_service.dart';
 import '../services/scolar_gamification_service.dart';
 import '../widgets/user_avatar.dart';
 import 'scolar_chat_room_page.dart';
@@ -716,8 +718,10 @@ class _TrouverTabState extends State<_TrouverTab> {
   final _searchCtrl = TextEditingController();
   String _query = '';
   String _cycleFilter = '';
+  String _schoolFilter = '';
   late final Stream<List<UserModel>> _usersStream;
   late final Stream<List<String>> _friendsStream;
+  late final Stream<List<SchoolModel>> _schoolsStream;
 
   final _cycles = [
     ('Tous', ''),
@@ -733,6 +737,7 @@ class _TrouverTabState extends State<_TrouverTab> {
     super.initState();
     _usersStream = UserService.allUsersStream();
     _friendsStream = SocialService.friendsStream(_me);
+    _schoolsStream = SchoolService.allSchoolsStream();
     _searchCtrl.addListener(() {
       if (mounted) setState(() => _query = _searchCtrl.text.toLowerCase());
     });
@@ -750,6 +755,7 @@ class _TrouverTabState extends State<_TrouverTab> {
       children: [
         _buildSearchBar(),
         _buildCycleFilters(),
+        _buildSchoolFilters(),
         Expanded(child: _buildUserList()),
       ],
     );
@@ -834,6 +840,65 @@ class _TrouverTabState extends State<_TrouverTab> {
     );
   }
 
+  Widget _buildSchoolFilters() {
+    return StreamBuilder<List<SchoolModel>>(
+      stream: _schoolsStream,
+      builder: (context, snap) {
+        final schools = snap.data ?? [];
+        if (schools.isEmpty) return const SizedBox.shrink();
+        return Container(
+          color: _card,
+          height: 40,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            children: [
+              _schoolChip('Tous établissements', ''),
+              ...schools.map((s) => _schoolChip(s.nom, s.id)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _schoolChip(String label, String value) {
+    final selected = _schoolFilter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _schoolFilter = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          gradient: selected
+              ? const LinearGradient(colors: [Color(0xFF0D9488), _blue])
+              : null,
+          color: selected ? null : _card2,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? Colors.transparent : _border,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.school_outlined, size: 11, color: Colors.white54),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.white54,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildUserList() {
     return StreamBuilder<List<UserModel>>(
       stream: _usersStream,
@@ -858,6 +923,15 @@ class _TrouverTabState extends State<_TrouverTab> {
                   .where((u) =>
                       (u.categorie ?? '').toLowerCase() ==
                       _cycleFilter.toLowerCase())
+                  .toList();
+            }
+            if (_schoolFilter.isNotEmpty) {
+              filtered = filtered
+                  .where((u) =>
+                      (u.schoolId.isEmpty
+                          ? kDefaultSchoolId
+                          : u.schoolId) ==
+                      _schoolFilter)
                   .toList();
             }
             if (_query.isNotEmpty) {
