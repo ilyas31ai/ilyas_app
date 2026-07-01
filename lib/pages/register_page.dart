@@ -31,7 +31,11 @@ class _RegisterPageState extends State<RegisterPage> {
   final _classeCtrl = TextEditingController();
   final _matiereCtrl = TextEditingController();
   final _enfantEmailCtrl = TextEditingController();
+  final _schoolNomCtrl = TextEditingController();
+  final _schoolVilleCtrl = TextEditingController();
+  String _schoolType = 'mixte';
   final _formKey = GlobalKey<FormState>();
+  final _schoolFormKey = GlobalKey<FormState>();
 
   @override
   void dispose() {
@@ -44,14 +48,14 @@ class _RegisterPageState extends State<RegisterPage> {
     _classeCtrl.dispose();
     _matiereCtrl.dispose();
     _enfantEmailCtrl.dispose();
+    _schoolNomCtrl.dispose();
+    _schoolVilleCtrl.dispose();
     super.dispose();
   }
 
   // ─── Progress / Step helpers ──────────────────────────────────────────────
 
-  bool get _skipsCycle =>
-      _selectedRole == UserRole.parent ||
-      _selectedRole == UserRole.direction;
+  bool get _skipsCycle => _selectedRole == UserRole.parent;
 
   int get _displayStep {
     if (_skipsCycle) {
@@ -95,9 +99,13 @@ class _RegisterPageState extends State<RegisterPage> {
       }
     }
     if (_currentStep == 1) {
-      if (_selectedCycle == null) {
-        _showError('Veuillez sélectionner votre cycle');
-        return;
+      if (_selectedRole == UserRole.direction) {
+        if (!(_schoolFormKey.currentState?.validate() ?? false)) return;
+      } else {
+        if (_selectedCycle == null) {
+          _showError('Veuillez sélectionner votre cycle');
+          return;
+        }
       }
     }
     if (_currentStep == 2) {
@@ -151,17 +159,31 @@ class _RegisterPageState extends State<RegisterPage> {
           '${_prenomCtrl.text.trim()} ${_nomCtrl.text.trim()}';
 
       final bool needsValidation = _selectedRole == UserRole.professeur ||
-          _selectedRole == UserRole.direction ||
           (_selectedRole == UserRole.eleve &&
               _classeCtrl.text.trim().isNotEmpty);
       final String statut = needsValidation ? 'en_attente' : 'actif';
+
+      // Directeur : crée l'école avant le compte utilisateur
+      String schoolId = 'default';
+      if (_selectedRole == UserRole.direction) {
+        schoolId = uid;
+        await FirebaseFirestore.instance.collection('schools').doc(schoolId).set({
+          'nom': _schoolNomCtrl.text.trim(),
+          'ville': _schoolVilleCtrl.text.trim(),
+          'type': _schoolType,
+          'statut': 'actif',
+          'directeurId': uid,
+          'campusIds': <String>[],
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'uid': uid,
         'email': _emailCtrl.text.trim(),
         'displayName': displayName,
         'role': role.value,
-        'schoolId': 'default',
+        'schoolId': schoolId,
         if (_selectedCycle != null) 'categorie': _selectedCycle,
         if (_matiereCtrl.text.trim().isNotEmpty)
           'matiere': _matiereCtrl.text.trim(),
@@ -488,9 +510,11 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  // ─── Step 1 : Cycle selection ─────────────────────────────────────────────
+  // ─── Step 1 : Cycle selection / École (direction) ────────────────────────
 
   Widget _buildStep1() {
+    if (_selectedRole == UserRole.direction) return _buildSchoolStep();
+
     final title = _selectedRole == UserRole.professeur
         ? 'Dans quel cycle enseignez-vous ?'
         : 'Dans quel cycle êtes-vous ?';
@@ -566,6 +590,157 @@ class _RegisterPageState extends State<RegisterPage> {
           ),
         ],
       ),
+    );
+  }
+
+  // ─── Step 1b : School creation (direction only) ──────────────────────────
+
+  static const _schoolTypes = [
+    ('Mixte (tous niveaux)', 'mixte', Icons.domain),
+    ('Maternelle', 'maternelle', Icons.child_care),
+    ('Primaire', 'primaire', Icons.menu_book),
+    ('Collège', 'college', Icons.school),
+    ('Lycée', 'lycee', Icons.auto_stories),
+    ('Université', 'universite', Icons.account_balance),
+  ];
+
+  Widget _buildSchoolStep() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Form(
+        key: _schoolFormKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Votre établissement',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Ces informations créeront votre école sur la plateforme',
+              style: TextStyle(color: Colors.white54, fontSize: 14),
+            ),
+            const SizedBox(height: 24),
+            TextFormField(
+              controller: _schoolNomCtrl,
+              style: const TextStyle(color: Colors.white),
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? "Veuillez entrer le nom de l'établissement"
+                  : null,
+              decoration: _fieldDecoration(
+                  "Nom de l'établissement", Icons.business_outlined),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _schoolVilleCtrl,
+              style: const TextStyle(color: Colors.white),
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Veuillez entrer la ville'
+                  : null,
+              decoration:
+                  _fieldDecoration('Ville', Icons.location_city_outlined),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Niveau(x) scolaire(s)',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: _schoolTypes.map((t) {
+                final (label, value, icon) = t;
+                final selected = _schoolType == value;
+                return GestureDetector(
+                  onTap: () => setState(() => _schoolType = value),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 9),
+                    decoration: BoxDecoration(
+                      gradient: selected
+                          ? const LinearGradient(
+                              colors: [Color(0xFFF59E0B), Color(0xFFEF4444)])
+                          : null,
+                      color: selected ? null : const Color(0xFF161B22),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: selected
+                            ? Colors.transparent
+                            : const Color(0xFF1F2937),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon,
+                            size: 15,
+                            color: selected
+                                ? Colors.white
+                                : Colors.white54),
+                        const SizedBox(width: 6),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            color:
+                                selected ? Colors.white : Colors.white54,
+                            fontSize: 13,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _fieldDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white54),
+      filled: true,
+      fillColor: const Color(0xFF161B22),
+      prefixIcon: Icon(icon, color: Colors.white54, size: 20),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF1F2937)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF1F2937)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFF59E0B)),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFEF4444)),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFEF4444)),
+      ),
+      errorStyle: const TextStyle(color: Color(0xFFEF4444)),
     );
   }
 
@@ -905,6 +1080,20 @@ class _RegisterPageState extends State<RegisterPage> {
                     Icons.child_care,
                     'Email enfant',
                     _enfantEmailCtrl.text.trim(),
+                  ),
+                if (_selectedRole == UserRole.direction &&
+                    _schoolNomCtrl.text.trim().isNotEmpty)
+                  _summaryRow(
+                    Icons.business_outlined,
+                    'École',
+                    _schoolNomCtrl.text.trim(),
+                  ),
+                if (_selectedRole == UserRole.direction &&
+                    _schoolVilleCtrl.text.trim().isNotEmpty)
+                  _summaryRow(
+                    Icons.location_city_outlined,
+                    'Ville',
+                    _schoolVilleCtrl.text.trim(),
                   ),
               ],
             ),
