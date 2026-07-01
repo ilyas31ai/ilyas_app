@@ -49,8 +49,12 @@ class _RegisterPageState extends State<RegisterPage> {
 
   // ─── Progress / Step helpers ──────────────────────────────────────────────
 
+  bool get _skipsCycle =>
+      _selectedRole == UserRole.parent ||
+      _selectedRole == UserRole.direction;
+
   int get _displayStep {
-    if (_selectedRole == UserRole.parent) {
+    if (_skipsCycle) {
       if (_currentStep == 0) return 1;
       if (_currentStep == 2) return 2;
       return 3;
@@ -58,7 +62,7 @@ class _RegisterPageState extends State<RegisterPage> {
     return _currentStep + 1;
   }
 
-  int get _totalDisplaySteps => _selectedRole == UserRole.parent ? 3 : 4;
+  int get _totalDisplaySteps => _skipsCycle ? 3 : 4;
 
   double get _progress => _displayStep / _totalDisplaySteps;
 
@@ -80,7 +84,7 @@ class _RegisterPageState extends State<RegisterPage> {
         _showError('Veuillez sélectionner votre rôle');
         return;
       }
-      if (_selectedRole == UserRole.parent) {
+      if (_skipsCycle) {
         _pageCtrl.animateToPage(
           2,
           duration: const Duration(milliseconds: 300),
@@ -109,7 +113,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   void _prevStep() {
-    if (_currentStep == 2 && _selectedRole == UserRole.parent) {
+    if (_currentStep == 2 && _skipsCycle) {
       _pageCtrl.animateToPage(
         0,
         duration: const Duration(milliseconds: 300),
@@ -147,6 +151,7 @@ class _RegisterPageState extends State<RegisterPage> {
           '${_prenomCtrl.text.trim()} ${_nomCtrl.text.trim()}';
 
       final bool needsValidation = _selectedRole == UserRole.professeur ||
+          _selectedRole == UserRole.direction ||
           (_selectedRole == UserRole.eleve &&
               _classeCtrl.text.trim().isNotEmpty);
       final String statut = needsValidation ? 'en_attente' : 'actif';
@@ -468,6 +473,15 @@ class _RegisterPageState extends State<RegisterPage> {
             gradientColors: const [Color(0xFF10B981), Color(0xFF0D9488)],
             selected: _selectedRole == UserRole.professeur,
             onTap: () => setState(() => _selectedRole = UserRole.professeur),
+          ),
+          const SizedBox(height: 14),
+          _RoleCard(
+            icon: Icons.admin_panel_settings_outlined,
+            title: 'Directeur',
+            description: 'Administrez l\'établissement et validez les comptes',
+            gradientColors: const [Color(0xFFF59E0B), Color(0xFFEF4444)],
+            selected: _selectedRole == UserRole.direction,
+            onTap: () => setState(() => _selectedRole = UserRole.direction),
           ),
         ],
       ),
