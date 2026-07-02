@@ -2,9 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../models/school_model.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
 import 'pending_validation_page.dart';
+import 'professeur_dossier_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -34,6 +36,12 @@ class _RegisterPageState extends State<RegisterPage> {
   final _schoolNomCtrl = TextEditingController();
   final _schoolVilleCtrl = TextEditingController();
   String _schoolType = 'mixte';
+  // Élève — choix d'école
+  String? _schoolJoinChoice; // 'withCode' | 'withoutSchool'
+  final _inviteCodeCtrl = TextEditingController();
+  bool _codeValidating = false;
+  String _resolvedSchoolId = '';
+  String _resolvedSchoolNom = '';
   final _formKey = GlobalKey<FormState>();
   final _schoolFormKey = GlobalKey<FormState>();
 
@@ -50,6 +58,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _enfantEmailCtrl.dispose();
     _schoolNomCtrl.dispose();
     _schoolVilleCtrl.dispose();
+    _inviteCodeCtrl.dispose();
     super.dispose();
   }
 
@@ -109,8 +118,17 @@ class _RegisterPageState extends State<RegisterPage> {
       }
     }
     if (_currentStep == 2) {
-      if (!(_formKey.currentState?.validate() ?? false)) {
-        return;
+      if (!(_formKey.currentState?.validate() ?? false)) return;
+      if (_selectedRole == UserRole.eleve ||
+          _selectedRole == UserRole.professeur) {
+        if (_schoolJoinChoice == null) {
+          _showError('Choisissez une option : rejoindre une école ou continuer sans école');
+          return;
+        }
+        if (_schoolJoinChoice == 'withCode' && _resolvedSchoolId.isEmpty) {
+          _showError('Veuillez vérifier le code d\'invitation avant de continuer');
+          return;
+        }
       }
     }
     _pageCtrl.nextPage(
@@ -158,13 +176,21 @@ class _RegisterPageState extends State<RegisterPage> {
       final displayName =
           '${_prenomCtrl.text.trim()} ${_nomCtrl.text.trim()}';
 
-      final bool needsValidation = _selectedRole == UserRole.professeur ||
-          (_selectedRole == UserRole.eleve &&
-              _classeCtrl.text.trim().isNotEmpty);
+      final bool needsValidation =
+          (_selectedRole == UserRole.professeur ||
+              _selectedRole == UserRole.eleve) &&
+          _schoolJoinChoice == 'withCode';
       final String statut = needsValidation ? 'en_attente' : 'actif';
 
       // Directeur : crée l'école avant le compte utilisateur
-      String schoolId = 'default';
+      String schoolId = kDefaultSchoolId;
+      if ((_selectedRole == UserRole.eleve ||
+              _selectedRole == UserRole.professeur) &&
+          _schoolJoinChoice == 'withCode' &&
+          _resolvedSchoolId.isNotEmpty) {
+        schoolId = _resolvedSchoolId;
+      }
+
       if (_selectedRole == UserRole.direction) {
         schoolId = uid;
         await FirebaseFirestore.instance.collection('schools').doc(schoolId).set({
@@ -200,7 +226,21 @@ class _RegisterPageState extends State<RegisterPage> {
       }
 
       if (mounted) {
-        if (statut == 'en_attente') {
+        if (role == UserRole.professeur) {
+          // Toujours diriger vers le dossier enseignant, quel que soit le statut
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => ProfesseurDossierPage(
+                uid: uid,
+                displayName: displayName,
+                statut: statut,
+                schoolNom: _resolvedSchoolNom.isNotEmpty
+                    ? _resolvedSchoolNom
+                    : null,
+              ),
+            ),
+          );
+        } else if (statut == 'en_attente') {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
               builder: (_) => PendingValidationPage(
@@ -210,9 +250,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 classeDemandee: _classeCtrl.text.trim().isNotEmpty
                     ? _classeCtrl.text.trim()
                     : null,
-                matiere: _matiereCtrl.text.trim().isNotEmpty
-                    ? _matiereCtrl.text.trim()
-                    : null,
+                matiere: null,
               ),
             ),
           );
@@ -837,14 +875,10 @@ class _RegisterPageState extends State<RegisterPage> {
               },
             ),
             const SizedBox(height: 14),
-            if (_selectedRole == UserRole.eleve) ...[
-              _buildField(
-                'Classe souhaitée',
-                _classeCtrl,
-                icon: Icons.class_,
-                hint: 'ex: 3e B, Terminale S...',
-              ),
-              const SizedBox(height: 14),
+            if (_selectedRole == UserRole.eleve ||
+                _selectedRole == UserRole.professeur) ...[
+              _buildSchoolChoiceSection(),
+              const SizedBox(height: 4),
             ],
             if (_selectedRole == UserRole.parent) ...[
               _buildField(
@@ -856,18 +890,242 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               const SizedBox(height: 14),
             ],
-            if (_selectedRole == UserRole.professeur) ...[
-              _buildField(
-                'Matière principale',
-                _matiereCtrl,
-                icon: Icons.subject,
-                hint: 'ex: Mathématiques, Français...',
-              ),
-              const SizedBox(height: 14),
-            ],
           ],
         ),
       ),
+    );
+  }
+
+  // ─── École choice (élève) ────────────────────────────────────────────────
+
+  Future<void> _validateInviteCode() async {
+    final code = _inviteCodeCtrl.text.trim().toUpperCase();
+    if (code.isEmpty) {
+      _showError('Entrez le code d\'invitation');
+      return;
+    }
+    setState(() {
+      _codeValidating = true;
+      _resolvedSchoolId = '';
+      _resolvedSchoolNom = '';
+    });
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('schools')
+          .where('codeInvitation', isEqualTo: code)
+          .where('statut', isEqualTo: 'actif')
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) {
+        if (mounted) {
+          _showError('Code invalide ou établissement introuvable');
+          setState(() => _codeValidating = false);
+        }
+        return;
+      }
+      final doc = snap.docs.first;
+      final nom = (doc.data()['nom'] as String?) ?? 'Établissement';
+      if (mounted) {
+        setState(() {
+          _resolvedSchoolId = doc.id;
+          _resolvedSchoolNom = nom;
+          _codeValidating = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        _showError('Erreur lors de la vérification');
+        setState(() => _codeValidating = false);
+      }
+    }
+  }
+
+  Widget _buildSchoolChoiceSection() {
+    const cardBg = Color(0xFF161B22);
+    const border = Color(0xFF1F2937);
+    const blue = Color(0xFF2563EB);
+    const green = Color(0xFF16A34A);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(color: Color(0xFF1F2937)),
+        const SizedBox(height: 12),
+        const Text(
+          'Rejoindre un établissement ?',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Vous pouvez rejoindre une école avec un code ou accéder librement à la plateforme.',
+          style: TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+        const SizedBox(height: 14),
+        // Option 1 — avec code
+        _SchoolOptionCard(
+          icon: Icons.vpn_key_outlined,
+          title: 'Rejoindre une école',
+          subtitle: 'Entrez le code fourni par votre directeur',
+          selected: _schoolJoinChoice == 'withCode',
+          accentColor: blue,
+          onTap: () => setState(() {
+            _schoolJoinChoice = 'withCode';
+            _resolvedSchoolId = '';
+            _resolvedSchoolNom = '';
+          }),
+        ),
+        if (_schoolJoinChoice == 'withCode') ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: blue.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              children: [
+                if (_resolvedSchoolId.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: green.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: green.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle_outline,
+                            color: green, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _resolvedSchoolNom,
+                            style: const TextStyle(
+                              color: green,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => setState(() {
+                            _resolvedSchoolId = '';
+                            _resolvedSchoolNom = '';
+                            _inviteCodeCtrl.clear();
+                          }),
+                          child: const Icon(Icons.close,
+                              color: Colors.white38, size: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _inviteCodeCtrl,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 4,
+                        ),
+                        textCapitalization:
+                            TextCapitalization.characters,
+                        decoration: InputDecoration(
+                          hintText: 'CODE',
+                          hintStyle: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            letterSpacing: 4,
+                            fontSize: 18,
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFF0D1117),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: border),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: blue),
+                          ),
+                        ),
+                        onChanged: (_) {
+                          if (_resolvedSchoolId.isNotEmpty) {
+                            setState(() {
+                              _resolvedSchoolId = '';
+                              _resolvedSchoolNom = '';
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed:
+                          _codeValidating ? null : _validateInviteCode,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: _codeValidating
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : const Text('Vérifier',
+                              style: TextStyle(fontSize: 13)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                _buildField(
+                  'Classe souhaitée (optionnel)',
+                  _classeCtrl,
+                  icon: Icons.class_,
+                  hint: 'ex: 3e B, Terminale S...',
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 10),
+        // Option 2 — sans école
+        _SchoolOptionCard(
+          icon: Icons.public_outlined,
+          title: 'Continuer sans école',
+          subtitle: 'Accès libre — révisions, IA, chat, badges',
+          selected: _schoolJoinChoice == 'withoutSchool',
+          accentColor: const Color(0xFF6C47FF),
+          onTap: () => setState(() {
+            _schoolJoinChoice = 'withoutSchool';
+            _resolvedSchoolId = '';
+            _resolvedSchoolNom = '';
+            _inviteCodeCtrl.clear();
+          }),
+        ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 
@@ -1060,13 +1318,37 @@ class _RegisterPageState extends State<RegisterPage> {
                   'Email',
                   _emailCtrl.text.trim(),
                 ),
-                if (_selectedRole == UserRole.eleve &&
-                    _classeCtrl.text.trim().isNotEmpty)
-                  _summaryRow(
-                    Icons.class_,
-                    'Classe',
-                    _classeCtrl.text.trim(),
-                  ),
+                if (_selectedRole == UserRole.eleve ||
+                    _selectedRole == UserRole.professeur) ...[
+                  if (_schoolJoinChoice == 'withCode' &&
+                      _resolvedSchoolNom.isNotEmpty)
+                    _summaryRow(
+                      Icons.business_outlined,
+                      'École',
+                      _resolvedSchoolNom,
+                    ),
+                  if (_schoolJoinChoice == 'withoutSchool')
+                    _summaryRow(
+                      Icons.public_outlined,
+                      'Accès',
+                      _selectedRole == UserRole.professeur
+                          ? 'Libre — dossier à compléter'
+                          : 'Libre (sans école)',
+                    ),
+                  if (_selectedRole == UserRole.eleve &&
+                      _classeCtrl.text.trim().isNotEmpty)
+                    _summaryRow(
+                      Icons.class_,
+                      'Classe',
+                      _classeCtrl.text.trim(),
+                    ),
+                  if (_selectedRole == UserRole.professeur)
+                    _summaryRow(
+                      Icons.assignment_outlined,
+                      'Étape suivante',
+                      'Compléter votre dossier enseignant',
+                    ),
+                ],
                 if (_selectedRole == UserRole.professeur &&
                     _matiereCtrl.text.trim().isNotEmpty)
                   _summaryRow(
@@ -1313,6 +1595,99 @@ class _CycleCard extends StatelessWidget {
               subtitle,
               style: const TextStyle(color: Colors.white38, fontSize: 11),
               textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── School option card ───────────────────────────────────────────────────────
+
+class _SchoolOptionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _SchoolOptionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? accentColor.withValues(alpha: 0.1)
+              : const Color(0xFF161B22),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? accentColor.withValues(alpha: 0.6)
+                : const Color(0xFF1F2937),
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: accentColor, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: selected ? accentColor : Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                        color: Colors.white54, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? accentColor : const Color(0xFF1F2937),
+                  width: 2,
+                ),
+                color: selected ? accentColor : Colors.transparent,
+              ),
+              child: selected
+                  ? const Icon(Icons.check,
+                      color: Colors.white, size: 12)
+                  : null,
             ),
           ],
         ),

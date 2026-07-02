@@ -55,6 +55,28 @@ class StorageService {
     return null;
   }
 
+  /// Upload a teacher registration document (diplome, cni, etc.).
+  /// Returns download URL or null on failure.
+  static Future<String?> uploadTeacherDocument(
+      File file, String uid, String docType) async {
+    if (uid.isEmpty) return null;
+    final token = _token();
+    final ext = file.path.split('.').last.toLowerCase();
+    final name = '${docType}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final ref = _storage.ref().child('teacher_docs/$uid/$name');
+    try {
+      final task = await ref.putFile(file, SettableMetadata(
+        customMetadata: {'firebaseStorageDownloadTokens': token},
+      ));
+      if (task.state == TaskState.success) {
+        final bucket = task.ref.bucket;
+        final encodedPath = Uri.encodeComponent(task.ref.fullPath);
+        return 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media&token=$token';
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Upload a voice message audio file.
   /// Returns download URL or null on failure.
   static Future<String?> uploadChatAudio(File file, String chatId) async {

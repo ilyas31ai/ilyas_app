@@ -29,6 +29,7 @@ import 'pages/cycle_placeholder_page.dart';
 // 🆕 NOUVEAUX MODULES
 import 'pages/register_page.dart';
 import 'pages/pending_validation_page.dart';
+import 'pages/professeur_dossier_page.dart';
 import 'pages/inscription_wizard_page.dart';
 import 'pages/scolar_profile_page.dart';
 import 'pages/scolar_salle_page.dart';
@@ -481,6 +482,16 @@ class MyApp extends StatelessWidget {
 
         // 🆕 REGISTER
         '/register': (context) => const RegisterPage(),
+        '/professeur_dossier': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>;
+          return ProfesseurDossierPage(
+            uid: args['uid'] as String,
+            displayName: args['displayName'] as String,
+            statut: args['statut'] as String,
+            schoolNom: args['schoolNom'] as String?,
+          );
+        },
 
         // 🆕 INSCRIPTION WIZARD
         '/inscription_wizard': (context) =>
