@@ -5,6 +5,7 @@ import 'home_page.dart';
 import 'eleves_page.dart';
 import 'profile_page.dart';
 import 'scolar_connect_page.dart';
+import '../models/user_model.dart';
 import '../services/notification_service.dart';
 import '../services/social_service.dart';
 import '../services/user_service.dart';
@@ -27,11 +28,23 @@ class _MainShellState extends State<MainShell> {
     SocialService.goOnline();
     UserService.syncProfile();
     NotificationService.init(_user);
+    _maybeInitParentListeners();
+  }
+
+  void _maybeInitParentListeners() {
+    UserService.currentUserStream().first.then((user) {
+      if (user != null &&
+          user.role == UserRole.parent &&
+          user.enfantIds.isNotEmpty) {
+        NotificationService.initParentListeners(user.enfantIds);
+      }
+    });
   }
 
   @override
   void dispose() {
     SocialService.goOffline();
+    NotificationService.disposeParentListeners();
     super.dispose();
   }
 

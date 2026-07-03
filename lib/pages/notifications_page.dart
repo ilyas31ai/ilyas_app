@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../models/annonce_model.dart';
 import '../models/devoir_model.dart';
@@ -6,6 +9,7 @@ import '../models/note_model.dart';
 import '../models/rdv_model.dart';
 import '../models/user_model.dart';
 import '../services/etudiant_service.dart';
+import '../services/parent_service.dart';
 import '../services/rdv_service.dart';
 import '../services/user_service.dart';
 
@@ -81,11 +85,21 @@ class _NotifBody extends StatelessWidget {
 
         // ── Parent ─────────────────────────────────────────────────────────
         if (user.role == UserRole.parent) ...[
+          _sectionLabel('Notes récentes'),
+          const SizedBox(height: 8),
+          _ParentNotesSection(enfantIds: user.enfantIds),
+          const SizedBox(height: 20),
+          _sectionLabel('Absences & Retards'),
+          const SizedBox(height: 8),
+          _ParentAbsencesSection(enfantIds: user.enfantIds),
+          const SizedBox(height: 20),
+          _sectionLabel('Rendez-vous'),
+          const SizedBox(height: 8),
+          const _ParentRdvSection(),
+          const SizedBox(height: 20),
           _sectionLabel('Annonces scolaires'),
           const SizedBox(height: 8),
           const _AnnoncesSection(),
-          const SizedBox(height: 20),
-          const _ParentEspaceCard(),
         ],
 
         // ── Professeur ─────────────────────────────────────────────────────
@@ -539,53 +553,348 @@ class _ProfRdvSection extends StatelessWidget {
   }
 }
 
-// ── Carte orientation Espace Parent ───────────────────────────────────────────
+// ── Sections parent ───────────────────────────────────────────────────────────
 
-class _ParentEspaceCard extends StatelessWidget {
-  const _ParentEspaceCard();
+class _ParentNotesSection extends StatefulWidget {
+  final List<String> enfantIds;
+  const _ParentNotesSection({required this.enfantIds});
+
+  @override
+  State<_ParentNotesSection> createState() => _ParentNotesSectionState();
+}
+
+class _ParentNotesSectionState extends State<_ParentNotesSection> {
+  final _subs = <StreamSubscription>[];
+  final _byChild = <String, List<NoteModel>>{};
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.enfantIds.isEmpty) {
+      _loading = false;
+      return;
+    }
+    for (final uid in widget.enfantIds) {
+      _subs.add(ParentService.notesEnfantStream(uid).listen((notes) {
+        setState(() {
+          _byChild[uid] = notes;
+          _loading = false;
+        });
+      }));
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final s in _subs) { s.cancel(); }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) return const _Loading();
+    final all = _byChild.values.expand((n) => n).toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+    if (all.isEmpty) return const _Empty('Aucune note publiée');
+    return Column(
+      children: all.take(6).map((n) => _ParentNoteCard(note: n)).toList(),
+    );
+  }
+}
+
+class _ParentNoteCard extends StatelessWidget {
+  final NoteModel note;
+  const _ParentNoteCard({required this.note});
+
+  static String _fmt(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final color = note.sur20 >= 14
+        ? const Color(0xFF16A34A)
+        : note.sur20 >= 10
+            ? const Color(0xFFD97706)
+            : const Color(0xFFDC2626);
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF161B22),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: const Color(0xFF6C47FF).withValues(alpha: 0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
           Container(
             width: 44,
             height: 44,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [Color(0xFF6C47FF), Color(0xFF2563EB)]),
-              borderRadius: BorderRadius.circular(11),
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.family_restroom_outlined,
-                color: Colors.white, size: 22),
+            child: Text(note.sur20.toStringAsFixed(1),
+                style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14)),
           ),
-          const SizedBox(width: 14),
-          const Expanded(
+          const SizedBox(width: 12),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Espace Parent',
-                    style: TextStyle(
+                Text(note.matiere,
+                    style: const TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14)),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13)),
                 Text(
-                  'Suivre les résultats, devoirs et présences de vos enfants',
+                  note.eleveNomComplet.isNotEmpty
+                      ? '${note.eleveNomComplet} · ${note.intitule.isNotEmpty ? note.intitule : "Évaluation"}'
+                      : note.intitule.isNotEmpty
+                          ? note.intitule
+                          : 'Évaluation',
                   style:
-                      TextStyle(color: Colors.white38, fontSize: 12),
+                      const TextStyle(color: Colors.white38, fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: Colors.white24, size: 20),
+          Text(_fmt(note.date),
+              style:
+                  const TextStyle(color: Colors.white24, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Absences & Retards parent ─────────────────────────────────────────────────
+
+class _ParentAbsencesSection extends StatefulWidget {
+  final List<String> enfantIds;
+  const _ParentAbsencesSection({required this.enfantIds});
+
+  @override
+  State<_ParentAbsencesSection> createState() =>
+      _ParentAbsencesSectionState();
+}
+
+class _ParentAbsencesSectionState extends State<_ParentAbsencesSection> {
+  final _subs = <StreamSubscription>[];
+  final _byChild = <String, List<Map<String, dynamic>>>{};
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.enfantIds.isEmpty) {
+      _loading = false;
+      return;
+    }
+    for (final uid in widget.enfantIds) {
+      _subs.add(ParentService.presencesEnfantStream(uid).listen((list) {
+        setState(() {
+          _byChild[uid] = list
+              .where((d) =>
+                  (d['statut'] as String?) == 'absent' ||
+                  (d['statut'] as String?) == 'retard')
+              .toList();
+          _loading = false;
+        });
+      }));
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final s in _subs) { s.cancel(); }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const _Loading();
+    final all = _byChild.values.expand((l) => l).toList()
+      ..sort((a, b) =>
+          ((b['date'] as String?) ?? '').compareTo((a['date'] as String?) ?? ''));
+    if (all.isEmpty) {
+      return const _Empty('Aucune absence ni retard enregistré');
+    }
+    return Column(
+      children: all.take(6).map((d) => _ParentAbsenceCard(data: d)).toList(),
+    );
+  }
+}
+
+class _ParentAbsenceCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _ParentAbsenceCard({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final statut = data['statut'] as String? ?? '';
+    final isAbsent = statut == 'absent';
+    final color = isAbsent ? const Color(0xFFDC2626) : const Color(0xFFD97706);
+    final date = data['date'] as String? ?? '';
+    final motif = data['motif'] as String? ?? '';
+    final prenom = data['elevePrenom'] as String? ?? '';
+    final nom = data['eleveNom'] as String? ?? '';
+    final enfantNom = '$prenom $nom'.trim();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161B22),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isAbsent ? Icons.cancel_outlined : Icons.schedule_outlined,
+              color: color,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isAbsent ? 'Absence' : 'Retard',
+                  style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13),
+                ),
+                if (enfantNom.isNotEmpty)
+                  Text(enfantNom,
+                      style: const TextStyle(
+                          color: Colors.white54, fontSize: 11)),
+                if (motif.isNotEmpty)
+                  Text(motif,
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 11),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          Text(date,
+              style: const TextStyle(color: Colors.white24, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── RDV parent ────────────────────────────────────────────────────────────────
+
+class _ParentRdvSection extends StatelessWidget {
+  const _ParentRdvSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<RdvModel>>(
+      stream: ParentService.rdvStream(),
+      builder: (_, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const _Loading();
+        }
+        final rdvs = snap.data ?? [];
+        if (rdvs.isEmpty) return const _Empty('Aucun rendez-vous');
+        return Column(
+          children: rdvs.take(4).map((r) => _ParentRdvCard(rdv: r)).toList(),
+        );
+      },
+    );
+  }
+}
+
+class _ParentRdvCard extends StatelessWidget {
+  final RdvModel rdv;
+  const _ParentRdvCard({required this.rdv});
+
+  @override
+  Widget build(BuildContext context) {
+    final statut = rdv.statut;
+    final Color color;
+    if (statut == RdvStatut.accepte || statut == RdvStatut.confirme) {
+      color = const Color(0xFF16A34A);
+    } else if (statut == RdvStatut.refuse || statut == RdvStatut.annule) {
+      color = const Color(0xFFDC2626);
+    } else if (statut == RdvStatut.proposeAutreDate) {
+      color = const Color(0xFFD97706);
+    } else {
+      color = const Color(0xFF2563EB);
+    }
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161B22),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.event_note_outlined,
+                color: Colors.white54, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Prof. ${rdv.professeurNom}',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                Text(
+                  DateFormat('dd/MM/yyyy – HH:mm').format(rdv.dateHeure),
+                  style:
+                      const TextStyle(color: Colors.white38, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(statut.label,
+                style: TextStyle(
+                    color: color,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
     );
