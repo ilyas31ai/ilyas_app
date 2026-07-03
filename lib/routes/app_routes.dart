@@ -123,6 +123,7 @@ class AppRoutes {
   static const directionEleves = '/direction_eleves';
   static const directionStatistiques = '/direction_statistiques';
   static const directionBulletins = '/direction_bulletins';
+  static const directionBulletinsConsulter = '/direction_bulletins_consulter';
 
   /// Initialisation du référentiel cycles/niveaux (SuperAdmin uniquement)
   static const directionSeedReferentiel = '/direction_seed_referentiel';

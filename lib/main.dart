@@ -53,6 +53,7 @@ import 'pages/professeur_messagerie_page.dart';
 
 // 🏛️ DIRECTION — sous-pages (deep-link direct)
 import 'pages/direction_bulletins_page.dart';
+import 'pages/direction_bulletins_consulter_page.dart';
 import 'pages/fiche_enseignant_page.dart';
 import 'pages/direction_dashboard_page.dart';
 import 'pages/direction_classes_page.dart';
@@ -390,6 +391,7 @@ class MyApp extends StatelessWidget {
         AppRoutes.directionEleves: (_) => const DirectionElevesPage(),
         AppRoutes.directionStatistiques: (_) => const DirectionStatistiquesPage(),
         AppRoutes.directionBulletins: (_) => const DirectionBulletinsPage(),
+        AppRoutes.directionBulletinsConsulter: (_) => const DirectionBulletinsConsulterPage(),
 
         // ── Direction — disponibilités & remplacements ─────────────────────
         '/direction_disponibilites': (_) =>

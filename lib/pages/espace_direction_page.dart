@@ -17,6 +17,7 @@ import 'inscription_import_page.dart';
 import 'inscription_recherche_page.dart';
 import 'inscription_validation_page.dart';
 import 'direction_bulletins_page.dart';
+import 'direction_bulletins_consulter_page.dart';
 import 'inscription_verification_page.dart';
 
 // Restreint l'Espace Direction aux comptes [UserRole.admin] uniquement.
@@ -190,6 +191,14 @@ class _DirectionHome extends StatelessWidget {
                 colors: const [Color(0xFF0F766E), Color(0xFF6C47FF)],
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const DirectionBulletinsPage())),
+              ),
+              _ModuleCard(
+                icon: Icons.analytics_outlined,
+                title: 'Consultation globale des bulletins',
+                subtitle: 'Consulter, rechercher et statistiques par classe et élève',
+                colors: const [Color(0xFF2563EB), Color(0xFF6C47FF)],
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const DirectionBulletinsConsulterPage())),
               ),
               const SizedBox(height: 4),
               _buildSectionLabel('Gestion des disponibilités'),
