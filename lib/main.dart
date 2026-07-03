@@ -26,6 +26,9 @@ import 'services/notification_service.dart';
 import 'routes/app_routes.dart';
 import 'pages/cycle_placeholder_page.dart';
 
+// 📋 BULLETIN / RELEVÉ DE NOTES
+import 'pages/eleve_releve_notes_page.dart';
+
 // 🆕 NOUVEAUX MODULES
 import 'pages/register_page.dart';
 import 'pages/pending_validation_page.dart';
@@ -60,7 +63,6 @@ import 'pages/professeur_disponibilite_page.dart';
 
 // 🏫 PRIMAIRE — écrans de production
 import 'pages/primaire_dashboard_page.dart';
-import 'pages/primaire_bulletin_page.dart';
 
 // 🌸 MATERNELLE — écrans de production (Lots 6 & 8)
 import 'pages/maternelle_dashboard_page.dart';
@@ -97,7 +99,6 @@ import 'pages/college_dashboard_page.dart';
 import 'pages/college_matieres_page.dart';
 import 'pages/college_devoirs_page.dart';
 import 'pages/college_notes_page.dart';
-import 'pages/college_bulletin_page.dart';
 import 'pages/college_brevet_page.dart';
 import 'pages/college_orientation_page.dart';
 import 'pages/college_presences_page.dart';
@@ -107,7 +108,6 @@ import 'pages/lycee_dashboard_page.dart';
 import 'pages/lycee_matieres_page.dart';
 import 'pages/lycee_devoirs_page.dart';
 import 'pages/lycee_notes_page.dart';
-import 'pages/lycee_bulletin_page.dart';
 import 'pages/lycee_bac_page.dart';
 import 'pages/lycee_orientation_page.dart';
 import 'pages/lycee_presences_page.dart';
@@ -437,14 +437,14 @@ class MyApp extends StatelessWidget {
 
         // ── Primaire ───────────────────────────────────────────────────────
         AppRoutes.primaireTableauBord: (_) => const PrimaireDashboardPage(),
-        AppRoutes.primaireBulletin: (_) => const PrimaireBulletinPage(),
+        AppRoutes.primaireBulletin: (_) => const EleveReleveNotesPage(),
 
         // ── Collège ────────────────────────────────────────────────────────
         AppRoutes.collegeTableauBord: (_) => const CollegeDashboardPage(),
         AppRoutes.collegeMatieres: (_) => const CollegeMatieresPage(),
         AppRoutes.collegeDevoirs: (_) => const CollegeDevoirs(),
         AppRoutes.collegeNotes: (_) => const CollegeNotesPage(),
-        AppRoutes.collegeBulletin: (_) => const CollegeBulletinPage(),
+        AppRoutes.collegeBulletin: (_) => const EleveReleveNotesPage(),
         AppRoutes.collegeBrevet: (_) => const CollegeBrevePage(),
         AppRoutes.collegeOrientation: (_) => const CollegeOrientationPage(),
         AppRoutes.collegePresences: (_) => const CollegePresencesPage(),
@@ -454,7 +454,7 @@ class MyApp extends StatelessWidget {
         AppRoutes.lyceeMatieres: (_) => const LyceeMatieresPage(),
         AppRoutes.lyceeDevoirs: (_) => const LyceeDevoirs(),
         AppRoutes.lyceeNotes: (_) => const LyceeNotesPage(),
-        AppRoutes.lyceeBulletin: (_) => const LyceeBulletinPage(),
+        AppRoutes.lyceeBulletin: (_) => const EleveReleveNotesPage(),
         AppRoutes.lyceeBacBlanc: (_) => const LyceeBacPage(),
         AppRoutes.lyceeOrientation: (_) => const LyceeOrientationPage(),
         AppRoutes.lyceePresences: (_) => const LyceePresencesPage(),

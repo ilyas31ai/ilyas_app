@@ -13,6 +13,7 @@ import '../models/user_model.dart';
 import '../services/maitrise_service.dart';
 import '../services/parent_service.dart';
 import '../services/user_service.dart';
+import 'eleve_releve_notes_page.dart';
 
 Future<void> _runRdvAction(BuildContext context, Future<void> Function() action) async {
   try {
@@ -463,10 +464,37 @@ class _NotesCard extends StatelessWidget {
         }
         return _Card(
           child: Column(
-            children: notes
-                .take(5)
-                .map((n) => _NoteRow(note: n))
-                .toList(),
+            children: [
+              ...notes.take(5).map((n) => _NoteRow(note: n)),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    ctx,
+                    MaterialPageRoute<void>(
+                      builder: (_) => EleveReleveNotesPage(
+                        eleveUid: uid,
+                        eleveNom: notes.isNotEmpty
+                            ? '${notes.first.elevePrenom} ${notes.first.eleveNom}'.trim()
+                            : null,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.description_outlined, size: 15),
+                  label: const Text('Voir le bulletin complet',
+                      style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF6C47FF),
+                    backgroundColor: const Color(0xFF6C47FF).withValues(alpha: 0.08),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 8, horizontal: 12),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },
