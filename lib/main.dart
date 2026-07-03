@@ -39,6 +39,7 @@ import 'pages/scolar_salle_page.dart';
 
 // 👩‍🏫 PROFESSEUR — sous-pages (deep-link direct)
 import 'pages/professeur_bulletins_page.dart';
+import 'pages/professeur_principal_bulletins_page.dart';
 import 'pages/professeur_dashboard_page.dart';
 import 'pages/professeur_emploi_page.dart';
 import 'pages/professeur_notes_page.dart';
@@ -379,6 +380,8 @@ class MyApp extends StatelessWidget {
         AppRoutes.professeurCorrige: (_) => const ProfesseurCorrigePage(),
         AppRoutes.professeurBulletins: (_) =>
             const ProfesseurBulletinsPage(),
+        AppRoutes.professeurPrincipalBulletins: (_) =>
+            const ProfesseurPrincipalBulletinsPage(),
         AppRoutes.professeurMessagerie: (_) =>
             const ProfesseurMessageriePage(),
         AppRoutes.professeurEvaluationsQualitatives: (_) =>

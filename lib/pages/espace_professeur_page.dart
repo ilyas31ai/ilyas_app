@@ -15,6 +15,7 @@ import 'professeur_evaluations_qualitative_page.dart';
 import 'professeur_disponibilite_page.dart';
 import 'professeur_messagerie_page.dart';
 import 'professeur_bulletins_page.dart';
+import 'professeur_principal_bulletins_page.dart';
 import 'professeur_rdv_page.dart';
 
 const bool _kProfesseurOnly = true;
@@ -168,6 +169,14 @@ class _ProfesseurHome extends StatelessWidget {
                 colors: const [Color(0xFF0F766E), Color(0xFF6C47FF)],
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const ProfesseurBulletinsPage())),
+              ),
+              _ModuleCard(
+                icon: Icons.analytics_outlined,
+                title: 'Bulletins · Prof. Principal',
+                subtitle: 'Classement, stats et récapitulatif de classe',
+                colors: const [Color(0xFF2563EB), Color(0xFF6C47FF)],
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const ProfesseurPrincipalBulletinsPage())),
               ),
               const SizedBox(height: 4),
               _buildSectionLabel('Ressources'),

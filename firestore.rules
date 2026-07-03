@@ -157,6 +157,11 @@ service cloud.firestore {
     match /notes/{id} {
       allow read: if isDirection() ||
         (isProfesseur() && resource.data.professeurId == request.auth.uid) ||
+        // Professeur principal : lit toutes les notes publiées de sa classe
+        (isProfesseur() &&
+          resource.data.get('classeId', '') != '' &&
+          get(/databases/$(database)/documents/classes/$(resource.data.classeId))
+            .data.get('professeurId', '') == request.auth.uid) ||
         (isEleve() && resource.data.eleveId == request.auth.uid) ||
         (isParentOf(resource.data.eleveId) && resource.data.publie == true);
       allow create: if isDirection() ||
@@ -340,12 +345,34 @@ service cloud.firestore {
     match /appreciations/{id} {
       allow read: if isDirection() ||
         (isProfesseur() && resource.data.professeurId == request.auth.uid) ||
+        // Professeur principal : lit toutes les appréciations de sa classe
+        (isProfesseur() &&
+          resource.data.get('classeId', '') != '' &&
+          get(/databases/$(database)/documents/classes/$(resource.data.classeId))
+            .data.get('professeurId', '') == request.auth.uid) ||
         (isEleve() && resource.data.eleveId == request.auth.uid) ||
         isParentOf(resource.data.eleveId);
       allow create, update: if isDirection() ||
         (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow delete: if isDirection() ||
         (isProfesseur() && resource.data.professeurId == request.auth.uid);
+    }
+
+    // ── Récapitulatif bulletins (prof principal) ──────────────────────────────
+    match /bulletins_recap/{id} {
+      // Tous les utilisateurs authentifiés peuvent lire (élèves, parents, direction)
+      allow read: if isAuth();
+      // Création : le prof qui est professeurId de la classe
+      allow create: if isProfesseur() &&
+        request.resource.data.get('classeId', '') != '' &&
+        get(/databases/$(database)/documents/classes/$(request.resource.data.classeId))
+          .data.get('professeurId', '') == request.auth.uid;
+      // Mise à jour : même vérification sur la classe existante
+      allow update: if isProfesseur() &&
+        resource.data.get('classeId', '') != '' &&
+        get(/databases/$(database)/documents/classes/$(resource.data.classeId))
+          .data.get('professeurId', '') == request.auth.uid;
+      allow delete: if isDirection();
     }
 
     // ── Inscriptions ─────────────────────────────────────────────────────────

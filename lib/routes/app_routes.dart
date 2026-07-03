@@ -111,6 +111,7 @@ class AppRoutes {
   static const professeurMessagerie = '/professeur_messagerie';
   static const professeurRdv = '/professeur_rdv'; // → existant
   static const professeurBulletins = '/professeur_bulletins';
+  static const professeurPrincipalBulletins = '/professeur_principal_bulletins';
 
   /// Évaluations qualitatives Maternelle (spécifique Maternelle)
   static const professeurEvaluationsQualitatives =
