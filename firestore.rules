@@ -328,6 +328,18 @@ service cloud.firestore {
       allow read: if isDirection();
     }
 
+    // ── Appréciations de bulletins ───────────────────────────────────────────
+    match /appreciations/{id} {
+      allow read: if isDirection() ||
+        (isProfesseur() && resource.data.professeurId == request.auth.uid) ||
+        (isEleve() && resource.data.eleveId == request.auth.uid) ||
+        isParentOf(resource.data.eleveId);
+      allow create, update: if isDirection() ||
+        (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
+      allow delete: if isDirection() ||
+        (isProfesseur() && resource.data.professeurId == request.auth.uid);
+    }
+
     // ── Inscriptions ─────────────────────────────────────────────────────────
     match /inscriptions/{id} {
       allow read, write: if isDirection();

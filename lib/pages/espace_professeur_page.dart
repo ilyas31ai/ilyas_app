@@ -14,6 +14,7 @@ import 'professeur_corrige_page.dart';
 import 'professeur_evaluations_qualitative_page.dart';
 import 'professeur_disponibilite_page.dart';
 import 'professeur_messagerie_page.dart';
+import 'professeur_bulletins_page.dart';
 import 'professeur_rdv_page.dart';
 
 const bool _kProfesseurOnly = true;
@@ -159,6 +160,14 @@ class _ProfesseurHome extends StatelessWidget {
                 colors: const [Color(0xFFD97706), Color(0xFFDC2626)],
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const ProfesseurNotesPage())),
+              ),
+              _ModuleCard(
+                icon: Icons.description_outlined,
+                title: 'Bulletins · Appréciations',
+                subtitle: 'Rédiger les appréciations de fin de trimestre',
+                colors: const [Color(0xFF0F766E), Color(0xFF6C47FF)],
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const ProfesseurBulletinsPage())),
               ),
               const SizedBox(height: 4),
               _buildSectionLabel('Ressources'),

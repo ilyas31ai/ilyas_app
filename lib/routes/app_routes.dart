@@ -110,6 +110,7 @@ class AppRoutes {
   static const professeurCorrige = '/professeur_corrige';
   static const professeurMessagerie = '/professeur_messagerie';
   static const professeurRdv = '/professeur_rdv'; // → existant
+  static const professeurBulletins = '/professeur_bulletins';
 
   /// Évaluations qualitatives Maternelle (spécifique Maternelle)
   static const professeurEvaluationsQualitatives =

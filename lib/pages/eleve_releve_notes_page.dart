@@ -7,8 +7,10 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../models/appreciation_model.dart';
 import '../models/note_model.dart';
 import '../models/user_model.dart';
+import '../services/appreciation_service.dart';
 import '../services/etudiant_service.dart';
 import '../services/user_service.dart';
 
@@ -570,6 +572,12 @@ class _ReleveBodyState extends State<_ReleveBody> {
           color: _noteColor(moyGen),
         ),
         const SizedBox(height: 16),
+
+        // Appréciations des professeurs
+        _ProfAppreciationsSection(
+          eleveId: widget.eleveUid,
+          trimestre: _period == _Period.annee ? null : _period.index + 1,
+        ),
 
         // Bouton PDF
         _PdfButton(
@@ -1192,6 +1200,84 @@ class _ConseilCard extends StatelessWidget {
             style: const TextStyle(
                 color: Colors.white60, fontSize: 13, height: 1.5)),
       ]),
+    );
+  }
+}
+
+// ─── Section appréciations professeurs ───────────────────────────────────────
+
+class _ProfAppreciationsSection extends StatelessWidget {
+  final String eleveId;
+  final int? trimestre;
+  const _ProfAppreciationsSection(
+      {required this.eleveId, this.trimestre});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<AppreciationModel>>(
+      stream: AppreciationService.streamByEleve(
+          eleveId: eleveId, trimestre: trimestre),
+      builder: (ctx, snap) {
+        final list = snap.data?.where((a) => a.texte.isNotEmpty).toList() ?? [];
+        if (list.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.rate_review_outlined,
+                  color: Color(0xFF6C47FF), size: 16),
+              const SizedBox(width: 7),
+              const Text('Appréciations des professeurs',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 10),
+            ...list.map((a) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6C47FF).withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF6C47FF).withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.person_outline,
+                          color: Color(0xFF6C47FF), size: 14),
+                      const SizedBox(width: 6),
+                      Text(
+                        a.matiere.isNotEmpty
+                            ? '${a.matiere}${a.professeurNom.isNotEmpty ? ' · ${a.professeurNom}' : ''}'
+                            : (a.professeurNom.isNotEmpty
+                                ? a.professeurNom
+                                : 'Professeur'),
+                        style: const TextStyle(
+                            color: Color(0xFF6C47FF),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12),
+                      ),
+                    ]),
+                    const SizedBox(height: 8),
+                    Text(a.texte,
+                        style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            height: 1.5)),
+                  ],
+                ),
+              ),
+            )),
+            const SizedBox(height: 8),
+          ],
+        );
+      },
     );
   }
 }
