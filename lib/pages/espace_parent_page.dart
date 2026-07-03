@@ -1,4 +1,6 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -227,7 +229,7 @@ class _ClassiqueParentView extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _ResumeTab(uid: enfant.uid),
+                _ResumeTab(uid: enfant.uid, classeNom: enfant.classeNom ?? '', classeId: enfant.classeId ?? ''),
                 _DevoirsTab(classeNom: enfant.classeNom ?? ''),
                 _ParentDocumentsTab(classeNom: enfant.classeNom ?? ''),
                 _EmploiTab(classeId: enfant.classeId ?? ''),
@@ -337,18 +339,25 @@ class _EnfantHeader extends StatelessWidget {
 
 class _ResumeTab extends StatelessWidget {
   final String uid;
-  const _ResumeTab({required this.uid});
+  final String classeNom;
+  final String classeId;
+  const _ResumeTab({required this.uid, this.classeNom = '', this.classeId = ''});
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        _LivePresenceBanner(enfantUid: uid),
+        _ProchainCours(classeId: classeId),
         _SectionTitle('Suivi pédagogique IA'),
         _MaitriseCard(uid: uid),
         const SizedBox(height: 16),
         _SectionTitle('Notes récentes'),
         _NotesCard(uid: uid),
+        const SizedBox(height: 16),
+        _SectionTitle('Activité récente'),
+        _ActivityFeed(enfantUid: uid, classeNom: classeNom, classeId: classeId),
       ],
     );
   }
@@ -2215,6 +2224,8 @@ class _CycleResumeTab extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           children: [
+            _LivePresenceBanner(enfantUid: enfant.uid),
+            _ProchainCours(classeId: enfant.classeId ?? ''),
             // Bannière cycle
             Container(
               padding: const EdgeInsets.all(18),
@@ -2379,6 +2390,13 @@ class _CycleResumeTab extends StatelessWidget {
               }),
             ] else if (notesSnap.hasData)
               const _Card(child: Text('Aucune note publiée.', style: TextStyle(color: Colors.white38))),
+            const SizedBox(height: 16),
+            _SectionTitle('Activité récente'),
+            _ActivityFeed(
+              enfantUid: enfant.uid,
+              classeNom: enfant.classeNom ?? '',
+              classeId: enfant.classeId ?? '',
+            ),
           ],
         );
       },
@@ -2759,6 +2777,447 @@ class _ParentKpiBox extends StatelessWidget {
           const SizedBox(height: 4),
           Text(value, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold)),
           Text(label, style: const TextStyle(color: Colors.white38, fontSize: 9)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Suivi en temps réel — Présence aujourd'hui ───────────────────────────────
+
+class _LivePresenceBanner extends StatelessWidget {
+  final String enfantUid;
+  const _LivePresenceBanner({required this.enfantUid});
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('presences')
+          .where('eleveUid', isEqualTo: enfantUid)
+          .where('date', isEqualTo: today)
+          .limit(1)
+          .snapshots(),
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting || !snap.hasData) {
+          return const SizedBox.shrink();
+        }
+        final docs = snap.data!.docs;
+        final statut = docs.isEmpty
+            ? ''
+            : (docs.first.data() as Map)['statut'] as String? ?? '';
+
+        Color color;
+        IconData icon;
+        String label;
+        switch (statut) {
+          case 'present':
+            color = const Color(0xFF16A34A);
+            icon = Icons.check_circle_outline;
+            label = "Présent(e) aujourd'hui";
+            break;
+          case 'absent':
+            color = const Color(0xFFDC2626);
+            icon = Icons.cancel_outlined;
+            label = "Absent(e) aujourd'hui";
+            break;
+          case 'retard':
+            color = const Color(0xFFD97706);
+            icon = Icons.schedule_outlined;
+            label = "Retard enregistré aujourd'hui";
+            break;
+          default:
+            return const SizedBox.shrink();
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(label,
+                    style: TextStyle(
+                        color: color, fontWeight: FontWeight.w600, fontSize: 13)),
+              ),
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 4),
+              Text('En direct',
+                  style: TextStyle(
+                      color: color.withValues(alpha: 0.65), fontSize: 10)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Suivi en temps réel — Prochain cours ─────────────────────────────────────
+
+class _ProchainCours extends StatelessWidget {
+  final String classeId;
+  const _ProchainCours({required this.classeId});
+
+  static (int, int)? _parseHM(String s) {
+    final parts = s.split(':');
+    if (parts.length < 2) return null;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return null;
+    return (h, m);
+  }
+
+  static DateTime? _slotDt(Map<String, dynamic> s, DateTime ref, String key) {
+    final t = _parseHM(s[key] as String? ?? '');
+    if (t == null) return null;
+    return DateTime(ref.year, ref.month, ref.day, t.$1, t.$2);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (classeId.isEmpty) return const SizedBox.shrink();
+
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: ParentService.emploiEnfantStream(classeId),
+      builder: (ctx, snap) {
+        final slots = snap.data ?? [];
+        if (slots.isEmpty) return const SizedBox.shrink();
+
+        final now = DateTime.now();
+        final jours = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+        final jourAuj = now.weekday < jours.length ? jours[now.weekday] : '';
+        final today = slots.where((s) => (s['jour'] as String?) == jourAuj).toList();
+        if (today.isEmpty) return const SizedBox.shrink();
+
+        Map<String, dynamic>? current;
+        Map<String, dynamic>? next;
+        DateTime? nextDt;
+
+        for (final s in today) {
+          final debut = _slotDt(s, now, 'heureDebut');
+          final fin = _slotDt(s, now, 'heureFin');
+          if (debut == null || fin == null) continue;
+          if (now.isAfter(debut) && now.isBefore(fin)) {
+            current = s;
+            break;
+          }
+          if (now.isBefore(debut) && (nextDt == null || debut.isBefore(nextDt))) {
+            next = s;
+            nextDt = debut;
+          }
+        }
+
+        final slot = current ?? next;
+        if (slot == null) return const SizedBox.shrink();
+        final isCurrent = current != null;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isCurrent
+                ? const Color(0xFF2563EB).withValues(alpha: 0.1)
+                : const Color(0xFF161B22),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isCurrent
+                  ? const Color(0xFF2563EB).withValues(alpha: 0.4)
+                  : Colors.white.withValues(alpha: 0.07),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isCurrent
+                      ? const Color(0xFF2563EB).withValues(alpha: 0.2)
+                      : Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  isCurrent ? Icons.play_circle_outline : Icons.schedule_outlined,
+                  color: isCurrent ? const Color(0xFF2563EB) : Colors.white38,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isCurrent ? 'Cours en cours' : 'Prochain cours',
+                      style: TextStyle(
+                        color: isCurrent
+                            ? const Color(0xFF2563EB)
+                            : Colors.white38,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      (slot['matiere'] as String?) ?? 'Cours',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '${slot['heureDebut'] ?? ''} – ${slot['heureFin'] ?? ''}',
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Suivi en temps réel — Fil d'activité ────────────────────────────────────
+
+class _FeedItem {
+  final DateTime date;
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  const _FeedItem({
+    required this.date,
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+  });
+}
+
+class _ActivityFeed extends StatefulWidget {
+  final String enfantUid;
+  final String classeNom;
+  final String classeId;
+  const _ActivityFeed({
+    required this.enfantUid,
+    required this.classeNom,
+    required this.classeId,
+  });
+
+  @override
+  State<_ActivityFeed> createState() => _ActivityFeedState();
+}
+
+class _ActivityFeedState extends State<_ActivityFeed> {
+  List<_FeedItem> _items = [];
+  bool _loading = true;
+
+  StreamSubscription<List<NoteModel>>? _notesSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _presencesSub;
+  StreamSubscription<List<DevoirModel>>? _devoirsSub;
+
+  List<NoteModel> _notes = [];
+  List<Map<String, dynamic>> _presences = [];
+  List<DevoirModel> _devoirs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribe();
+  }
+
+  void _subscribe() {
+    final since = DateTime.now().subtract(const Duration(days: 14));
+
+    _notesSub = ParentService.notesEnfantStream(widget.enfantUid).listen((n) {
+      _notes = n.where((x) => x.date.isAfter(since)).toList();
+      _merge();
+    });
+
+    _presencesSub =
+        ParentService.presencesEnfantStream(widget.enfantUid).listen((p) {
+      _presences = p;
+      _merge();
+    });
+
+    if (widget.classeNom.isNotEmpty) {
+      _devoirsSub =
+          ParentService.devoirsEnfantStream(widget.classeNom).listen((d) {
+        _devoirs = d;
+        _merge();
+      });
+    } else {
+      _loading = false;
+    }
+  }
+
+  void _merge() {
+    final items = <_FeedItem>[];
+
+    for (final n in _notes) {
+      final c = n.sur20 >= 14
+          ? const Color(0xFF16A34A)
+          : n.sur20 >= 10
+              ? const Color(0xFFD97706)
+              : const Color(0xFFDC2626);
+      items.add(_FeedItem(
+        date: n.date,
+        icon: Icons.grade_outlined,
+        color: c,
+        title: '${n.matiere} · ${n.sur20.toStringAsFixed(1)}/20',
+        subtitle: n.intitule.isNotEmpty ? n.intitule : 'Évaluation',
+      ));
+    }
+
+    for (final p in _presences) {
+      final s = (p['statut'] as String?) ?? '';
+      if (s != 'absent' && s != 'retard') continue;
+      final dateStr = (p['date'] as String?) ?? '';
+      DateTime? d;
+      try {
+        d = DateTime.parse(dateStr);
+      } catch (_) {}
+      if (d == null) continue;
+      items.add(_FeedItem(
+        date: d,
+        icon: s == 'absent' ? Icons.cancel_outlined : Icons.schedule,
+        color: s == 'absent'
+            ? const Color(0xFFDC2626)
+            : const Color(0xFFD97706),
+        title: s == 'absent' ? 'Absence enregistrée' : 'Retard enregistré',
+        subtitle: (p['motif'] as String?) ?? '',
+      ));
+    }
+
+    final now = DateTime.now();
+    final horizon = now.add(const Duration(days: 7));
+    for (final d in _devoirs) {
+      if (d.dateLimite == null) continue;
+      if (d.dateLimite!.isBefore(now.subtract(const Duration(days: 1)))) continue;
+      if (d.dateLimite!.isAfter(horizon)) continue;
+      final overdue = d.dateLimite!.isBefore(now);
+      items.add(_FeedItem(
+        date: d.dateLimite!,
+        icon: Icons.assignment_outlined,
+        color: overdue ? const Color(0xFFDC2626) : const Color(0xFF6C47FF),
+        title: '${d.matiere} · ${d.titre}',
+        subtitle: 'Pour le ${DateFormat('dd/MM').format(d.dateLimite!)}',
+      ));
+    }
+
+    items.sort((a, b) => b.date.compareTo(a.date));
+    if (mounted) {
+      setState(() {
+        _items = items.take(10).toList();
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _notesSub?.cancel();
+    _presencesSub?.cancel();
+    _devoirsSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const _Card(
+          child: Center(
+              child: Padding(
+        padding: EdgeInsets.all(12),
+        child: CircularProgressIndicator(strokeWidth: 2),
+      )));
+    }
+    if (_items.isEmpty) {
+      return const _Card(
+        child: Text('Aucune activité récente.',
+            style: TextStyle(color: Colors.white38)),
+      );
+    }
+    return _Card(
+      child: Column(
+        children: _items.map((item) => _FeedRow(item: item)).toList(),
+      ),
+    );
+  }
+}
+
+class _FeedRow extends StatelessWidget {
+  final _FeedItem item;
+  const _FeedRow({required this.item});
+
+  static String _relative(DateTime d) {
+    final now = DateTime.now();
+    if (d.isAfter(now)) {
+      final diff = d.difference(now);
+      if (diff.inDays > 0) return 'Dans ${diff.inDays}j';
+      return 'Bientôt';
+    }
+    final diff = now.difference(d);
+    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes}min';
+    if (diff.inHours < 24) return 'Il y a ${diff.inHours}h';
+    if (diff.inDays < 7) return 'Il y a ${diff.inDays}j';
+    return DateFormat('dd/MM').format(d);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: item.color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(item.icon, color: item.color, size: 16),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.title,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                if (item.subtitle.isNotEmpty)
+                  Text(item.subtitle,
+                      style:
+                          const TextStyle(color: Colors.white38, fontSize: 11),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          Text(_relative(item.date),
+              style: const TextStyle(color: Colors.white24, fontSize: 10)),
         ],
       ),
     );
