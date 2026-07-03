@@ -19,6 +19,7 @@ import 'inscription_validation_page.dart';
 import 'direction_bulletins_page.dart';
 import 'direction_bulletins_consulter_page.dart';
 import 'inscription_verification_page.dart';
+import 'messagerie_page.dart';
 
 // Restreint l'Espace Direction aux comptes [UserRole.admin] uniquement.
 const bool _kAdminOnly = true;
@@ -226,6 +227,17 @@ class _DirectionHome extends StatelessWidget {
                 colors: const [Color(0xFFD97706), Color(0xFFF59E0B)],
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const DirectionStatsRemplacementsPage())),
+              ),
+              const SizedBox(height: 4),
+              _buildSectionLabel('Communication'),
+              const SizedBox(height: 8),
+              _ModuleCard(
+                icon: Icons.forum_outlined,
+                title: 'Messagerie interne',
+                subtitle: 'Messages en temps réel — Profs, Parents, Élèves',
+                colors: const [Color(0xFF2563EB), Color(0xFF6C47FF)],
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const MessageriePage())),
               ),
               const SizedBox(height: 4),
               _buildSectionLabel('Gestion des enseignants'),

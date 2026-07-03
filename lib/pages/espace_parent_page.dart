@@ -15,6 +15,7 @@ import '../services/bulletin_validation_service.dart';
 import '../services/maitrise_service.dart';
 import '../services/parent_service.dart';
 import '../services/user_service.dart';
+import 'messagerie_page.dart';
 import 'eleve_releve_notes_page.dart';
 
 Future<void> _runRdvAction(BuildContext context, Future<void> Function() action) async {
@@ -1529,6 +1530,51 @@ class _DiscussionTabState extends State<_DiscussionTab> {
         }
         return Column(
           children: [
+            // Lien messagerie interne
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: InkWell(
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute<void>(
+                        builder: (_) => const MessageriePage())),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2563EB), Color(0xFF6C47FF)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(children: [
+                    Icon(Icons.forum_outlined,
+                        color: Colors.white, size: 20),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Messagerie interne',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13)),
+                          Text('Messages en temps réel',
+                              style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right,
+                        color: Colors.white54, size: 18),
+                  ]),
+                ),
+              ),
+            ),
             _DiscussionInfoBanner(),
             Expanded(
               child: ListView.builder(

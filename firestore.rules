@@ -385,6 +385,45 @@ service cloud.firestore {
       allow read, write: if isDirection();
     }
 
+    // ── Messagerie interne (conversations + messages) ────────────────────────
+    match /conversations/{convId} {
+      // Lecture : être participant
+      allow read: if isAuth() &&
+        request.auth.uid in resource.data.get('participantIds', []);
+      // Création : inclure son propre uid + au moins 2 participants
+      allow create: if isAuth() &&
+        request.auth.uid in request.resource.data.get('participantIds', []) &&
+        request.resource.data.get('participantIds', []).size() >= 2;
+      // Mise à jour : être participant (pour unreadCounts, archive, pinned…)
+      allow update: if isAuth() &&
+        request.auth.uid in resource.data.get('participantIds', []);
+      // Suppression : Direction uniquement
+      allow delete: if isDirection();
+
+      match /messages/{msgId} {
+        allow read: if isAuth() &&
+          request.auth.uid in
+            get(/databases/$(database)/documents/conversations/$(convId))
+              .data.get('participantIds', []);
+        allow create: if isAuth() &&
+          request.auth.uid in
+            get(/databases/$(database)/documents/conversations/$(convId))
+              .data.get('participantIds', []) &&
+          request.resource.data.get('senderId', '') == request.auth.uid;
+        // Mise à jour : expéditeur (suppression, etc.) ou Direction
+        allow update: if isDirection() ||
+          (isAuth() && resource.data.get('senderId', '') == request.auth.uid) ||
+          // Mise à jour readBy : tout participant peut s'y ajouter
+          (isAuth() &&
+            request.auth.uid in
+              get(/databases/$(database)/documents/conversations/$(convId))
+                .data.get('participantIds', []) &&
+            request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['readBy']));
+        allow delete: if isDirection();
+      }
+    }
+
     // ── Fallback : refuse tout accès non couvert ──────────────────────────────
     match /{document=**} {
       allow read:  if isDirection();

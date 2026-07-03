@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 
 // 📄 PAGES
+import 'pages/messagerie_page.dart';
 import 'pages/login_page.dart';
 import 'pages/main_shell.dart';
 import 'pages/eleves_page.dart';
@@ -291,6 +292,7 @@ class MyApp extends StatelessWidget {
         // 📌 PRINCIPAL
         '/eleves': (context) => const ElevesPage(),
 
+        AppRoutes.messagerie: (_) => const MessageriePage(),
         '/espace_direction': (context) => const EspaceDirectionPage(),
 
         '/espace_parent': (context) => const EspaceParentPage(),

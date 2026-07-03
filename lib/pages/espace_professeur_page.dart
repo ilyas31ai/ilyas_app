@@ -15,6 +15,7 @@ import 'professeur_evaluations_qualitative_page.dart';
 import 'professeur_disponibilite_page.dart';
 import 'professeur_messagerie_page.dart';
 import 'professeur_bulletins_page.dart';
+import 'messagerie_page.dart';
 import 'professeur_principal_bulletins_page.dart';
 import 'professeur_rdv_page.dart';
 
@@ -234,8 +235,16 @@ class _ProfesseurHome extends StatelessWidget {
               ),
               _ModuleCard(
                 icon: Icons.forum_outlined,
-                title: 'Messages',
-                subtitle: 'Élèves · Parents · Direction',
+                title: 'Messagerie interne',
+                subtitle: 'Messages temps réel — Élèves, Parents, Direction',
+                colors: const [Color(0xFF2563EB), Color(0xFF6C47FF)],
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const MessageriePage())),
+              ),
+              _ModuleCard(
+                icon: Icons.chat_bubble_outline,
+                title: 'Messages (ancien)',
+                subtitle: 'Messagerie précédente',
                 colors: const [Color(0xFF1E3A5F), Color(0xFF2563EB)],
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const ProfesseurMessageriePage())),

@@ -14,6 +14,7 @@ class AppRoutes {
   static const messages = '/scolar_connect'; // → SCOLAR Connect
   static const eleveDiscussion = '/scolar_connect'; // → SCOLAR Connect
   static const scolarConnect = '/scolar_connect';
+  static const messagerie = '/messagerie';
   static const espaceDirection = '/espace_direction'; // → existant
   static const espaceProfesseur = '/espace_professeur'; // → existant
   static const espaceParent = '/espace_parent'; // → existant
