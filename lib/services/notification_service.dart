@@ -14,6 +14,8 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   static final List<StreamSubscription> _parentSubs = [];
+  static final List<StreamSubscription> _eleveSubs = [];
+  static final Set<String> _notifiedBulletins = {};
 
   static Future<void> init(String currentUser) async {
     await _fcm.requestPermission(alert: true, badge: true, sound: true);
@@ -189,6 +191,51 @@ class NotificationService {
         }),
       );
     }
+  }
+
+  // ── Listeners élève bulletin ──────────────────────────────────────────────
+
+  /// Écoute les publications de bulletins pour l'élève connecté.
+  /// Déclenche une notification locale quand la Direction publie un bulletin.
+  static Future<void> initEleveListeners(
+      String classeId, int anneeScol) async {
+    await disposeEleveListeners();
+    if (classeId.isEmpty) return;
+
+    for (int t = 1; t <= 3; t++) {
+      final docId = '${classeId}_t${t}_$anneeScol';
+      _eleveSubs.add(
+        FirebaseFirestore.instance
+            .collection('bulletin_validations')
+            .doc(docId)
+            .snapshots()
+            .listen((snap) async {
+          if (!snap.exists) return;
+          final publie = snap.data()?['publie'] as bool? ?? false;
+          if (!publie || _notifiedBulletins.contains(docId)) return;
+          _notifiedBulletins.add(docId);
+          final prefs = await SharedPreferences.getInstance();
+          final key = 'bn_$docId';
+          if (prefs.getBool(key) == true) return;
+          await prefs.setBool(key, true);
+          await _showOnChannel(
+            id: 20 + t,
+            title: 'Bulletin disponible',
+            body:
+                'Ton bulletin du Trimestre $t a ete publie par la Direction',
+            channelId: 'bulletins',
+            channelName: 'Bulletins',
+          );
+        }),
+      );
+    }
+  }
+
+  static Future<void> disposeEleveListeners() async {
+    for (final sub in _eleveSubs) {
+      await sub.cancel();
+    }
+    _eleveSubs.clear();
   }
 
   static Future<void> disposeParentListeners() async {

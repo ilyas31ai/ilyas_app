@@ -11,6 +11,7 @@ import '../models/permission_model.dart';
 import '../models/user_model.dart';
 import '../routes/app_routes.dart';
 import '../services/etudiant_service.dart';
+import '../services/notification_service.dart';
 import '../services/user_service.dart';
 import '../widgets/user_avatar.dart';
 
@@ -60,6 +61,15 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _sub = UserService.currentUserStream().listen((u) {
       if (mounted) setState(() => _profile = u);
+      // Notifications bulletin pour les élèves
+      if (u?.role == UserRole.eleve &&
+          u?.classeId != null &&
+          u!.classeId!.isNotEmpty) {
+        final year = DateTime.now().month >= 9
+            ? DateTime.now().year
+            : DateTime.now().year - 1;
+        NotificationService.initEleveListeners(u.classeId!, year);
+      }
     });
   }
 
