@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/bulletin_validation_model.dart';
 import '../models/devoir_model.dart';
 import '../models/note_model.dart';
 import '../models/rdv_model.dart';
 import '../models/user_model.dart';
+import '../services/bulletin_validation_service.dart';
 import '../services/maitrise_service.dart';
 import '../services/parent_service.dart';
 import '../services/user_service.dart';
@@ -206,7 +208,7 @@ class _ClassiqueParentView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 7,
+      length: 8,
       child: Column(
         children: [
           _EnfantHeader(enfant: enfant),
@@ -219,6 +221,7 @@ class _ClassiqueParentView extends StatelessWidget {
             labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             tabs: [
               Tab(text: 'Résumé'),
+              Tab(text: 'Bulletins'),
               Tab(text: 'Devoirs'),
               Tab(text: 'Documents'),
               Tab(text: 'Emploi du temps'),
@@ -231,6 +234,7 @@ class _ClassiqueParentView extends StatelessWidget {
             child: TabBarView(
               children: [
                 _ResumeTab(uid: enfant.uid, classeNom: enfant.classeNom ?? '', classeId: enfant.classeId ?? ''),
+                _BulletinsParentTab(enfantUid: enfant.uid, enfantNom: enfant.displayName, classeId: enfant.classeId ?? ''),
                 _DevoirsTab(classeNom: enfant.classeNom ?? ''),
                 _ParentDocumentsTab(classeNom: enfant.classeNom ?? ''),
                 _EmploiTab(classeId: enfant.classeId ?? ''),
@@ -2115,7 +2119,7 @@ class _CollegeParentView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 8,
+      length: 9,
       child: Column(
         children: [
           _EnfantHeader(enfant: enfant, accentColor: _kCollegeAccent),
@@ -2128,6 +2132,7 @@ class _CollegeParentView extends StatelessWidget {
             labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             tabs: [
               Tab(text: 'Résumé'),
+              Tab(text: 'Bulletins'),
               Tab(text: 'Notes'),
               Tab(text: 'Devoirs'),
               Tab(text: 'Documents'),
@@ -2141,6 +2146,7 @@ class _CollegeParentView extends StatelessWidget {
             child: TabBarView(
               children: [
                 _CycleResumeTab(enfant: enfant, colors: _kCollegeColors),
+                _BulletinsParentTab(enfantUid: enfant.uid, enfantNom: enfant.displayName, classeId: enfant.classeId ?? ''),
                 _CycleNotesTab(enfantUid: enfant.uid, accentColor: _kCollegeAccent),
                 _DevoirsTab(classeNom: enfant.classeNom ?? ''),
                 _ParentDocumentsTab(classeNom: enfant.classeNom ?? ''),
@@ -2166,7 +2172,7 @@ class _LyceeParentView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 8,
+      length: 9,
       child: Column(
         children: [
           _EnfantHeader(enfant: enfant, accentColor: _kLyceeAccent),
@@ -2179,6 +2185,7 @@ class _LyceeParentView extends StatelessWidget {
             labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             tabs: [
               Tab(text: 'Résumé'),
+              Tab(text: 'Bulletins'),
               Tab(text: 'Notes'),
               Tab(text: 'Devoirs'),
               Tab(text: 'Documents'),
@@ -2192,6 +2199,7 @@ class _LyceeParentView extends StatelessWidget {
             child: TabBarView(
               children: [
                 _CycleResumeTab(enfant: enfant, colors: _kLyceeColors, lyceeMode: true),
+                _BulletinsParentTab(enfantUid: enfant.uid, enfantNom: enfant.displayName, classeId: enfant.classeId ?? ''),
                 _CycleNotesTab(enfantUid: enfant.uid, accentColor: _kLyceeAccent, lyceeMode: true),
                 _DevoirsTab(classeNom: enfant.classeNom ?? ''),
                 _ParentDocumentsTab(classeNom: enfant.classeNom ?? ''),
@@ -3252,5 +3260,458 @@ class _FeedRow extends StatelessWidget {
   }
 }
 
+// ── Onglet Bulletins parent ───────────────────────────────────────────────────
+
+/// Onglet "Bulletins" dans toutes les vues parent.
+///
+/// Affiche un sélecteur T1/T2/T3. Pour chaque trimestre :
+///  • Résumé (moyenne, mention, nb notes)
+///  • Statut de publication par la Direction
+///  • Bouton "Voir le bulletin complet" → [EleveReleveNotesPage]
+///
+/// Source de données : identique à celle de l'élève — pas de duplication.
+class _BulletinsParentTab extends StatefulWidget {
+  final String enfantUid;
+  final String enfantNom;
+  final String classeId;
+
+  const _BulletinsParentTab({
+    required this.enfantUid,
+    required this.enfantNom,
+    required this.classeId,
+  });
+
+  @override
+  State<_BulletinsParentTab> createState() =>
+      _BulletinsParentTabState();
+}
+
+class _BulletinsParentTabState
+    extends State<_BulletinsParentTab>
+    with SingleTickerProviderStateMixin {
+  late TabController _tc;
+
+  static int _currentTrimestre() {
+    final m = DateTime.now().month;
+    if (m >= 9 && m <= 11) return 0; // T1
+    if (m == 12 || m <= 2) return 1; // T2
+    return 2;                         // T3
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _tc = TabController(
+        length: 3,
+        vsync: this,
+        initialIndex: _currentTrimestre());
+  }
+
+  @override
+  void dispose() {
+    _tc.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      TabBar(
+        controller: _tc,
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.white38,
+        indicatorColor: const Color(0xFF6C47FF),
+        labelStyle: const TextStyle(
+            fontWeight: FontWeight.w700, fontSize: 13),
+        tabs: const [
+          Tab(text: 'Trimestre 1'),
+          Tab(text: 'Trimestre 2'),
+          Tab(text: 'Trimestre 3'),
+        ],
+      ),
+      Expanded(
+        child: TabBarView(
+          controller: _tc,
+          children: [1, 2, 3].map((t) => _BulletinTrimestreCard(
+            enfantUid: widget.enfantUid,
+            enfantNom: widget.enfantNom,
+            classeId: widget.classeId,
+            trimestre: t,
+          )).toList(),
+        ),
+      ),
+    ]);
+  }
+}
+
+// ── Carte bulletin par trimestre ──────────────────────────────────────────────
+
+class _BulletinTrimestreCard extends StatelessWidget {
+  final String enfantUid;
+  final String enfantNom;
+  final String classeId;
+  final int trimestre;
+
+  const _BulletinTrimestreCard({
+    required this.enfantUid,
+    required this.enfantNom,
+    required this.classeId,
+    required this.trimestre,
+  });
+
+  static int _trimestreDe(DateTime d) {
+    final m = d.month;
+    if (m >= 9 && m <= 11) return 1;
+    if (m == 12 || m <= 2) return 2;
+    return 3;
+  }
+
+  static String _mention(double v) {
+    if (v >= 16) return 'Très bien';
+    if (v >= 14) return 'Bien';
+    if (v >= 12) return 'Assez bien';
+    if (v >= 10) return 'Passable';
+    if (v >= 8) return 'Insuffisant';
+    return 'Très insuffisant';
+  }
+
+  static Color _mentionColor(double v) {
+    if (v >= 14) return const Color(0xFF16A34A);
+    if (v >= 10) return const Color(0xFFD97706);
+    return const Color(0xFFDC2626);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final anneeScol = DateTime.now().year;
+    return StreamBuilder<List<NoteModel>>(
+      stream: ParentService.notesEnfantStream(enfantUid),
+      builder: (ctx, notesSnap) {
+        final allNotes = notesSnap.data ?? [];
+        final notes = allNotes
+            .where((n) => _trimestreDe(n.date) == trimestre)
+            .toList();
+
+        return StreamBuilder<BulletinValidationModel?>(
+          stream: classeId.isEmpty
+              ? Stream.value(null)
+              : BulletinValidationService.stream(
+                  classeId: classeId,
+                  trimestre: trimestre,
+                  anneeScol: anneeScol),
+          builder: (ctx2, valSnap) {
+            final val = valSnap.data;
+            final publie = val?.publie ?? false;
+
+            return ListView(
+              padding:
+                  const EdgeInsets.fromLTRB(16, 16, 16, 40),
+              children: [
+                // Statut publication
+                _PublicationStatusCard(
+                    publie: publie,
+                    trimestre: trimestre,
+                    validation: val),
+                const SizedBox(height: 14),
+
+                // Résumé notes
+                if (notes.isEmpty)
+                  _EmptyBulletin(trimestre: trimestre)
+                else
+                  _BulletinSummaryCard(
+                    notes: notes,
+                    trimestre: trimestre,
+                    mentionFn: _mention,
+                    mentionColorFn: _mentionColor,
+                  ),
+                const SizedBox(height: 16),
+
+                // Bouton bulletin complet
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => EleveReleveNotesPage(
+                          eleveUid: enfantUid,
+                          eleveNom: enfantNom,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(
+                        Icons.description_outlined,
+                        size: 16),
+                    label: Text(
+                        'Voir le bulletin complet T$trimestre'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6C47FF),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(12)),
+                      textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ── Publication status card ───────────────────────────────────────────────────
+
+class _PublicationStatusCard extends StatelessWidget {
+  final bool publie;
+  final int trimestre;
+  final BulletinValidationModel? validation;
+  const _PublicationStatusCard(
+      {required this.publie,
+      required this.trimestre,
+      this.validation});
+
+  @override
+  Widget build(BuildContext context) {
+    if (publie) {
+      final ts = validation?.datePub;
+      final dateStr = ts != null
+          ? ' · ${ts.toDate().day.toString().padLeft(2, '0')}/${ts.toDate().month.toString().padLeft(2, '0')}/${ts.toDate().year}'
+          : '';
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF16A34A).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: const Color(0xFF16A34A).withValues(alpha: 0.3)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.verified_outlined,
+              color: Color(0xFF16A34A), size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Bulletin T$trimestre validé par la Direction',
+                  style: const TextStyle(
+                      color: Color(0xFF16A34A),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13),
+                ),
+                if (dateStr.isNotEmpty)
+                  Text(dateStr.trimLeft(),
+                      style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 11)),
+              ],
+            ),
+          ),
+        ]),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD97706).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: const Color(0xFFD97706).withValues(alpha: 0.25)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.hourglass_empty_outlined,
+            color: Color(0xFFD97706), size: 18),
+        const SizedBox(width: 10),
+        Text(
+          'Bulletin T$trimestre en cours de préparation',
+          style: const TextStyle(
+              color: Color(0xFFD97706),
+              fontWeight: FontWeight.w600,
+              fontSize: 13),
+        ),
+      ]),
+    );
+  }
+}
+
+// ── Résumé du bulletin ────────────────────────────────────────────────────────
+
+class _BulletinSummaryCard extends StatelessWidget {
+  final List<NoteModel> notes;
+  final int trimestre;
+  final String Function(double) mentionFn;
+  final Color Function(double) mentionColorFn;
+
+  const _BulletinSummaryCard({
+    required this.notes,
+    required this.trimestre,
+    required this.mentionFn,
+    required this.mentionColorFn,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final byMatiere = <String, List<NoteModel>>{};
+    for (final n in notes) {
+      (byMatiere[n.matiere] ??= []).add(n);
+    }
+    final moyParMat = byMatiere.map((m, ns) {
+      final avg = ns.fold<double>(0, (s, n) => s + n.sur20) / ns.length;
+      return MapEntry(m, avg);
+    });
+    final moyGen = moyParMat.isEmpty
+        ? 0.0
+        : moyParMat.values.reduce((a, b) => a + b) / moyParMat.length;
+    final mention = mentionFn(moyGen);
+    final color = mentionColorFn(moyGen);
+    final sortedMat = moyParMat.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF161B22),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header moy générale
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [
+                    color.withValues(alpha: 0.15),
+                    color.withValues(alpha: 0.05)
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(14)),
+            ),
+            child: Row(children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text('Trimestre $trimestre',
+                        style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${moyGen.toStringAsFixed(2)} / 20',
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    Text('${notes.length} note(s) · ${byMatiere.length} matière(s)',
+                        style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 11)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: color.withValues(alpha: 0.3)),
+                ),
+                child: Text(mention,
+                    style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12)),
+              ),
+            ]),
+          ),
+          // Matières
+          ...sortedMat.map((e) => Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 8),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(e.key,
+                        style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13)),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: mentionColorFn(e.value)
+                          .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${e.value.toStringAsFixed(2)}/20',
+                      style: TextStyle(
+                          color: mentionColorFn(e.value),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12),
+                    ),
+                  ),
+                ]),
+              )),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Empty bulletin ────────────────────────────────────────────────────────────
+
+class _EmptyBulletin extends StatelessWidget {
+  final int trimestre;
+  const _EmptyBulletin({required this.trimestre});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          vertical: 32, horizontal: 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161B22),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.inbox_outlined,
+            color: Colors.white24, size: 42),
+        const SizedBox(height: 12),
+        Text('Aucune note publiée pour le Trimestre $trimestre',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                color: Colors.white38, fontSize: 13)),
+        const SizedBox(height: 4),
+        const Text(
+          'Les notes apparaîtront ici une fois saisies\npar les professeurs.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white24, fontSize: 11),
+        ),
+      ]),
+    );
+  }
+}
 
 

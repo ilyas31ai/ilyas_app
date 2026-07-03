@@ -8,9 +8,11 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../models/appreciation_model.dart';
+import '../models/bulletin_validation_model.dart';
 import '../models/note_model.dart';
 import '../models/user_model.dart';
 import '../services/appreciation_service.dart';
+import '../services/bulletin_validation_service.dart';
 import '../services/etudiant_service.dart';
 import '../services/user_service.dart';
 
@@ -498,6 +500,7 @@ class _ReleveBodyState extends State<_ReleveBody> {
 
     // Trigger rank computation for direction
     final classeNom = notes.isNotEmpty ? notes.first.classeNom : '';
+    final classeId = notes.isNotEmpty ? notes.first.classeId : '';
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (_rang == null && classeNom.isNotEmpty) {
         final user = await UserService.currentUserStream().first;
@@ -521,6 +524,14 @@ class _ReleveBodyState extends State<_ReleveBody> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
       children: [
+        // Badge de publication (direction)
+        if (classeId.isNotEmpty && _period != _Period.annee)
+          _PublicationBanner(
+            classeId: classeId,
+            trimestre: _period.index + 1,
+            anneeScol: DateTime.now().year,
+          ),
+
         // Hero card
         _HeroCard(
           nom: nom,
@@ -1200,6 +1211,71 @@ class _ConseilCard extends StatelessWidget {
             style: const TextStyle(
                 color: Colors.white60, fontSize: 13, height: 1.5)),
       ]),
+    );
+  }
+}
+
+// ─── Badge de publication Direction ──────────────────────────────────────────
+
+class _PublicationBanner extends StatelessWidget {
+  final String classeId;
+  final int trimestre;
+  final int anneeScol;
+  const _PublicationBanner({
+    required this.classeId,
+    required this.trimestre,
+    required this.anneeScol,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<BulletinValidationModel?>(
+      stream: BulletinValidationService.stream(
+          classeId: classeId,
+          trimestre: trimestre,
+          anneeScol: anneeScol),
+      builder: (ctx, snap) {
+        // Pas encore chargé : rien
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+        final val = snap.data;
+        final publie = val?.publie ?? false;
+        if (!publie) return const SizedBox.shrink();
+
+        final dateStr = val?.datePub != null
+            ? ' · ${val!.datePub!.toDate().day.toString().padLeft(2, '0')}/'
+                '${val.datePub!.toDate().month.toString().padLeft(2, '0')}/'
+                '${val.datePub!.toDate().year}'
+            : '';
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.symmetric(
+              horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF16A34A).withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: const Color(0xFF16A34A).withValues(alpha: 0.3),
+            ),
+          ),
+          child: Row(children: [
+            const Icon(Icons.verified_outlined,
+                color: Color(0xFF16A34A), size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Bulletin T$trimestre validé par la Direction$dateStr',
+                style: const TextStyle(
+                    color: Color(0xFF16A34A),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12),
+              ),
+            ),
+          ]),
+        );
+      },
     );
   }
 }

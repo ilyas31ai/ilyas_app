@@ -328,6 +328,14 @@ service cloud.firestore {
       allow read: if isDirection();
     }
 
+    // ── Validations de bulletins (publication par la Direction) ──────────────
+    match /bulletin_validations/{id} {
+      // Tout utilisateur authentifié peut lire (pour afficher le badge)
+      allow read: if isAuth();
+      // Seule la Direction peut publier / dépublier
+      allow create, update, delete: if isDirection();
+    }
+
     // ── Appréciations de bulletins ───────────────────────────────────────────
     match /appreciations/{id} {
       allow read: if isDirection() ||
