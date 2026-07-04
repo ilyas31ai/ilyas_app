@@ -61,7 +61,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _sub = UserService.currentUserStream().listen((u) {
       if (mounted) setState(() => _profile = u);
-      // Notifications bulletin pour les élèves
+      // Notifications élève — bulletins + corrections devoirs
       if (u?.role == UserRole.eleve &&
           u?.classeId != null &&
           u!.classeId!.isNotEmpty) {
@@ -69,6 +69,7 @@ class _HomePageState extends State<HomePage> {
             ? DateTime.now().year
             : DateTime.now().year - 1;
         NotificationService.initEleveListeners(u.classeId!, year);
+        NotificationService.initEleveSubmissionListeners(u.uid);
       }
     });
   }

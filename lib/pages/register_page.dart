@@ -222,7 +222,10 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (role == UserRole.parent && _enfantEmailCtrl.text.trim().isNotEmpty) {
         await UserService.syncProfile(role: UserRole.parent);
-        // TODO: déclencher liaison parent-enfant via email
+        await UserService.linkParentToChildByEmail(
+          uid,
+          _enfantEmailCtrl.text.trim(),
+        );
       }
 
       if (mounted) {

@@ -15,7 +15,10 @@ class NotificationService {
 
   static final List<StreamSubscription> _parentSubs = [];
   static final List<StreamSubscription> _eleveSubs = [];
+  static final List<StreamSubscription> _profSubs = [];
+  static final List<StreamSubscription> _messagerieSubs = [];
   static final Set<String> _notifiedBulletins = {};
+  static final Set<String> _notifiedCorrections = {};
 
   static Future<void> init(String currentUser) async {
     await _fcm.requestPermission(alert: true, badge: true, sound: true);
@@ -229,6 +232,153 @@ class NotificationService {
         }),
       );
     }
+  }
+
+  // ── Listener professeur — nouvelles soumissions ───────────────────────────
+
+  static Future<void> initProfesseurListeners(String profUid) async {
+    await disposeProfesseurListeners();
+    if (profUid.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString('pn_sub_at') == null) {
+      await prefs.setString('pn_sub_at', DateTime.now().toIso8601String());
+    }
+
+    _profSubs.add(
+      FirebaseFirestore.instance
+          .collection('submissions')
+          .where('teacherId', isEqualTo: profUid)
+          .orderBy('createdAt', descending: true)
+          .limit(10)
+          .snapshots()
+          .listen((snap) async {
+        final lastAt =
+            DateTime.tryParse(prefs.getString('pn_sub_at') ?? '') ??
+                DateTime.now();
+        for (final change in snap.docChanges) {
+          if (change.type != DocumentChangeType.added) continue;
+          final d = change.doc.data() ?? {};
+          final ts = d['createdAt'] as Timestamp?;
+          if (ts == null) continue;
+          final date = ts.toDate();
+          if (!date.isAfter(lastAt)) continue;
+          final titre = d['devoirTitre'] as String? ?? 'Devoir';
+          final nomEleve = d['studentNom'] as String? ?? 'Un élève';
+          await _showOnChannel(
+            id: 30,
+            title: 'Nouvelle soumission',
+            body: '$nomEleve a rendu "$titre"',
+            channelId: 'devoirs_profs',
+            channelName: 'Devoirs rendus',
+          );
+          await prefs.setString('pn_sub_at', DateTime.now().toIso8601String());
+          break;
+        }
+      }),
+    );
+  }
+
+  // ── Listener élève — corrections disponibles ──────────────────────────────
+
+  static Future<void> initEleveSubmissionListeners(String eleveUid) async {
+    if (eleveUid.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString('pn_cor_at') == null) {
+      await prefs.setString('pn_cor_at', DateTime.now().toIso8601String());
+    }
+
+    _eleveSubs.add(
+      FirebaseFirestore.instance
+          .collection('submissions')
+          .where('studentId', isEqualTo: eleveUid)
+          .snapshots()
+          .listen((snap) async {
+        final lastAt =
+            DateTime.tryParse(prefs.getString('pn_cor_at') ?? '') ??
+                DateTime.now();
+        for (final change in snap.docChanges) {
+          if (change.type != DocumentChangeType.modified) continue;
+          final d = change.doc.data() ?? {};
+          if ((d['status'] as String?) != 'corrected') continue;
+          final subId = change.doc.id;
+          if (_notifiedCorrections.contains(subId)) continue;
+          final ts = d['createdAt'] as Timestamp?;
+          if (ts != null && !ts.toDate().isAfter(lastAt)) continue;
+          _notifiedCorrections.add(subId);
+          final titre = d['devoirTitre'] as String? ?? 'Devoir';
+          await _showOnChannel(
+            id: 31,
+            title: 'Devoir corrigé',
+            body: 'Tu peux consulter la correction de "$titre"',
+            channelId: 'devoirs_corrections',
+            channelName: 'Corrections disponibles',
+          );
+          await prefs.setString('pn_cor_at', DateTime.now().toIso8601String());
+          break;
+        }
+      }),
+    );
+  }
+
+  // ── Listener messagerie — nouveaux messages ───────────────────────────────
+
+  static Future<void> initMessagerieListeners(String uid) async {
+    await disposeMessagerieListeners();
+    if (uid.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString('pn_msg_at') == null) {
+      await prefs.setString('pn_msg_at', DateTime.now().toIso8601String());
+    }
+
+    _messagerieSubs.add(
+      FirebaseFirestore.instance
+          .collection('conversations')
+          .where('participantIds', arrayContains: uid)
+          .orderBy('lastMessageAt', descending: true)
+          .limit(20)
+          .snapshots()
+          .listen((snap) async {
+        final lastAt =
+            DateTime.tryParse(prefs.getString('pn_msg_at') ?? '') ??
+                DateTime.now();
+        for (final change in snap.docChanges) {
+          if (change.type != DocumentChangeType.modified) continue;
+          final d = change.doc.data() ?? {};
+          final senderId = d['lastSenderId'] as String? ?? '';
+          if (senderId == uid || senderId.isEmpty) continue;
+          final ts = d['lastMessageAt'] as Timestamp?;
+          if (ts == null || !ts.toDate().isAfter(lastAt)) continue;
+          final senderNom = d['lastSenderNom'] as String? ?? 'Quelqu\'un';
+          final lastMsg = d['lastMessage'] as String? ?? '';
+          await _showOnChannel(
+            id: 40,
+            title: 'Nouveau message de $senderNom',
+            body: lastMsg.isNotEmpty ? lastMsg : 'Nouveau message',
+            channelId: 'messagerie',
+            channelName: 'Messagerie',
+          );
+          await prefs.setString('pn_msg_at', DateTime.now().toIso8601String());
+          break;
+        }
+      }),
+    );
+  }
+
+  static Future<void> disposeProfesseurListeners() async {
+    for (final sub in _profSubs) {
+      await sub.cancel();
+    }
+    _profSubs.clear();
+  }
+
+  static Future<void> disposeMessagerieListeners() async {
+    for (final sub in _messagerieSubs) {
+      await sub.cancel();
+    }
+    _messagerieSubs.clear();
   }
 
   static Future<void> disposeEleveListeners() async {

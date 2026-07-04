@@ -28,15 +28,24 @@ class _MainShellState extends State<MainShell> {
     SocialService.goOnline();
     UserService.syncProfile();
     NotificationService.init(_user);
-    _maybeInitParentListeners();
+    _maybeInitRoleListeners();
   }
 
-  void _maybeInitParentListeners() {
+  void _maybeInitRoleListeners() {
     UserService.currentUserStream().first.then((user) {
-      if (user != null &&
-          user.role == UserRole.parent &&
-          user.enfantIds.isNotEmpty) {
+      if (user == null) return;
+      final uid = user.uid;
+
+      // Messagerie — tous les rôles
+      NotificationService.initMessagerieListeners(uid);
+
+      // Rôle parent
+      if (user.role == UserRole.parent && user.enfantIds.isNotEmpty) {
         NotificationService.initParentListeners(user.enfantIds);
+      }
+      // Rôle professeur
+      if (user.role == UserRole.professeur) {
+        NotificationService.initProfesseurListeners(uid);
       }
     });
   }
@@ -45,6 +54,8 @@ class _MainShellState extends State<MainShell> {
   void dispose() {
     SocialService.goOffline();
     NotificationService.disposeParentListeners();
+    NotificationService.disposeProfesseurListeners();
+    NotificationService.disposeMessagerieListeners();
     super.dispose();
   }
 

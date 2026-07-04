@@ -163,6 +163,45 @@ class UserService {
     }
   }
 
+  /// Lie un parent à un enfant en cherchant l'enfant par email dans `users`.
+  /// Met à jour enfantIds / enfantClasseIds du parent.
+  static Future<void> linkParentToChildByEmail(
+      String parentUid, String childEmail) async {
+    if (parentUid.isEmpty || childEmail.isEmpty) return;
+    try {
+      final snap = await _db
+          .collection('users')
+          .where('email', isEqualTo: childEmail)
+          .limit(1)
+          .get();
+
+      final update = <String, dynamic>{};
+      if (snap.docs.isNotEmpty) {
+        final child = snap.docs.first.data();
+        final childUid = child['uid'] as String? ?? snap.docs.first.id;
+        final classeId = child['classeId'] as String? ?? '';
+        if (childUid.isNotEmpty) {
+          update['enfantIds'] = FieldValue.arrayUnion([childUid]);
+        }
+        if (classeId.isNotEmpty) {
+          update['enfantClasseIds'] = FieldValue.arrayUnion([classeId]);
+        }
+        if (update.isNotEmpty) {
+          await _db.collection('users').doc(parentUid).update(update);
+          return;
+        }
+      }
+
+      // Fallback via collection `parents` (liaison pré-inscription)
+      final parentEmail = FirebaseAuth.instance.currentUser?.email ?? '';
+      if (parentEmail.isNotEmpty) {
+        await _syncParentEnfantIds(parentUid, parentEmail);
+      }
+    } catch (_) {
+      // Best-effort — la liaison sera complétée à la prochaine connexion
+    }
+  }
+
   /// Stream of the current authenticated user's profile.
   static Stream<UserModel?> currentUserStream() {
     final uid = _uid;
