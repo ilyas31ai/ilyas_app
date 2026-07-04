@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -18,8 +17,6 @@ const _kCard2  = Color(0xFF1F2937);
 const _kBorder = Color(0xFF30363D);
 const _kBlue   = Color(0xFF2563EB);
 const _kPurple = Color(0xFF6C47FF);
-const _kGreen  = Color(0xFF16A34A);
-const _kOrange = Color(0xFFD97706);
 const _kRed    = Color(0xFFDC2626);
 
 // ─── Entry point ──────────────────────────────────────────────────────────────

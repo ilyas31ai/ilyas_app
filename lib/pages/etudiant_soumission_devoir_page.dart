@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -16,7 +15,6 @@ import '../services/etudiant_service.dart';
 const _kBg     = Color(0xFF0D1117);
 const _kCard   = Color(0xFF161B22);
 const _kCard2  = Color(0xFF1F2937);
-const _kBorder = Color(0xFF30363D);
 const _kBlue   = Color(0xFF2563EB);
 const _kPurple = Color(0xFF6C47FF);
 const _kGreen  = Color(0xFF16A34A);
@@ -116,7 +114,6 @@ class _EtudiantSoumissionDevoirPageState
     }
     setState(() => _saving = true);
     try {
-      final user = FirebaseAuth.instance.currentUser;
       await EtudiantService.submitDevoirComplet(
         assignmentId: widget.devoir.id,
         teacherId: widget.devoir.professeurId,
