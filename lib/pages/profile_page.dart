@@ -498,7 +498,7 @@ class _ProfilePageState extends State<ProfilePage> {
         const SizedBox(height: 8),
         _ActionTile(
           icon: Icons.hub_outlined,
-          label: 'SCOLAR Connect',
+          label: 'SCOLAR AI Educative',
           onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
         ),
         const SizedBox(height: 8),

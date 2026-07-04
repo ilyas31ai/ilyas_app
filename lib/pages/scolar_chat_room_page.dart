@@ -324,7 +324,7 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
                 if (!_isGroup)
                   OnlineLabel(username: widget.name)
                 else
-                  const Text('SCOLAR Connect',
+                  const Text('SCOLAR AI Educative',
                       style: TextStyle(color: Colors.white38, fontSize: 11)),
               ],
             ),

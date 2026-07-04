@@ -181,7 +181,7 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
 
   void _shareCode(String code, String schoolNom) {
     Clipboard.setData(ClipboardData(
-        text: 'Rejoignez $schoolNom sur SCOLAR AI avec le code : $code'));
+        text: 'Rejoignez $schoolNom sur SCOLAR AI Educative avec le code : $code'));
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: const Text('Message copié — partagez-le à vos utilisateurs'),
       backgroundColor: _blue,
@@ -402,7 +402,7 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold)),
-            Text('SCOLAR Connect · Direction',
+            Text('SCOLAR AI Educative · Direction',
                 style: TextStyle(color: Colors.white38, fontSize: 11)),
           ],
         ),
@@ -647,7 +647,7 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
                               letterSpacing: 6,
                             )),
                         const Spacer(),
-                        Text('SCOLAR AI',
+                        Text('SCOLAR AI Educative',
                             style: TextStyle(
                                 color:
                                     Colors.white.withValues(alpha: 0.2),

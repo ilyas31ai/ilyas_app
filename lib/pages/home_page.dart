@@ -164,12 +164,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   String get _roleSubtitle {
-    if (PermissionService.isDirection(_role)) return 'SCOLAR AI · Direction';
-    if (_role == UserRole.professeur) return 'SCOLAR AI · Professeur';
-    if (_role == UserRole.parent) return 'SCOLAR AI · Parent';
+    if (PermissionService.isDirection(_role)) return 'SCOLAR AI Educative · Direction';
+    if (_role == UserRole.professeur) return 'SCOLAR AI Educative · Professeur';
+    if (_role == UserRole.parent) return 'SCOLAR AI Educative · Parent';
     final niveau = _profile?.niveau;
-    if (niveau != null && niveau.isNotEmpty) return 'SCOLAR AI · $niveau';
-    return 'SCOLAR AI · Élève';
+    if (niveau != null && niveau.isNotEmpty) return 'SCOLAR AI Educative · $niveau';
+    return 'SCOLAR AI Educative · Élève';
   }
 
   // ─── Banner ────────────────────────────────────────────────────────────────
@@ -396,7 +396,7 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 8),
         _ToolCard(
           icon: Icons.chat_bubble_outline,
-          title: 'SCOLAR Connect',
+          title: 'SCOLAR AI Educative',
           subtitle: 'Discussions avec vos contacts',
           colors: const [Color(0xFF374151), Color(0xFF1F2937)],
           onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
@@ -563,7 +563,7 @@ class _EleveFullDashboard extends StatelessWidget {
                 Text(
                   profile.niveau != null && profile.niveau!.isNotEmpty
                       ? '${profile.niveau} · ${profile.classeNom ?? ''}'
-                      : profile.classeNom ?? 'SCOLAR AI · Élève',
+                      : profile.classeNom ?? 'SCOLAR AI Educative · Élève',
                   style: const TextStyle(color: Colors.white38, fontSize: 11),
                 ),
               ],
@@ -1454,7 +1454,7 @@ class _EleveCommunicationTools extends StatelessWidget {
         const SizedBox(height: 8),
         _CommCard(
           icon: Icons.chat_bubble_outline,
-          title: 'SCOLAR Connect',
+          title: 'SCOLAR AI Educative',
           subtitle: 'Discussions avec vos contacts',
           colors: const [Color(0xFF374151), Color(0xFF1F2937)],
           onTap: () => Navigator.pushNamed(context, '/scolar_connect'),

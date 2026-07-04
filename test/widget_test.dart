@@ -8,7 +8,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  // Widget tests for ScolarAI Educative — à implémenter selon les besoins.
+  // Widget tests for SCOLAR AI Educative — à implémenter selon les besoins.
   testWidgets('App smoke test placeholder', (WidgetTester tester) async {
     // placeholder — Firebase app init requise pour les vrais tests
     expect(true, isTrue);

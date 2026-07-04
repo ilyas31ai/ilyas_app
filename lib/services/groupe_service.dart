@@ -8,7 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 
 import '../models/groupe_model.dart';
 
-/// Service Firestore pour la gestion des groupes d'étude SCOLAR Connect.
+/// Service Firestore pour la gestion des groupes d'étude SCOLAR AI Educative.
 ///
 /// Collection : `scolar_groupes/{groupeId}`
 /// Sous-collections : `membres/{uid}`, `documents/{docId}`, `objectifs/{objId}`

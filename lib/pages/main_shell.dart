@@ -100,7 +100,7 @@ class _MainShellState extends State<MainShell> {
             BottomNavigationBarItem(
               icon: Icon(Icons.hub_outlined),
               activeIcon: Icon(Icons.hub),
-              label: 'Connect',
+              label: 'Réseau',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),

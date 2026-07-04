@@ -43,7 +43,7 @@ class AiResponseService {
       'Informatique': 'les algorithmes, Python ou Flutter',
     };
     final topic = topicMap[subject] ?? 'ta matiere';
-    return 'Bonjour ! Je suis **SCOLAR AI**, ton assistant scolaire.\n\n'
+    return 'Bonjour ! Je suis **SCOLAR AI Educative**, ton assistant scolaire.\n\n'
         'Je suis configure pour t aider en **$subject** au niveau **$level**.\n\n'
         'Ce que je peux faire :\n'
         '- Expliquer des notions et concepts\n'

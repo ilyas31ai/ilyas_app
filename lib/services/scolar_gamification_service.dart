@@ -53,7 +53,7 @@ class BadgeInfo {
   });
 }
 
-/// Gère la gamification pour SCOLAR Connect.
+/// Gère la gamification pour SCOLAR AI Educative.
 /// Collection Firestore : scolar_gamification/{uid}
 /// Champs : xp, level, badges, streak, weeklyXp, lastActivity
 class ScolarGamificationService {
@@ -168,7 +168,7 @@ class ScolarGamificationService {
     'Premier Pas': BadgeInfo(
       name: 'Premier Pas', emoji: '👋', colorValue: 0xFF9CA3AF,
       rarity: BadgeRarity.commun,
-      description: 'Bienvenue sur SCOLAR Connect !',
+      description: 'Bienvenue sur SCOLAR AI Educative !',
     ),
     'Curieux': BadgeInfo(
       name: 'Curieux', emoji: '🔍', colorValue: 0xFF6B7280,

@@ -1,7 +1,7 @@
 {
   "name": "ilyas-app-firestore-tests",
   "version": "1.0.0",
-  "description": "Tests de sécurité Firestore pour ScolarAI Educative",
+  "description": "Tests de sécurité Firestore pour SCOLAR AI Educative",
   "scripts": {
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand"

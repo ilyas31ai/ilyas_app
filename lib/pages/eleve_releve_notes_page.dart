@@ -294,7 +294,7 @@ class _ReleveBodyState extends State<_ReleveBody>
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('SCOLAR Connect — Bulletin de notes',
+                  pw.Text('SCOLAR AI Educative — Bulletin de notes',
                       style: pw.TextStyle(
                           fontSize: 16,
                           fontWeight: pw.FontWeight.bold,

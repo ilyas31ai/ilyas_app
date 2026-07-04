@@ -11,8 +11,8 @@ class AppRoutes {
 
   // ── Shell & Global ──────────────────────────────────────────────────────────
   static const notifications = '/notifications'; // → existant
-  static const messages = '/scolar_connect'; // → SCOLAR Connect
-  static const eleveDiscussion = '/scolar_connect'; // → SCOLAR Connect
+  static const messages = '/scolar_connect'; // → SCOLAR AI Educative (Réseau)
+  static const eleveDiscussion = '/scolar_connect'; // → SCOLAR AI Educative (Réseau)
   static const scolarConnect = '/scolar_connect';
   static const messagerie = '/messagerie';
   static const espaceDirection = '/espace_direction'; // → existant

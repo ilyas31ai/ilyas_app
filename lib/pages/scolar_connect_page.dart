@@ -91,7 +91,7 @@ class _SCOLARConnectPageState extends State<SCOLARConnectPage>
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    'SCOLAR Connect',
+                    'SCOLAR AI Educative',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -212,7 +212,7 @@ class _AccueilTab extends StatelessWidget {
                 const Text('Bienvenue sur',
                     style: TextStyle(
                         color: Colors.white54, fontSize: 12)),
-                const Text('SCOLAR Connect',
+                const Text('SCOLAR AI Educative',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 22,

@@ -1,11 +1,11 @@
 {
-    "name": "ScolarAI Educative",
-    "short_name": "ScolarAI",
+    "name": "SCOLAR AI Educative",
+    "short_name": "SCOLAR AI Educative",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0D1117",
     "theme_color": "#6C47FF",
-    "description": "ScolarAI Educative - Assistant scolaire intelligent multi-cycles",
+    "description": "SCOLAR AI Educative - Assistant scolaire intelligent multi-cycles",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
