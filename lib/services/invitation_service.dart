@@ -29,7 +29,8 @@ class InvitationService {
     required String teacherName,
     int validityDays = 7,
   }) async {
-    final director = _auth.currentUser!;
+    final director = _auth.currentUser;
+    if (director == null) throw Exception('Session expirée, reconnectez-vous.');
     final dirDoc = await _db.collection('users').doc(director.uid).get();
     final dirData = dirDoc.data() ?? {};
     final schoolId = dirData['schoolId'] as String? ?? director.uid;
@@ -76,7 +77,8 @@ class InvitationService {
 
   /// L'enseignant saisit son code. Le système vérifie et active le compte.
   static Future<void> utiliserCode(String code) async {
-    final user = _auth.currentUser!;
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Session expirée, reconnectez-vous.');
     final trimmed = code.trim().toUpperCase();
 
     final query = await _db
@@ -114,7 +116,6 @@ class InvitationService {
 
     batch.update(_db.collection('users').doc(user.uid), {
       'teacherStatus': 'active',
-      'linkedSchool': inv.schoolId,
       'linkedSchoolNom': inv.schoolNom,
       'schoolId': inv.schoolId,
       'statut': 'actif',

@@ -119,6 +119,19 @@ class _SearchTab extends StatelessWidget {
                       color: Color(0xFF6C47FF)),
                 );
               }
+              if (snap.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Erreur Firestore : ${snap.error}',
+                      style: const TextStyle(
+                          color: Color(0xFFEF4444), fontSize: 13),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
               final all = snap.data ?? [];
               final filtered = _filter(all);
               if (filtered.isEmpty) {
@@ -302,6 +315,14 @@ class _TeacherCard extends StatefulWidget {
 class _TeacherCardState extends State<_TeacherCard> {
   bool _generating = false;
   TeacherInvitation? _generated;
+
+  @override
+  void didUpdateWidget(covariant _TeacherCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.validityDays != widget.validityDays) {
+      setState(() => _generated = null);
+    }
+  }
 
   Future<void> _generer() async {
     setState(() => _generating = true);
@@ -567,6 +588,19 @@ class _InvitationsTab extends StatelessWidget {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(color: Color(0xFF6C47FF)),
+          );
+        }
+        if (snap.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Erreur Firestore : ${snap.error}',
+                style: const TextStyle(
+                    color: Color(0xFFEF4444), fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+            ),
           );
         }
         final list = snap.data ?? [];

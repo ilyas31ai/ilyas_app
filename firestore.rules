@@ -137,11 +137,11 @@ service cloud.firestore {
     match /classes/{id} {
       allow read: if isAuth();
       allow create: if isDirection() ||
-        (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow update: if isDirection() ||
-        (isProfesseur() && resource.data.professeurId == request.auth.uid) ||
-        // Professeur peut se lier à une classe sans professeur (champs prof uniquement)
-        (isProfesseur() &&
+        (isActiveProfesseur() && resource.data.professeurId == request.auth.uid) ||
+        // Professeur actif peut se lier à une classe sans professeur (champs prof uniquement)
+        (isActiveProfesseur() &&
           resource.data.get('professeurId', '') == '' &&
           request.resource.data.professeurId == request.auth.uid &&
           request.resource.data.diff(resource.data)
@@ -161,9 +161,9 @@ service cloud.firestore {
         isParentInClass(resource.data.get('classeId', ''))
       );
       allow create: if isDirection() ||
-        (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow update, delete: if isDirection() ||
-        (isProfesseur() && resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && resource.data.professeurId == request.auth.uid);
     }
 
     // ── Devoirs ──────────────────────────────────────────────────────────────
@@ -171,9 +171,9 @@ service cloud.firestore {
       allow read: if isDirection() || isProfesseur() || isEleve() ||
         isParentInClass(resource.data.get('classeId', ''));
       allow create: if isDirection() ||
-        (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow update, delete: if isDirection() ||
-        (isProfesseur() && resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && resource.data.professeurId == request.auth.uid);
     }
 
     // ── Notes ────────────────────────────────────────────────────────────────
@@ -188,9 +188,9 @@ service cloud.firestore {
         (isEleve() && resource.data.eleveId == request.auth.uid) ||
         (isParentOf(resource.data.eleveId) && resource.data.publie == true);
       allow create: if isDirection() ||
-        (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow update, delete: if isDirection() ||
-        (isProfesseur() && resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && resource.data.professeurId == request.auth.uid);
     }
 
     // ── Documents pédagogiques ───────────────────────────────────────────────
@@ -200,9 +200,9 @@ service cloud.firestore {
         isParentInClass(resource.data.get('classeId', ''))
       );
       allow create: if isDirection() ||
-        (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow update, delete: if isDirection() ||
-        (isProfesseur() && resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && resource.data.professeurId == request.auth.uid);
     }
 
     // ── Annonces ─────────────────────────────────────────────────────────────
@@ -230,8 +230,8 @@ service cloud.firestore {
           resource.data.statut == 'brouillon' &&
           // Interdit de changer l'identifiant du devoir ou de l'élève
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['devoirId', 'eleveId'])) ||
-        // Prof peut corriger / ajouter sa note
-        (isProfesseur() && resource.data.professeurId == request.auth.uid &&
+        // Prof actif peut corriger / ajouter sa note
+        (isActiveProfesseur() && resource.data.professeurId == request.auth.uid &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['eleveId', 'devoirId']));
       allow delete: if isDirection();
     }
@@ -250,11 +250,11 @@ service cloud.firestore {
         // L'élève peut mettre à jour sa remise (resoumission)
         (isEleve() && resource.data.studentId == request.auth.uid &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['studentId', 'assignmentId'])) ||
-        // Le prof peut annoter / changer le statut
-        (isProfesseur() && resource.data.teacherId == request.auth.uid &&
+        // Le prof actif peut annoter / changer le statut
+        (isActiveProfesseur() && resource.data.teacherId == request.auth.uid &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['studentId', 'assignmentId']));
       allow delete: if isDirection() ||
-        (isProfesseur() && resource.data.teacherId == request.auth.uid);
+        (isActiveProfesseur() && resource.data.teacherId == request.auth.uid);
     }
 
     // ── Présences ────────────────────────────────────────────────────────────
@@ -266,9 +266,9 @@ service cloud.firestore {
         isParentOf(resource.data.eleveId)
       );
       allow create: if isDirection() ||
-        (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow update, delete: if isDirection() ||
-        (isProfesseur() && resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && resource.data.professeurId == request.auth.uid);
     }
 
     // ── Élèves ────────────────────────────────────────────────────────────────
@@ -376,22 +376,22 @@ service cloud.firestore {
         (isEleve() && resource.data.eleveId == request.auth.uid) ||
         isParentOf(resource.data.eleveId);
       allow create, update: if isDirection() ||
-        (isProfesseur() && request.resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && request.resource.data.professeurId == request.auth.uid);
       allow delete: if isDirection() ||
-        (isProfesseur() && resource.data.professeurId == request.auth.uid);
+        (isActiveProfesseur() && resource.data.professeurId == request.auth.uid);
     }
 
     // ── Récapitulatif bulletins (prof principal) ──────────────────────────────
     match /bulletins_recap/{id} {
       // Tous les utilisateurs authentifiés peuvent lire (élèves, parents, direction)
       allow read: if isAuth();
-      // Création : le prof qui est professeurId de la classe
-      allow create: if isProfesseur() &&
+      // Création : le prof actif qui est professeurId de la classe
+      allow create: if isActiveProfesseur() &&
         request.resource.data.get('classeId', '') != '' &&
         get(/databases/$(database)/documents/classes/$(request.resource.data.classeId))
           .data.get('professeurId', '') == request.auth.uid;
       // Mise à jour : même vérification sur la classe existante
-      allow update: if isProfesseur() &&
+      allow update: if isActiveProfesseur() &&
         resource.data.get('classeId', '') != '' &&
         get(/databases/$(database)/documents/classes/$(resource.data.classeId))
           .data.get('professeurId', '') == request.auth.uid;

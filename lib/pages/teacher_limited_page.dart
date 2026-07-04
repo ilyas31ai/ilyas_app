@@ -61,17 +61,24 @@ class _TeacherLimitedPageState extends State<TeacherLimitedPage> {
     });
     try {
       await InvitationService.utiliserCode(code);
-      // Le StreamBuilder de main.dart réagit automatiquement au changement
-      // de teacherStatus et redirige vers MainShell.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Établissement rejoint ! Redirection en cours…'),
+            backgroundColor: Color(0xFF059669),
+          ),
+        );
+      }
+      // Garder _loading = true : le StreamBuilder de main.dart remplacera
+      // cette page dès que teacherStatus passe à 'active' en Firestore.
+      return;
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMsg =
-              e.toString().replaceFirst('Exception: ', '');
+          _errorMsg = e.toString().replaceFirst('Exception: ', '');
+          _loading = false;
         });
       }
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
