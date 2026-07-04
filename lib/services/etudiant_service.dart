@@ -155,6 +155,20 @@ class EtudiantService {
     });
   }
 
+  // ── Tous les devoirs d'une classe (interactifs + PDF) ──────────────────────
+  static Stream<List<DevoirModel>> allDevoirsStream(String classeNom) {
+    if (classeNom.isEmpty) return Stream.value([]);
+    return _db
+        .collection('devoirs')
+        .where('classeNom', isEqualTo: classeNom)
+        .orderBy('dateEnvoi', descending: true)
+        .snapshots()
+        .handleError((Object e) {
+      debugPrint('[Etudiant] allDevoirsStream ERROR [classeNom=$classeNom]: $e');
+      throw e;
+    }).map((s) => s.docs.map(DevoirModel.fromFirestore).toList());
+  }
+
   // ── Soumissions ─────────────────────────────────────────────────────────────
   static Stream<List<SubmissionModel>> submissionsStream() {
     final uid = _uid;
@@ -187,6 +201,77 @@ class EtudiantService {
       if (s.docs.isEmpty) return null;
       return SubmissionModel.fromFirestore(s.docs.first);
     });
+  }
+
+  // Soumission avec texte + pièces jointes multiples
+  static Future<void> submitDevoirComplet({
+    required String assignmentId,
+    required String teacherId,
+    required String devoirTitre,
+    required String classeId,
+    required String classeNom,
+    String textReponse = '',
+    List<File> fichiers = const [],
+    List<String> nomsFichiers = const [],
+    String commentaire = '',
+  }) async {
+    final uid = _uid;
+    final user = FirebaseAuth.instance.currentUser;
+
+    final piecesJointes = <Map<String, String>>[];
+    for (var i = 0; i < fichiers.length; i++) {
+      final nom = i < nomsFichiers.length
+          ? nomsFichiers[i]
+          : fichiers[i].path.split('/').last;
+      final token = _storageToken();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final ref = _storage.ref('submissions/$uid/${ts}_$nom');
+      final bytes = await fichiers[i].readAsBytes();
+      final snap = await ref.putData(
+        bytes,
+        SettableMetadata(
+            customMetadata: {'firebaseStorageDownloadTokens': token}),
+      );
+      if (snap.state == TaskState.success) {
+        final bucket = snap.ref.bucket;
+        final encoded = Uri.encodeComponent(snap.ref.fullPath);
+        final url =
+            'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encoded?alt=media&token=$token';
+        final ext = nom.split('.').last.toLowerCase();
+        piecesJointes.add({'url': url, 'nom': nom, 'type': ext});
+      }
+    }
+
+    final existingSnap = await _db
+        .collection('submissions')
+        .where('studentId', isEqualTo: uid)
+        .where('assignmentId', isEqualTo: assignmentId)
+        .limit(1)
+        .get();
+
+    final data = {
+      'studentId': uid,
+      'studentEmail': user?.email ?? '',
+      'studentNom': user?.displayName ?? '',
+      'assignmentId': assignmentId,
+      'teacherId': teacherId,
+      'devoirTitre': devoirTitre,
+      'classeId': classeId,
+      'classeNom': classeNom,
+      'fileUrl': '',
+      'fileType': '',
+      'comment': commentaire,
+      'textReponse': textReponse,
+      'piecesJointes': piecesJointes,
+      'createdAt': Timestamp.now(),
+      'status': 'pending',
+    };
+
+    if (existingSnap.docs.isNotEmpty) {
+      await existingSnap.docs.first.reference.update(data);
+    } else {
+      await _db.collection('submissions').add(data);
+    }
   }
 
   static Future<void> submitDevoir({

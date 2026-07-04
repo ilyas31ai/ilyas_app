@@ -1,12 +1,25 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
-import '../models/devoir_model.dart';
 import '../models/copie_model.dart';
+import '../models/devoir_model.dart';
+import '../models/submission_model.dart';
 import '../services/devoir_interactif_service.dart';
 import '../services/etudiant_service.dart';
 import 'etudiant_faire_devoir_page.dart';
 import 'etudiant_revisions_ia_page.dart';
+import 'etudiant_soumission_devoir_page.dart';
+
+// ─── Palette ──────────────────────────────────────────────────────────────────
+
+const _kBg     = Color(0xFF0D1117);
+const _kCard   = Color(0xFF161B22);
+const _kBlue   = Color(0xFF2563EB);
+const _kPurple = Color(0xFF6C47FF);
+const _kGreen  = Color(0xFF16A34A);
+const _kOrange = Color(0xFFD97706);
+const _kRed    = Color(0xFFDC2626);
 
 class EtudiantDevoirsPage extends StatefulWidget {
   const EtudiantDevoirsPage({super.key});
@@ -22,7 +35,7 @@ class _EtudiantDevoirsPageState extends State<EtudiantDevoirsPage>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -37,20 +50,28 @@ class _EtudiantDevoirsPageState extends State<EtudiantDevoirsPage>
     final eleveNom = user?.displayName ?? user?.email ?? 'Élève';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1117),
+      backgroundColor: _kBg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF161B22),
+        backgroundColor: _kCard,
         elevation: 0,
         title: const Text(
           'Mes Devoirs',
           style: TextStyle(
-              color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold),
         ),
         bottom: TabBar(
           controller: _tabs,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white38,
+          indicatorColor: _kPurple,
+          labelStyle:
+              const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
           tabs: const [
             Tab(text: 'À faire'),
-            Tab(text: 'Terminés'),
+            Tab(text: 'Rendus'),
+            Tab(text: 'Corrigés'),
           ],
         ),
       ),
@@ -59,7 +80,7 @@ class _EtudiantDevoirsPageState extends State<EtudiantDevoirsPage>
         builder: (context, classSnap) {
           if (classSnap.connectionState == ConnectionState.waiting) {
             return const Center(
-                child: CircularProgressIndicator(color: Color(0xFF2563EB)));
+                child: CircularProgressIndicator(color: _kBlue));
           }
           final classeNom = classSnap.data ?? '';
           if (classeNom.isEmpty) {
@@ -69,27 +90,28 @@ class _EtudiantDevoirsPageState extends State<EtudiantDevoirsPage>
             );
           }
           return StreamBuilder<List<DevoirModel>>(
-            stream: DevoirInteractifService.devoirsEleveStream(classeNom),
+            stream: EtudiantService.allDevoirsStream(classeNom),
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(
-                    child: CircularProgressIndicator(
-                        color: Color(0xFF2563EB)));
+                    child: CircularProgressIndicator(color: _kBlue));
               }
               final devoirs = snap.data ?? [];
               return TabBarView(
                 controller: _tabs,
                 children: [
                   _DevoirsList(
-                    devoirs: devoirs,
-                    eleveNom: eleveNom,
-                    doneFilter: false,
-                  ),
+                      devoirs: devoirs,
+                      eleveNom: eleveNom,
+                      tab: _DevoirsTab.aFaire),
                   _DevoirsList(
-                    devoirs: devoirs,
-                    eleveNom: eleveNom,
-                    doneFilter: true,
-                  ),
+                      devoirs: devoirs,
+                      eleveNom: eleveNom,
+                      tab: _DevoirsTab.rendus),
+                  _DevoirsList(
+                      devoirs: devoirs,
+                      eleveNom: eleveNom,
+                      tab: _DevoirsTab.corriges),
                 ],
               );
             },
@@ -100,15 +122,19 @@ class _EtudiantDevoirsPageState extends State<EtudiantDevoirsPage>
   }
 }
 
+enum _DevoirsTab { aFaire, rendus, corriges }
+
+// ─── Liste unifiée ─────────────────────────────────────���──────────────────────
+
 class _DevoirsList extends StatelessWidget {
   final List<DevoirModel> devoirs;
   final String eleveNom;
-  final bool doneFilter;
+  final _DevoirsTab tab;
 
   const _DevoirsList({
     required this.devoirs,
     required this.eleveNom,
-    required this.doneFilter,
+    required this.tab,
   });
 
   @override
@@ -116,143 +142,123 @@ class _DevoirsList extends StatelessWidget {
     if (devoirs.isEmpty) {
       return Center(
         child: Text(
-          doneFilter ? 'Aucun devoir terminé.' : 'Aucun devoir à faire.',
-          style: const TextStyle(color: Colors.white70),
+          tab == _DevoirsTab.aFaire
+              ? 'Aucun devoir à faire.'
+              : tab == _DevoirsTab.rendus
+                  ? 'Aucun devoir rendu.'
+                  : 'Aucun devoir corrigé.',
+          style: const TextStyle(color: Colors.white38),
         ),
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
       itemCount: devoirs.length,
-      itemBuilder: (context, i) => _DevoirTile(
+      itemBuilder: (_, i) => _DevoirTile(
         devoir: devoirs[i],
         eleveNom: eleveNom,
-        doneFilter: doneFilter,
+        tab: tab,
       ),
     );
   }
 }
 
+// ─── Tile devoir (gère interactive et fichier) ────────────────────────────────
+
 class _DevoirTile extends StatelessWidget {
   final DevoirModel devoir;
   final String eleveNom;
-  final bool doneFilter;
+  final _DevoirsTab tab;
 
   const _DevoirTile({
     required this.devoir,
     required this.eleveNom,
-    required this.doneFilter,
+    required this.tab,
   });
+
+  @override
+  Widget build(BuildContext context) {
+    // Interactive devoirs use the copies collection
+    if (devoir.estInteractif || devoir.estExamen) {
+      return _InteractiveTile(
+          devoir: devoir, eleveNom: eleveNom, tab: tab);
+    }
+    // File/text devoirs use the submissions collection
+    return _SubmissionTile(devoir: devoir, eleveNom: eleveNom, tab: tab);
+  }
+}
+
+// ─── Devoir interactif ────────────────────────────────────────────────────────
+
+class _InteractiveTile extends StatelessWidget {
+  final DevoirModel devoir;
+  final String eleveNom;
+  final _DevoirsTab tab;
+  const _InteractiveTile(
+      {required this.devoir, required this.eleveNom, required this.tab});
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<CopieModel?>(
       stream: DevoirInteractifService.copieStream(devoir.id),
-      builder: (context, snap) {
+      builder: (_, snap) {
         final copie = snap.data;
         final statut = copie?.statut;
 
-        // Filter: "À faire" = no copie or brouillon; "Terminés" = soumis/corrigé
         final isDone = statut == CopieStatut.soumis ||
             statut == CopieStatut.corrige;
-        if (isDone != doneFilter) return const SizedBox.shrink();
-
+        final isCorrected = statut == CopieStatut.corrige;
         final isExpired = devoir.dateLimite != null &&
             DateTime.now().isAfter(devoir.dateLimite!);
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 10),
-          child: ListTile(
-            leading: _TypeIcon(devoir: devoir),
-            title: Text(devoir.titre,
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            trailing: _StatusChip(statut: statut, isExpired: isExpired),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${devoir.matiere} · ${devoir.classeNom}'),
-                if (devoir.dateLimite != null)
-                  Text(
-                    'Limite : ${_fmtDateTime(devoir.dateLimite!)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isExpired ? Colors.red : Colors.grey[600],
-                    ),
-                  ),
-                if (statut == CopieStatut.corrige && copie != null)
-                  Text(
-                    'Note : ${copie.note?.toStringAsFixed(1) ?? '-'}/${copie.noteSur?.toStringAsFixed(0) ?? '?'}',
-                    style: const TextStyle(
-                        color: Colors.green, fontWeight: FontWeight.w600),
-                  ),
-                // Bouton Réviser avec l'IA
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => EtudiantRevisionsIaPage(devoir: devoir),
-                    ),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F766E).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: const Color(0xFF0F766E).withValues(alpha: 0.4)),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.smart_toy_outlined,
-                            size: 13, color: Color(0xFF0F766E)),
-                        SizedBox(width: 4),
-                        Text('Réviser avec l\'IA',
-                            style: TextStyle(
-                                color: Color(0xFF0F766E),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+        // Tab filter
+        if (tab == _DevoirsTab.aFaire && isDone) {
+          return const SizedBox.shrink();
+        }
+        if (tab == _DevoirsTab.rendus && (isCorrected || !isDone)) {
+          return const SizedBox.shrink();
+        }
+        if (tab == _DevoirsTab.corriges && !isCorrected) {
+          return const SizedBox.shrink();
+        }
+
+        return _DevoirCard(
+          devoir: devoir,
+          statusBadge: _StatusBadge(
+            label: isCorrected
+                ? 'Corrigé'
+                : isDone
+                    ? 'Rendu'
+                    : isExpired
+                        ? 'Expiré'
+                        : 'À faire',
+            color: isCorrected
+                ? _kGreen
+                : isDone
+                    ? _kBlue
+                    : isExpired
+                        ? _kRed
+                        : _kPurple,
+          ),
+          grade: isCorrected && copie?.note != null
+              ? '${copie!.note!.toStringAsFixed(1)} / ${copie.noteSur?.toStringAsFixed(0) ?? devoir.bareme}'
+              : null,
+          teacherComment: null,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => EtudiantFaireDevoirPage(
+                devoir: devoir,
+                eleveNom: eleveNom,
+                readOnly: isDone,
+                existingCopie: copie,
+              ),
             ),
-            onTap: () {
-              if (isDone) {
-                // Show result/review
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => EtudiantFaireDevoirPage(
-                      devoir: devoir,
-                      eleveNom: eleveNom,
-                      readOnly: true,
-                      existingCopie: copie,
-                    ),
-                  ),
-                );
-                return;
-              }
-              if (isExpired && statut == null) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('La date limite est dépassée.'),
-                ));
-                return;
-              }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EtudiantFaireDevoirPage(
-                    devoir: devoir,
-                    eleveNom: eleveNom,
-                    readOnly: false,
-                    existingCopie: copie,
-                  ),
-                ),
-              );
-            },
+          ),
+          onRevise: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+                builder: (_) => EtudiantRevisionsIaPage(devoir: devoir)),
           ),
         );
       },
@@ -260,69 +266,300 @@ class _DevoirTile extends StatelessWidget {
   }
 }
 
-class _TypeIcon extends StatelessWidget {
+// ─── Devoir fichier/texte ─────────────────────────────────────────────────────
+
+class _SubmissionTile extends StatelessWidget {
   final DevoirModel devoir;
-  const _TypeIcon({required this.devoir});
+  final String eleveNom;
+  final _DevoirsTab tab;
+  const _SubmissionTile(
+      {required this.devoir, required this.eleveNom, required this.tab});
 
   @override
   Widget build(BuildContext context) {
-    if (devoir.estExamen) {
-      return const CircleAvatar(
-        backgroundColor: Colors.red,
-        child: Icon(Icons.timer, color: Colors.white, size: 20),
-      );
-    }
-    if (devoir.estInteractif) {
-      return const CircleAvatar(
-        backgroundColor: Colors.blue,
-        child: Icon(Icons.edit_note, color: Colors.white, size: 20),
-      );
-    }
-    return const CircleAvatar(
-      backgroundColor: Colors.orange,
-      child: Icon(Icons.picture_as_pdf, color: Colors.white, size: 20),
+    return StreamBuilder<SubmissionModel?>(
+      stream: EtudiantService.submissionForDevoir(devoir.id),
+      builder: (_, snap) {
+        final sub = snap.data;
+        final isCorrected = sub?.status == SubmissionStatus.corrected;
+        final isSubmitted = sub != null;
+        final isExpired = devoir.dateLimite != null &&
+            DateTime.now().isAfter(devoir.dateLimite!);
+
+        if (tab == _DevoirsTab.aFaire && isSubmitted) {
+          return const SizedBox.shrink();
+        }
+        if (tab == _DevoirsTab.rendus && (isCorrected || !isSubmitted)) {
+          return const SizedBox.shrink();
+        }
+        if (tab == _DevoirsTab.corriges && !isCorrected) {
+          return const SizedBox.shrink();
+        }
+
+        return _DevoirCard(
+          devoir: devoir,
+          statusBadge: _StatusBadge(
+            label: isCorrected
+                ? 'Corrigé'
+                : isSubmitted
+                    ? 'Rendu'
+                    : isExpired
+                        ? 'Expiré'
+                        : 'À faire',
+            color: isCorrected
+                ? _kGreen
+                : isSubmitted
+                    ? _kBlue
+                    : isExpired
+                        ? _kRed
+                        : _kPurple,
+          ),
+          grade: isCorrected && sub?.grade != null
+              ? '${sub!.grade!.toStringAsFixed(1)} / ${devoir.bareme}'
+              : null,
+          teacherComment: isCorrected ? sub?.teacherComment : null,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => EtudiantSoumissionDevoirPage(
+                devoir: devoir,
+                existingSubmission: sub,
+              ),
+            ),
+          ),
+          onRevise: devoir.matiere.isNotEmpty
+              ? () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                        builder: (_) =>
+                            EtudiantRevisionsIaPage(devoir: devoir)),
+                  )
+              : null,
+        );
+      },
     );
   }
 }
 
-String _fmtDateTime(DateTime d) =>
-    '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}'
-    ' ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+// ─── Carte visuelle du devoir ─────────────────────────────────────────────────
 
-class _StatusChip extends StatelessWidget {
-  final CopieStatut? statut;
-  final bool isExpired;
-  const _StatusChip({required this.statut, required this.isExpired});
+class _DevoirCard extends StatelessWidget {
+  final DevoirModel devoir;
+  final Widget statusBadge;
+  final String? grade;
+  final String? teacherComment;
+  final VoidCallback onTap;
+  final VoidCallback? onRevise;
+
+  const _DevoirCard({
+    required this.devoir,
+    required this.statusBadge,
+    required this.grade,
+    required this.teacherComment,
+    required this.onTap,
+    this.onRevise,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (statut == CopieStatut.corrige) {
-      return const Chip(
-        label: Text('Corrigé', style: TextStyle(fontSize: 11)),
-        backgroundColor: Color(0xFFE8F5E9),
-      );
-    }
-    if (statut == CopieStatut.soumis) {
-      return const Chip(
-        label: Text('Soumis', style: TextStyle(fontSize: 11)),
-        backgroundColor: Color(0xFFE3F2FD),
-      );
-    }
-    if (statut == CopieStatut.brouillon) {
-      return const Chip(
-        label: Text('Brouillon', style: TextStyle(fontSize: 11)),
-        backgroundColor: Color(0xFFFFF9C4),
-      );
-    }
-    if (isExpired) {
-      return const Chip(
-        label: Text('Expiré', style: TextStyle(fontSize: 11)),
-        backgroundColor: Color(0xFFFFEBEE),
-      );
-    }
-    return const Chip(
-      label: Text('À faire', style: TextStyle(fontSize: 11)),
-      backgroundColor: Color(0xFFF3E5F5),
+    final isExpired = devoir.dateLimite != null &&
+        DateTime.now().isAfter(devoir.dateLimite!);
+    final typeIcon = devoir.estExamen
+        ? Icons.timer_outlined
+        : devoir.estInteractif
+            ? Icons.quiz_outlined
+            : Icons.description_outlined;
+    final typeColor = devoir.estExamen
+        ? _kRed
+        : devoir.estInteractif
+            ? _kBlue
+            : _kOrange;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _kCard,
+          borderRadius: BorderRadius.circular(14),
+          border:
+              Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: typeColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(typeIcon, color: typeColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(devoir.titre,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      '${devoir.matiere} · ${devoir.classeNom}',
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              statusBadge,
+            ]),
+            if (devoir.description.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(devoir.description,
+                  style: const TextStyle(
+                      color: Colors.white54, fontSize: 12),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis),
+            ],
+            const SizedBox(height: 8),
+            Row(children: [
+              if (devoir.dateLimite != null)
+                Row(children: [
+                  Icon(Icons.schedule,
+                      size: 13,
+                      color:
+                          isExpired ? _kRed : Colors.white38),
+                  const SizedBox(width: 4),
+                  Text(
+                    DateFormat('dd/MM à HH:mm')
+                        .format(devoir.dateLimite!),
+                    style: TextStyle(
+                        color: isExpired ? _kRed : Colors.white38,
+                        fontSize: 11),
+                  ),
+                ]),
+              const SizedBox(width: 12),
+              Text('Sur ${devoir.bareme} pts',
+                  style: const TextStyle(
+                      color: Colors.white24, fontSize: 11)),
+              if (devoir.tousLesAttachements.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Icon(Icons.attach_file,
+                    size: 12, color: Colors.white24),
+                Text(
+                    '${devoir.tousLesAttachements.length}',
+                    style: const TextStyle(
+                        color: Colors.white24, fontSize: 11)),
+              ],
+            ]),
+            // Grade + comment
+            if (grade != null) ...[
+              const SizedBox(height: 6),
+              Row(children: [
+                const Icon(Icons.star_outlined,
+                    color: _kGreen, size: 14),
+                const SizedBox(width: 4),
+                Text(grade!,
+                    style: const TextStyle(
+                        color: _kGreen,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13)),
+              ]),
+            ],
+            if (teacherComment != null &&
+                teacherComment!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _kGreen.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: _kGreen.withValues(alpha: 0.2)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.comment_outlined,
+                      color: _kGreen, size: 12),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(teacherComment!,
+                        style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                ]),
+              ),
+            ],
+            if (onRevise != null) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: onRevise,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color:
+                        const Color(0xFF0F766E).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: const Color(0xFF0F766E)
+                            .withValues(alpha: 0.4)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.smart_toy_outlined,
+                          size: 12, color: Color(0xFF0F766E)),
+                      SizedBox(width: 4),
+                      Text('Réviser avec l\'IA',
+                          style: TextStyle(
+                              color: Color(0xFF0F766E),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Badge statut ─────────────────────────────────────────────────────────────
+
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _StatusBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.bold)),
     );
   }
 }

@@ -11,6 +11,7 @@ import '../models/devoir_model.dart';
 import '../models/document_model.dart';
 import '../models/note_model.dart';
 import '../models/presence_model.dart';
+import '../models/submission_model.dart';
 import '../models/user_model.dart';
 
 class ProfesseurService {
@@ -359,6 +360,91 @@ class ProfesseurService {
       }
     }
     await _devoirs.doc(id).delete();
+  }
+
+  static Future<void> updateDevoir(String id, Map<String, dynamic> data) async {
+    await _devoirs.doc(id).update(data);
+  }
+
+  // Envoi un devoir complet avec pièces jointes multiples et barème
+  static Future<String> sendDevoirComplet({
+    required String titre,
+    required String description,
+    required String matiere,
+    required String classeId,
+    required String classeNom,
+    required int bareme,
+    DateTime? dateLimite,
+    DateTime? datePublication,
+    List<File> fichiers = const [],
+    List<String> nomsF = const [],
+  }) async {
+    final uid = _uid;
+    final user = FirebaseAuth.instance.currentUser;
+    final profNom = user?.displayName ?? '';
+
+    final piecesJointes = <Map<String, String>>[];
+    for (var i = 0; i < fichiers.length; i++) {
+      final nom = i < nomsF.length ? nomsF[i] : fichiers[i].path.split('/').last;
+      final token = _generateDownloadToken();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final ref = _storage.ref('devoirs/$uid/${ts}_$nom');
+      final bytes = await fichiers[i].readAsBytes();
+      final snap = await ref.putData(
+        bytes,
+        SettableMetadata(
+          contentType: 'application/octet-stream',
+          customMetadata: {'firebaseStorageDownloadTokens': token},
+        ),
+      );
+      if (snap.state == TaskState.success) {
+        final bucket = snap.ref.bucket;
+        final encoded = Uri.encodeComponent(snap.ref.fullPath);
+        final url = 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encoded?alt=media&token=$token';
+        final ext = nom.split('.').last.toLowerCase();
+        piecesJointes.add({'url': url, 'nom': nom, 'type': ext});
+      }
+    }
+
+    final doc = await _devoirs.add({
+      'titre': titre,
+      'description': description,
+      'matiere': matiere,
+      'classeId': classeId,
+      'classeNom': classeNom,
+      'professeurId': uid,
+      'professeurNom': profNom,
+      'dateEnvoi': FieldValue.serverTimestamp(),
+      if (dateLimite != null) 'dateLimite': Timestamp.fromDate(dateLimite),
+      if (datePublication != null)
+        'datePublication': Timestamp.fromDate(datePublication),
+      'fichierUrl': '',
+      'fichierNom': '',
+      'piecesJointes': piecesJointes,
+      'bareme': bareme,
+      'estExamen': false,
+      'aiActive': true,
+    });
+    return doc.id;
+  }
+
+  // Stream des soumissions pour un devoir donné (avec classeId pour prof principal)
+  static Stream<List<SubmissionModel>> submissionsForDevoirStream(String devoirId) {
+    return _db
+        .collection('submissions')
+        .where('assignmentId', isEqualTo: devoirId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((s) => s.docs.map(SubmissionModel.fromFirestore).toList());
+  }
+
+  static Future<void> graderSubmission(
+      String subId, double grade, String teacherComment) async {
+    await _db.collection('submissions').doc(subId).update({
+      'grade': grade,
+      'teacherComment': teacherComment,
+      'status': 'corrected',
+    });
   }
 
   // ── Documents pédagogiques ────────────────────────────────────────────────

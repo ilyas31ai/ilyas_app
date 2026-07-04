@@ -1,12 +1,17 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/classe_model.dart';
 import '../models/devoir_model.dart';
+import '../models/submission_model.dart';
 import '../models/user_model.dart';
 import '../services/ai_revision_service.dart';
 import '../services/maitrise_service.dart';
@@ -21,6 +26,8 @@ class ProfesseurDevoirsPage extends StatefulWidget {
 }
 
 class _ProfesseurDevoirsPageState extends State<ProfesseurDevoirsPage> {
+  int _filter = 0; // 0=tous, 1=à rendre, 2=expirés
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -50,10 +57,10 @@ class _ProfesseurDevoirsPageState extends State<ProfesseurDevoirsPage> {
           FloatingActionButton.extended(
             heroTag: 'fab_pdf',
             backgroundColor: const Color(0xFF6C47FF),
-            onPressed: () => _showSendDialog(context),
-            icon: const Icon(Icons.send_outlined, color: Colors.white),
-            label:
-                const Text('Envoyer PDF', style: TextStyle(color: Colors.white)),
+            onPressed: () => _showCreerDevoirComplet(context),
+            icon: const Icon(Icons.assignment_outlined, color: Colors.white),
+            label: const Text('Nouveau devoir',
+                style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -64,15 +71,63 @@ class _ProfesseurDevoirsPageState extends State<ProfesseurDevoirsPage> {
             return const Center(
                 child: CircularProgressIndicator(color: Color(0xFF6C47FF)));
           }
-          final devoirs = snap.data ?? [];
-          if (devoirs.isEmpty) return _emptyState(context);
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            itemCount: devoirs.length,
-            itemBuilder: (ctx, i) => _DevoirCard(
-              devoir: devoirs[i],
-              onDelete: () => _confirmDelete(ctx, devoirs[i]),
-            ),
+          final now = DateTime.now();
+          var devoirs = snap.data ?? [];
+          // Filter
+          if (_filter == 1) {
+            devoirs = devoirs.where((d) =>
+                d.dateLimite == null || d.dateLimite!.isAfter(now)).toList();
+          } else if (_filter == 2) {
+            devoirs = devoirs.where((d) =>
+                d.dateLimite != null && d.dateLimite!.isBefore(now)).toList();
+          }
+          if (devoirs.isEmpty && snap.data?.isEmpty == true) {
+            return _emptyState(context);
+          }
+          return Column(
+            children: [
+              // Filter chips
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(children: [
+                    _FilterChip(
+                        label: 'Tous',
+                        selected: _filter == 0,
+                        onTap: () => setState(() => _filter = 0)),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                        label: 'En cours',
+                        selected: _filter == 1,
+                        onTap: () => setState(() => _filter = 1)),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                        label: 'Expirés',
+                        selected: _filter == 2,
+                        onTap: () => setState(() => _filter = 2)),
+                  ]),
+                ),
+              ),
+              Expanded(
+                child: devoirs.isEmpty
+                    ? const Center(
+                        child: Text('Aucun devoir dans ce filtre.',
+                            style: TextStyle(color: Colors.white38)))
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                        itemCount: devoirs.length,
+                        itemBuilder: (ctx, i) => _DevoirCard(
+                          devoir: devoirs[i],
+                          onDelete: () => _confirmDelete(ctx, devoirs[i]),
+                          onEdit: () =>
+                              _showCreerDevoirComplet(ctx, existing: devoirs[i]),
+                          onSoumissions: () =>
+                              _showSoumissionsSheet(ctx, devoirs[i]),
+                        ),
+                      ),
+              ),
+            ],
           );
         },
       ),
@@ -218,15 +273,76 @@ class _ProfesseurDevoirsPageState extends State<ProfesseurDevoirsPage> {
       builder: (ctx) => _DevoirForm(),
     );
   }
+
+  Future<void> _showCreerDevoirComplet(BuildContext context,
+      {DevoirModel? existing}) async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161B22),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => _DevoirFormComplet(existing: existing),
+    );
+  }
+
+  void _showSoumissionsSheet(BuildContext context, DevoirModel devoir) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0D1117),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _SoumissionsSheet(devoir: devoir),
+    );
+  }
 }
 
 // ─── Carte devoir ─────────────────────────────────────────────────────────────
 
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FilterChip(
+      {required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF6C47FF)
+              : Colors.white.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: selected ? Colors.white : Colors.white54,
+                fontWeight:
+                    selected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 12)),
+      ),
+    );
+  }
+}
+
 class _DevoirCard extends StatelessWidget {
   final DevoirModel devoir;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
+  final VoidCallback onSoumissions;
 
-  const _DevoirCard({required this.devoir, required this.onDelete});
+  const _DevoirCard({
+    required this.devoir,
+    required this.onDelete,
+    required this.onEdit,
+    required this.onSoumissions,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -301,40 +417,6 @@ class _DevoirCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis),
             ],
-            const SizedBox(height: 6),
-            // Bouton traçabilité IA
-            if (devoir.classeNom.isNotEmpty && devoir.matiere.isNotEmpty)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: InkWell(
-                  onTap: () => _showTracabiliteSheet(context),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0891B2).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: const Color(0xFF0891B2)
-                              .withValues(alpha: 0.3)),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.analytics_outlined,
-                            size: 13, color: Color(0xFF0891B2)),
-                        SizedBox(width: 5),
-                        Text('Suivi élèves',
-                            style: TextStyle(
-                                color: Color(0xFF0891B2),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
             if (limit != null) ...[
               const SizedBox(height: 8),
               Row(
@@ -348,7 +430,7 @@ class _DevoirCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    'Date limite : ${_fmt(limit)}',
+                    'Limite : ${_fmt(limit)}',
                     style: TextStyle(
                       color: isLate
                           ? const Color(0xFFDC2626)
@@ -356,9 +438,51 @@ class _DevoirCard extends StatelessWidget {
                       fontSize: 12,
                     ),
                   ),
+                  const Spacer(),
+                  Text(
+                    'Sur ${devoir.bareme} pts',
+                    style: const TextStyle(
+                        color: Colors.white38, fontSize: 11),
+                  ),
                 ],
               ),
             ],
+            // Action bar
+            const SizedBox(height: 10),
+            Row(children: [
+              if (devoir.classeNom.isNotEmpty && devoir.matiere.isNotEmpty)
+                _ActionBtn(
+                  icon: Icons.analytics_outlined,
+                  label: 'Suivi IA',
+                  color: const Color(0xFF0891B2),
+                  onTap: () => _showTracabiliteSheet(context),
+                ),
+              const SizedBox(width: 6),
+              _ActionBtn(
+                icon: Icons.rate_review_outlined,
+                label: 'Corrections',
+                color: const Color(0xFF16A34A),
+                onTap: onSoumissions,
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined,
+                    color: Colors.white38, size: 18),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: onEdit,
+                tooltip: 'Modifier',
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.delete_outline,
+                    color: Color(0xFFDC2626), size: 18),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: onDelete,
+                tooltip: 'Supprimer',
+              ),
+            ]),
           ],
         ),
       ),
@@ -1616,6 +1740,43 @@ class _DevoirFormState extends State<_DevoirForm> {
       );
 }
 
+class _ActionBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  const _ActionBtn(
+      {required this.icon,
+      required this.label,
+      required this.color,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 5),
+          Text(label,
+              style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600)),
+        ]),
+      ),
+    );
+  }
+}
+
 class _Field extends StatelessWidget {
   final TextEditingController controller;
   final String label;
@@ -1639,6 +1800,864 @@ class _Field extends StatelessWidget {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: Color(0xFF6C47FF)),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Formulaire complet de devoir (créer ou modifier) ────────────────────────
+
+class _DevoirFormComplet extends StatefulWidget {
+  final DevoirModel? existing;
+  const _DevoirFormComplet({this.existing});
+
+  @override
+  State<_DevoirFormComplet> createState() => _DevoirFormCompletState();
+}
+
+class _DevoirFormCompletState extends State<_DevoirFormComplet> {
+  late final TextEditingController _titre;
+  late final TextEditingController _desc;
+  late final TextEditingController _matiere;
+  late final TextEditingController _baremeCtrl;
+
+  ClasseModel? _selectedClasse;
+  List<ClasseModel> _classes = [];
+  DateTime? _dateLimite;
+  DateTime? _datePub;
+  bool _saving = false;
+
+  // New attachments
+  final List<File> _fichiers = [];
+  final List<String> _nomsF = [];
+  // Existing attachments (from edit)
+  List<Map<String, String>> _existingPJ = [];
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _titre = TextEditingController(text: e?.titre ?? '');
+    _desc = TextEditingController(text: e?.description ?? '');
+    _matiere = TextEditingController(text: e?.matiere ?? '');
+    _baremeCtrl = TextEditingController(text: (e?.bareme ?? 20).toString());
+    _dateLimite = e?.dateLimite;
+    _datePub = e?.datePublication;
+    _existingPJ = List<Map<String, String>>.from(
+        e?.tousLesAttachements ?? []);
+    ProfesseurService.classesStream().first.then((c) {
+      if (mounted) {
+        setState(() {
+          _classes = c;
+          if (e != null) {
+            _selectedClasse = c
+                .where((cl) => cl.nom == e.classeNom)
+                .firstOrNull;
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_titre, _desc, _matiere, _baremeCtrl]) c.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFiles() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowMultiple: true,
+      allowedExtensions: [
+        'pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx',
+        'xls', 'xlsx', 'ppt', 'pptx', 'txt'
+      ],
+    );
+    if (result == null) return;
+    for (final f in result.files) {
+      if (f.path != null) {
+        setState(() {
+          _fichiers.add(File(f.path!));
+          _nomsF.add(f.name);
+        });
+      }
+    }
+  }
+
+  Future<void> _pickDate(bool isLimite) async {
+    final d = await showDatePicker(
+      context: context,
+      initialDate:
+          DateTime.now().add(Duration(days: isLimite ? 7 : 0)),
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF6C47FF),
+              surface: Color(0xFF161B22),
+            )),
+        child: child!,
+      ),
+    );
+    if (d != null) {
+      setState(() {
+        if (isLimite) _dateLimite = d;
+        else _datePub = d;
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    if (_titre.text.trim().isEmpty ||
+        _matiere.text.trim().isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      final bareme = int.tryParse(_baremeCtrl.text.trim()) ?? 20;
+      final classeNom = _selectedClasse?.nom ?? '';
+      final classeId = _selectedClasse?.id ?? '';
+      if (widget.existing == null) {
+        await ProfesseurService.sendDevoirComplet(
+          titre: _titre.text.trim(),
+          description: _desc.text.trim(),
+          matiere: _matiere.text.trim(),
+          classeId: classeId,
+          classeNom: classeNom,
+          bareme: bareme,
+          dateLimite: _dateLimite,
+          datePublication: _datePub,
+          fichiers: _fichiers,
+          nomsF: _nomsF,
+        );
+      } else {
+        // Build updated piecesJointes: existing + new uploads
+        final newPJ = <Map<String, String>>[];
+        for (var i = 0; i < _fichiers.length; i++) {
+          final nom = i < _nomsF.length ? _nomsF[i] : _fichiers[i].path.split('/').last;
+          final url = await _uploadFile(_fichiers[i], nom);
+          if (url != null) {
+            final ext = nom.split('.').last.toLowerCase();
+            newPJ.add({'url': url, 'nom': nom, 'type': ext});
+          }
+        }
+        await ProfesseurService.updateDevoir(
+          widget.existing!.id,
+          {
+            'titre': _titre.text.trim(),
+            'description': _desc.text.trim(),
+            'matiere': _matiere.text.trim(),
+            if (classeNom.isNotEmpty) 'classeNom': classeNom,
+            if (classeId.isNotEmpty) 'classeId': classeId,
+            'bareme': bareme,
+            if (_dateLimite != null)
+              'dateLimite': Timestamp.fromDate(_dateLimite!),
+            if (_datePub != null)
+              'datePublication': Timestamp.fromDate(_datePub!),
+            'piecesJointes': [..._existingPJ, ...newPJ],
+          },
+        );
+      }
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<String?> _uploadFile(File file, String nom) async {
+    try {
+      final storage = FirebaseStorage.instanceFor(
+          bucket: 'gs://ilyasapp-4762c.firebasestorage.app');
+      const chars =
+          'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      final rng = Random.secure();
+      final token =
+          List.generate(36, (_) => chars[rng.nextInt(chars.length)]).join();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final ref = storage.ref(
+          'devoirs/${widget.existing!.id}/${ts}_$nom');
+      final bytes = await file.readAsBytes();
+      final snap = await ref.putData(bytes,
+          SettableMetadata(
+              customMetadata: {'firebaseStorageDownloadTokens': token}));
+      if (snap.state == TaskState.success) {
+        final bucket = snap.ref.bucket;
+        final encoded = Uri.encodeComponent(snap.ref.fullPath);
+        return 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encoded?alt=media&token=$token';
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  InputDecoration _deco(String label) => InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white38),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide:
+              BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF6C47FF)),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = widget.existing != null;
+    return Padding(
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          left: 16,
+          right: 16,
+          top: 16),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(isEdit ? 'Modifier le devoir' : 'Nouveau devoir',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            _Field(controller: _titre, label: 'Titre *'),
+            const SizedBox(height: 10),
+            _Field(
+                controller: _desc,
+                label: 'Description (consignes)',
+                maxLines: 4),
+            const SizedBox(height: 10),
+            _Field(controller: _matiere, label: 'Matière *'),
+            const SizedBox(height: 10),
+            // Classe selector
+            if (_classes.isNotEmpty)
+              DropdownButtonFormField<ClasseModel>(
+                value: _selectedClasse,
+                dropdownColor: const Color(0xFF161B22),
+                style: const TextStyle(color: Colors.white),
+                decoration: _deco('Classe'),
+                items: _classes
+                    .map((c) => DropdownMenuItem(
+                        value: c,
+                        child: Text(c.nom,
+                            style:
+                                const TextStyle(color: Colors.white))))
+                    .toList(),
+                onChanged: (c) => setState(() => _selectedClasse = c),
+              ),
+            const SizedBox(height: 10),
+            // Barème
+            TextField(
+              controller: _baremeCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: _deco('Barème (sur N points)'),
+            ),
+            const SizedBox(height: 10),
+            // Date limite
+            _DatePickerRow(
+              label: _dateLimite != null
+                  ? 'Limite : ${DateFormat('dd/MM/yyyy').format(_dateLimite!)}'
+                  : 'Date limite (optionnel)',
+              icon: Icons.schedule_outlined,
+              set: _dateLimite != null,
+              onTap: () => _pickDate(true),
+              onClear: () => setState(() => _dateLimite = null),
+            ),
+            const SizedBox(height: 8),
+            // Date de publication
+            _DatePickerRow(
+              label: _datePub != null
+                  ? 'Publication : ${DateFormat('dd/MM/yyyy').format(_datePub!)}'
+                  : 'Date de publication (optionnel)',
+              icon: Icons.publish_outlined,
+              set: _datePub != null,
+              onTap: () => _pickDate(false),
+              onClear: () => setState(() => _datePub = null),
+            ),
+            const SizedBox(height: 10),
+            // Existing attachments
+            if (_existingPJ.isNotEmpty) ...[
+              const Text('Pièces jointes existantes :',
+                  style: TextStyle(color: Colors.white38, fontSize: 11)),
+              const SizedBox(height: 4),
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                ..._existingPJ.asMap().entries.map((e) =>
+                    _PjChip(
+                      nom: e.value['nom'] ?? 'Fichier',
+                      onRemove: () => setState(
+                          () => _existingPJ.removeAt(e.key)),
+                    )),
+              ]),
+              const SizedBox(height: 8),
+            ],
+            // New files to attach
+            if (_fichiers.isNotEmpty) ...[
+              const Text('Nouvelles pièces jointes :',
+                  style: TextStyle(color: Colors.white38, fontSize: 11)),
+              const SizedBox(height: 4),
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                ..._fichiers.asMap().entries.map((e) =>
+                    _PjChip(
+                      nom: _nomsF[e.key],
+                      onRemove: () => setState(() {
+                        _fichiers.removeAt(e.key);
+                        _nomsF.removeAt(e.key);
+                      }),
+                    )),
+              ]),
+              const SizedBox(height: 8),
+            ],
+            // Ajouter fichiers
+            InkWell(
+              onTap: _pickFiles,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                      color: const Color(0xFF6C47FF)
+                          .withValues(alpha: 0.4),
+                      style: BorderStyle.solid),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(children: [
+                  Icon(Icons.attach_file,
+                      color: Color(0xFF6C47FF), size: 18),
+                  SizedBox(width: 8),
+                  Text('Ajouter des pièces jointes',
+                      style: TextStyle(
+                          color: Color(0xFF6C47FF), fontSize: 13)),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6C47FF),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14)),
+                onPressed: _saving ? null : _save,
+                child: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : Text(isEdit ? 'Enregistrer' : 'Publier le devoir',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DatePickerRow extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool set;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+  const _DatePickerRow(
+      {required this.label,
+      required this.icon,
+      required this.set,
+      required this.onTap,
+      required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(
+              color: Colors.white.withValues(alpha: 0.15)),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(children: [
+          Icon(icon, color: Colors.white38, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+              child: Text(label,
+                  style: TextStyle(
+                      color: set ? Colors.white : Colors.white38,
+                      fontSize: 13))),
+          if (set)
+            GestureDetector(
+              onTap: onClear,
+              child: const Icon(Icons.close,
+                  color: Colors.white24, size: 16),
+            ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _PjChip extends StatelessWidget {
+  final String nom;
+  final VoidCallback onRemove;
+  const _PjChip({required this.nom, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF6C47FF).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+            color: const Color(0xFF6C47FF).withValues(alpha: 0.3)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.attach_file,
+            size: 12, color: Color(0xFF6C47FF)),
+        const SizedBox(width: 4),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 120),
+          child: Text(nom,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: Color(0xFF6C47FF), fontSize: 11)),
+        ),
+        const SizedBox(width: 4),
+        GestureDetector(
+          onTap: onRemove,
+          child: const Icon(Icons.close,
+              size: 12, color: Color(0xFF6C47FF)),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── Feuille des soumissions et corrections ───────────────���───────────────────
+
+class _SoumissionsSheet extends StatelessWidget {
+  final DevoirModel devoir;
+  const _SoumissionsSheet({required this.devoir});
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      builder: (_, ctrl) => Column(children: [
+        // Header
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          decoration: const BoxDecoration(
+            color: Color(0xFF161B22),
+            borderRadius:
+                BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(children: [
+            Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 12),
+            Row(children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [Color(0xFF16A34A), Color(0xFF0F766E)]),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.rate_review_outlined,
+                    color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(devoir.titre,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      'Corrections · Sur ${devoir.bareme} pts',
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ]),
+          ]),
+        ),
+        const Divider(height: 1, color: Colors.white12),
+        Expanded(
+          child: StreamBuilder<List<SubmissionModel>>(
+            stream: ProfesseurService.submissionsForDevoirStream(devoir.id),
+            builder: (ctx, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(
+                    child: CircularProgressIndicator(
+                        color: Color(0xFF16A34A)));
+              }
+              final subs = snap.data ?? [];
+              if (subs.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.inbox_outlined,
+                          color: Colors.white24, size: 48),
+                      SizedBox(height: 12),
+                      Text('Aucune soumission pour ce devoir.',
+                          style: TextStyle(
+                              color: Colors.white38, fontSize: 13)),
+                    ],
+                  ),
+                );
+              }
+              return ListView.separated(
+                controller: ctrl,
+                padding: const EdgeInsets.all(12),
+                itemCount: subs.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(color: Colors.white12, height: 1),
+                itemBuilder: (_, i) => _SubmissionTile(
+                  sub: subs[i],
+                  bareme: devoir.bareme,
+                  onGrade: () => _showGradeSheet(ctx, subs[i]),
+                ),
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+
+  void _showGradeSheet(BuildContext context, SubmissionModel sub) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF161B22),
+      shape: const RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => _GradeSheet(sub: sub, bareme: devoir.bareme),
+    );
+  }
+}
+
+class _SubmissionTile extends StatelessWidget {
+  final SubmissionModel sub;
+  final int bareme;
+  final VoidCallback onGrade;
+  const _SubmissionTile(
+      {required this.sub, required this.bareme, required this.onGrade});
+
+  @override
+  Widget build(BuildContext context) {
+    final isCorrected = sub.status == SubmissionStatus.corrected;
+    return ListTile(
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      leading: CircleAvatar(
+        radius: 18,
+        backgroundColor: isCorrected
+            ? const Color(0xFF16A34A).withValues(alpha: 0.2)
+            : const Color(0xFF6C47FF).withValues(alpha: 0.2),
+        child: Icon(
+          isCorrected
+              ? Icons.check_circle_outline
+              : Icons.hourglass_empty_outlined,
+          color: isCorrected
+              ? const Color(0xFF16A34A)
+              : const Color(0xFF6C47FF),
+          size: 18,
+        ),
+      ),
+      title: Text(
+        sub.studentNom.isNotEmpty ? sub.studentNom : sub.studentEmail,
+        style: const TextStyle(
+            color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            DateFormat('dd/MM à HH:mm').format(sub.createdAt),
+            style:
+                const TextStyle(color: Colors.white38, fontSize: 11),
+          ),
+          if (isCorrected && sub.grade != null)
+            Text('${sub.grade!.toStringAsFixed(1)} / $bareme',
+                style: const TextStyle(
+                    color: Color(0xFF16A34A),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12)),
+          if (sub.textReponse.isNotEmpty)
+            Text(sub.textReponse,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: Colors.white54, fontSize: 11)),
+        ],
+      ),
+      trailing: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (sub.tousLesFichiers.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                final url = sub.tousLesFichiers.first['url'] ?? '';
+                if (url.isNotEmpty) launchUrl(Uri.parse(url));
+              },
+              child: const Icon(Icons.download_outlined,
+                  color: Colors.white38, size: 18),
+            ),
+          const SizedBox(height: 4),
+          GestureDetector(
+            onTap: onGrade,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6C47FF).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                isCorrected ? 'Modifier' : 'Corriger',
+                style: const TextStyle(
+                    color: Color(0xFF6C47FF),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GradeSheet extends StatefulWidget {
+  final SubmissionModel sub;
+  final int bareme;
+  const _GradeSheet({required this.sub, required this.bareme});
+
+  @override
+  State<_GradeSheet> createState() => _GradeSheetState();
+}
+
+class _GradeSheetState extends State<_GradeSheet> {
+  late final TextEditingController _gradeCtrl;
+  late final TextEditingController _commentCtrl;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _gradeCtrl = TextEditingController(
+        text: widget.sub.grade?.toStringAsFixed(1) ?? '');
+    _commentCtrl =
+        TextEditingController(text: widget.sub.teacherComment ?? '');
+  }
+
+  @override
+  void dispose() {
+    _gradeCtrl.dispose();
+    _commentCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final grade = double.tryParse(_gradeCtrl.text.trim());
+    if (grade == null) return;
+    setState(() => _saving = true);
+    try {
+      await ProfesseurService.graderSubmission(
+        widget.sub.id,
+        grade,
+        _commentCtrl.text.trim(),
+      );
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          left: 16,
+          right: 16,
+          top: 16),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2))),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              widget.sub.studentNom.isNotEmpty
+                  ? widget.sub.studentNom
+                  : widget.sub.studentEmail,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text('Rendu le ${DateFormat('dd/MM/yyyy à HH:mm').format(widget.sub.createdAt)}',
+                style: const TextStyle(
+                    color: Colors.white38, fontSize: 12)),
+            if (widget.sub.textReponse.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text('Réponse de l\'élève :',
+                  style:
+                      TextStyle(color: Colors.white38, fontSize: 11)),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color:
+                      Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(widget.sub.textReponse,
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 13)),
+              ),
+            ],
+            if (widget.sub.tousLesFichiers.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text('Fichiers joints :',
+                  style:
+                      TextStyle(color: Colors.white38, fontSize: 11)),
+              const SizedBox(height: 4),
+              ...widget.sub.tousLesFichiers.map((f) => ListTile(
+                    dense: true,
+                    leading: const Icon(
+                        Icons.insert_drive_file_outlined,
+                        color: Color(0xFFD97706),
+                        size: 18),
+                    title: Text(f['nom'] ?? 'Fichier',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 12)),
+                    onTap: () {
+                      final url = f['url'] ?? '';
+                      if (url.isNotEmpty) launchUrl(Uri.parse(url));
+                    },
+                    trailing: const Icon(Icons.open_in_new,
+                        color: Colors.white24, size: 14),
+                  )),
+            ],
+            const SizedBox(height: 16),
+            // Note
+            TextField(
+              controller: _gradeCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Note / ${widget.bareme}',
+                labelStyle:
+                    const TextStyle(color: Colors.white38),
+                suffixText: '/ ${widget.bareme}',
+                suffixStyle:
+                    const TextStyle(color: Colors.white38),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide:
+                      const BorderSide(color: Color(0xFF6C47FF)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _commentCtrl,
+              maxLines: 3,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Commentaire (optionnel)',
+                labelStyle:
+                    const TextStyle(color: Colors.white38),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide:
+                      const BorderSide(color: Color(0xFF6C47FF)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A),
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 14)),
+                onPressed: _saving ? null : _save,
+                child: _saving
+                    ? const SizedBox(
+                        width: 20, height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : const Text('Valider la correction',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
         ),
       ),
     );
