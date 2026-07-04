@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "ilyas31ai_app" "\0"
+            VALUE "FileDescription", "ScolarAI Educative" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "ilyas31ai_app" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "ilyas31ai_app.exe" "\0"
-            VALUE "ProductName", "ilyas31ai_app" "\0"
+            VALUE "InternalName", "scolar_ai_educative" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 ScolarAI. All rights reserved." "\0"
+            VALUE "OriginalFilename", "scolar_ai_educative.exe" "\0"
+            VALUE "ProductName", "ScolarAI Educative" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -1,5 +1,5 @@
-name: ilyas31ai_app
-description: SCOLAR AI - Assistant scolaire intelligent
+name: scolar_ai_educative
+description: "ScolarAI Educative - Assistant scolaire intelligent multi-cycles"
 publish_to: 'none'
 
 version: 1.0.0+1
