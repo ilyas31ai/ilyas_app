@@ -75,16 +75,22 @@ service cloud.firestore {
       );
 
       // Création : l'utilisateur crée son propre profil.
+      // Tout rôle peut s'inscrire librement (sauf admin réservé au superadmin)
       // - eleve / parent : auto-attribution libre
-      // - professeur : libre mais démarre avec teacherStatus = 'limited'
-      // - admin/direction : jamais auto-attribuables
+      // - professeur : démarre avec teacherStatus = 'limited'
+      // - direction : crée son établissement à l'inscription
       allow create: if isAuth() && (
+        // Élève ou parent
         (request.auth.uid == userId &&
           request.resource.data.get('role', '') in ['eleve', 'parent']) ||
-        // Enseignant se crée son propre compte : statut limité obligatoire
+        // Enseignant : statut limité obligatoire
         (request.auth.uid == userId &&
           request.resource.data.get('role', '') == 'professeur' &&
           request.resource.data.get('teacherStatus', 'limited') == 'limited') ||
+        // Directeur crée son propre compte
+        (request.auth.uid == userId &&
+          request.resource.data.get('role', '') == 'direction') ||
+        // Professeur crée un profil élève
         (isProfesseur() && request.resource.data.get('role', '') == 'eleve')
       );
 
@@ -465,6 +471,16 @@ service cloud.firestore {
               .affectedKeys().hasOnly(['readBy']));
         allow delete: if isDirection();
       }
+    }
+
+    // ── Établissements ──────────────────────────────────────────────────────────
+    match /schools/{schoolId} {
+      allow read: if isAuth();
+      // Directeur crée son établissement lors de l'inscription (schoolId == uid)
+      allow create: if isAuth() &&
+        schoolId == request.auth.uid &&
+        request.resource.data.get('directeurId', '') == request.auth.uid;
+      allow update, delete: if isDirection();
     }
 
     // ── Fallback : refuse tout accès non couvert ──────────────────────────────

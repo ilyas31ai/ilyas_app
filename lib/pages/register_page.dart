@@ -186,43 +186,54 @@ class _RegisterPageState extends State<RegisterPage> {
       final String? teacherStatus =
           _selectedRole == UserRole.professeur ? 'limited' : null;
 
-      // Directeur : crée l'école avant le compte utilisateur
+      // Résolution du schoolId
       String schoolId = kDefaultSchoolId;
       if (_selectedRole == UserRole.eleve &&
           _schoolJoinChoice == 'withCode' &&
           _resolvedSchoolId.isNotEmpty) {
         schoolId = _resolvedSchoolId;
       }
+      if (_selectedRole == UserRole.direction) schoolId = uid;
 
-      if (_selectedRole == UserRole.direction) {
-        schoolId = uid;
-        await FirebaseFirestore.instance.collection('schools').doc(schoolId).set({
-          'nom': _schoolNomCtrl.text.trim(),
-          'ville': _schoolVilleCtrl.text.trim(),
-          'type': _schoolType,
-          'statut': 'actif',
-          'directeurId': uid,
-          'campusIds': <String>[],
+      // Écriture Firestore — si elle échoue, on supprime le compte Auth
+      // pour éviter un état partiel (Auth créé mais pas de document Firestore).
+      try {
+        if (_selectedRole == UserRole.direction) {
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(schoolId)
+              .set({
+            'nom': _schoolNomCtrl.text.trim(),
+            'ville': _schoolVilleCtrl.text.trim(),
+            'type': _schoolType,
+            'statut': 'actif',
+            'directeurId': uid,
+            'campusIds': <String>[],
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'uid': uid,
+          'email': _emailCtrl.text.trim(),
+          'displayName': displayName,
+          'role': role.value,
+          'schoolId': schoolId,
+          if (_selectedCycle != null) 'categorie': _selectedCycle,
+          if (_matiereCtrl.text.trim().isNotEmpty)
+            'matiere': _matiereCtrl.text.trim(),
+          if (_classeCtrl.text.trim().isNotEmpty)
+            'classeDemandee': _classeCtrl.text.trim(),
           'createdAt': FieldValue.serverTimestamp(),
+          'lastSeen': FieldValue.serverTimestamp(),
+          'statut': statut,
+          if (teacherStatus != null) 'teacherStatus': teacherStatus,
         });
+      } catch (firestoreError) {
+        // Nettoie le compte Firebase Auth — l'utilisateur pourra réessayer proprement
+        await cred.user?.delete();
+        rethrow;
       }
-
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'uid': uid,
-        'email': _emailCtrl.text.trim(),
-        'displayName': displayName,
-        'role': role.value,
-        'schoolId': schoolId,
-        if (_selectedCycle != null) 'categorie': _selectedCycle,
-        if (_matiereCtrl.text.trim().isNotEmpty)
-          'matiere': _matiereCtrl.text.trim(),
-        if (_classeCtrl.text.trim().isNotEmpty)
-          'classeDemandee': _classeCtrl.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'lastSeen': FieldValue.serverTimestamp(),
-        'statut': statut,
-        if (teacherStatus != null) 'teacherStatus': teacherStatus,
-      });
 
       if (role == UserRole.parent && _enfantEmailCtrl.text.trim().isNotEmpty) {
         await UserService.syncProfile(role: UserRole.parent);

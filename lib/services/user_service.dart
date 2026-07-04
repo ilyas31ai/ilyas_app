@@ -20,15 +20,28 @@ class UserService {
       final ref = _db.collection('users').doc(uid);
       final snap = await ref.get();
 
+      // Préfère le displayName Firebase Auth (défini à l'inscription via updateDisplayName)
+      final authDisplayName = FirebaseAuth.instance.currentUser?.displayName;
+
       if (snap.exists) {
-        await ref.update({'lastSeen': FieldValue.serverTimestamp()});
+        final updates = <String, dynamic>{'lastSeen': FieldValue.serverTimestamp()};
+        // Corrige le displayName si Firebase Auth a un vrai nom mais Firestore a
+        // l'email en guise de nom (cas d'une inscription partiellement ratée)
+        final storedName = snap.data()?['displayName'] as String?;
+        if (authDisplayName != null &&
+            authDisplayName.isNotEmpty &&
+            authDisplayName != storedName) {
+          updates['displayName'] = authDisplayName;
+        }
+        await ref.update(updates);
         // Re-run parent link in case children have logged in since last parent login
         if ((snap.data()?['role'] as String?) == 'parent') {
           await _syncParentEnfantIds(uid, snap.data()?['email'] as String? ?? email);
         }
       } else {
-        final displayName =
-            email.contains('@') ? email.split('@').first : email;
+        final displayName = (authDisplayName != null && authDisplayName.isNotEmpty)
+            ? authDisplayName
+            : (email.contains('@') ? email.split('@').first : email);
         // Detect if this email belongs to a parent before creating the profile
         final detectedRole = role ?? await _detectRole(email);
         await ref.set({
