@@ -43,37 +43,26 @@ class DirectionComptesAttentePage extends StatelessWidget {
             );
           }
           final docs = snap.data?.docs ?? [];
-          if (docs.isEmpty) {
-            return const _EmptyState();
-          }
 
-          final profDocs = docs.where((d) {
-            final data = d.data() as Map<String, dynamic>;
-            return data['role'] == 'professeur';
-          }).toList();
-
+          // Seuls les élèves passent par la validation manuelle.
+          // Les enseignants utilisent le système de codes d'invitation.
           final eleveDocs = docs.where((d) {
             final data = d.data() as Map<String, dynamic>;
             return data['role'] == 'eleve';
           }).toList();
 
+          if (eleveDocs.isEmpty) {
+            return const _EmptyState();
+          }
+
           return ListView(
             padding:
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             children: [
-              if (profDocs.isNotEmpty) ...[
-                _SectionHeader(
-                    title: 'Enseignants', count: profDocs.length),
-                const SizedBox(height: 8),
-                ...profDocs.map((d) => _PendingAccountCard(doc: d)),
-                const SizedBox(height: 16),
-              ],
-              if (eleveDocs.isNotEmpty) ...[
-                _SectionHeader(
-                    title: 'Élèves', count: eleveDocs.length),
-                const SizedBox(height: 8),
-                ...eleveDocs.map((d) => _PendingAccountCard(doc: d)),
-              ],
+              _SectionHeader(
+                  title: 'Élèves', count: eleveDocs.length),
+              const SizedBox(height: 8),
+              ...eleveDocs.map((d) => _PendingAccountCard(doc: d)),
             ],
           );
         },

@@ -33,6 +33,7 @@ import 'pages/eleve_releve_notes_page.dart';
 // 🆕 NOUVEAUX MODULES
 import 'pages/register_page.dart';
 import 'pages/pending_validation_page.dart';
+import 'pages/teacher_limited_page.dart';
 import 'pages/professeur_dossier_page.dart';
 import 'pages/inscription_wizard_page.dart';
 import 'pages/scolar_profile_page.dart';
@@ -240,11 +241,20 @@ class MyApp extends StatelessWidget {
                 final data =
                     userSnap.data?.data() as Map<String, dynamic>? ?? {};
                 final statut = data['statut'] as String? ?? 'actif';
+                final role = data['role'] as String?;
+
+                // Enseignant en attente (ancien système) → accès limité
+                if (statut == 'en_attente' && role == 'professeur') {
+                  return TeacherLimitedPage(
+                    displayName: data['displayName'] as String? ?? '',
+                    matiere: data['matiere'] as String?,
+                  );
+                }
 
                 if (statut == 'en_attente') {
                   return PendingValidationPage(
                     displayName: data['displayName'] as String? ?? '',
-                    role: data['role'] as String? ?? 'eleve',
+                    role: role ?? 'eleve',
                     cycle: data['categorie'] as String?,
                     classeDemandee: data['classeDemandee'] as String?,
                     matiere: data['matiere'] as String?,
@@ -258,7 +268,19 @@ class MyApp extends StatelessWidget {
                   );
                 }
 
-                // statut == 'actif' (or any unknown value — backwards compat)
+                // statut == 'actif'
+                // Enseignant sans école → accès limité
+                if (role == 'professeur') {
+                  final teacherStatus = data['teacherStatus'] as String?;
+                  if (teacherStatus == 'limited') {
+                    return TeacherLimitedPage(
+                      displayName: data['displayName'] as String? ?? '',
+                      matiere: data['matiere'] as String?,
+                    );
+                  }
+                  // teacherStatus == 'active' ou null (ancien compte) → accès complet
+                }
+
                 if (email.isNotEmpty && email != _notifInitializedFor) {
                   _notifInitializedFor = email;
                   NotificationService.init(email);

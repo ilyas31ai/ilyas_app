@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/user_model.dart';
 import '../services/user_service.dart';
+import 'teacher_limited_page.dart';
 import 'professeur_dashboard_page.dart';
 import 'professeur_emploi_page.dart';
 import 'professeur_eleves_page.dart';
@@ -50,6 +51,13 @@ class EspaceProfesseurPage extends StatelessWidget {
           final role = snap.data?.role;
           if (_kProfesseurOnly && role != UserRole.professeur) {
             return _AccessRefuse(name: snap.data?.displayName ?? '');
+          }
+          // Enseignant sans école → rediriger vers l'espace limité
+          if (snap.data?.teacherStatus == 'limited') {
+            return TeacherLimitedPage(
+              displayName: snap.data!.displayName,
+              matiere: snap.data!.matiere,
+            );
           }
           return _ProfesseurHome(user: snap.data);
         },

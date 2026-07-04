@@ -253,4 +253,18 @@ class UserService {
     if (uid.isEmpty) return;
     await _db.collection('users').doc(uid).update(data);
   }
+
+  // Cache simple du schoolId courant — mis à jour à chaque appel de
+  // currentUserStream(). Utilisé par les pages qui ont besoin du schoolId
+  // sans pouvoir attendre un Future.
+  static String? _cachedSchoolId;
+  static String? get cachedSchoolId => _cachedSchoolId;
+
+  /// Initialise le cache schoolId et retourne un Stream pour mise à jour continue.
+  static Stream<UserModel?> currentUserStreamWithCache() {
+    return currentUserStream().map((u) {
+      if (u != null) _cachedSchoolId = u.schoolId;
+      return u;
+    });
+  }
 }

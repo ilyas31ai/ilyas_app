@@ -17,10 +17,18 @@ service cloud.firestore {
     function isDirection()  {
       return isAuth() && (
         role() == 'admin' ||
+        role() == 'direction' ||
         request.auth.token.email == 'ilyas31ai@outlook.fr'
       );
     }
     function isProfesseur() { return isAuth() && role() == 'professeur'; }
+
+    // Enseignant actif (rattaché à un établissement)
+    function isActiveProfesseur() {
+      return isProfesseur() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid))
+          .data.get('teacherStatus', 'active') == 'active';
+    }
     function isEleve()      { return isAuth() && role() == 'eleve';      }
     function isParent()     { return isAuth() && role() == 'parent';     }
 
@@ -66,13 +74,17 @@ service cloud.firestore {
         isDirection() || isProfesseur() || isParent() || isEleve() || request.auth.uid == userId
       );
 
-      // Création : l'utilisateur crée son propre profil (rôle limité à eleve/parent —
-      // "parent" est déterminé par détection automatique côté client via l'email,
-      // jamais choisi librement ; professeur/admin ne sont jamais auto-attribuables),
-      // ou un prof crée un profil élève
+      // Création : l'utilisateur crée son propre profil.
+      // - eleve / parent : auto-attribution libre
+      // - professeur : libre mais démarre avec teacherStatus = 'limited'
+      // - admin/direction : jamais auto-attribuables
       allow create: if isAuth() && (
         (request.auth.uid == userId &&
           request.resource.data.get('role', '') in ['eleve', 'parent']) ||
+        // Enseignant se crée son propre compte : statut limité obligatoire
+        (request.auth.uid == userId &&
+          request.resource.data.get('role', '') == 'professeur' &&
+          request.resource.data.get('teacherStatus', 'limited') == 'limited') ||
         (isProfesseur() && request.resource.data.get('role', '') == 'eleve')
       );
 
@@ -85,9 +97,11 @@ service cloud.firestore {
       // - Les non-parents ne peuvent pas modifier ces champs sensibles
       allow update: if isAuth() && (
         // Cas 1 : propriétaire modifie son propre profil, sauf role + champs famille
+        // + teacherStatus (ne peut être changé qu'en Cas 4)
         (request.auth.uid == userId &&
           !request.resource.data.diff(resource.data)
-            .affectedKeys().hasAny(['role', 'enfantIds', 'enfantClasseIds'])) ||
+            .affectedKeys().hasAny(['role', 'enfantIds', 'enfantClasseIds',
+                                    'teacherStatus'])) ||
 
         // Cas 2 : parent met à jour ses enfantIds/enfantClasseIds (synchronisation)
         (isParent() && request.auth.uid == userId &&
@@ -98,7 +112,16 @@ service cloud.firestore {
         (isEleve() &&
           request.resource.data.diff(resource.data)
             .affectedKeys().hasOnly(['enfantIds', 'enfantClasseIds']) &&
-          request.auth.uid in request.resource.data.get('enfantIds', []))
+          request.auth.uid in request.resource.data.get('enfantIds', [])) ||
+
+        // Cas 4 : enseignant utilise un code d'invitation → activation du compte
+        // (teacherStatus limited → active, linkedSchool, schoolId, statut)
+        // La validation du code est assurée côté service (InvitationService).
+        (isProfesseur() && request.auth.uid == userId &&
+          resource.data.get('role', '') == 'professeur' &&
+          request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['teacherStatus', 'linkedSchool',
+                                     'linkedSchoolNom', 'schoolId', 'statut']))
       );
 
       // Maîtrise pédagogique : élève écrit ses propres données, prof/parent/direction lit
@@ -372,6 +395,26 @@ service cloud.firestore {
         resource.data.get('classeId', '') != '' &&
         get(/databases/$(database)/documents/classes/$(resource.data.classeId))
           .data.get('professeurId', '') == request.auth.uid;
+      allow delete: if isDirection();
+    }
+
+    // ── Codes d'invitation enseignants ───────────────────────────────────────
+    match /teacher_invitations/{invId} {
+      // Lecture : tout utilisateur authentifié (pour valider son propre code)
+      allow read: if isAuth();
+      // Création : Direction uniquement
+      allow create: if isDirection();
+      // Mise à jour : Direction (révocation) OU enseignant ciblé (utilisation)
+      allow update: if isDirection() || (
+        isAuth() &&
+        // Ne peut modifier que used/usedAt/teacherUid (marquage utilisation)
+        request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['used', 'usedAt', 'teacherUid']) &&
+        // Seul l'enseignant pour lequel le code a été généré (ou code générique)
+        (resource.data.get('teacherUid', '') == '' ||
+         resource.data.get('teacherUid', '') == request.auth.uid)
+      );
+      // Suppression : Direction uniquement
       allow delete: if isDirection();
     }
 

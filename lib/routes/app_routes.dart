@@ -126,6 +126,10 @@ class AppRoutes {
   static const directionStatistiques = '/direction_statistiques';
   static const directionBulletins = '/direction_bulletins';
   static const directionBulletinsConsulter = '/direction_bulletins_consulter';
+  static const directionInviterEnseignant = '/direction_inviter_enseignant';
+
+  /// Espace enseignant non rattaché à un établissement
+  static const teacherLimited = '/teacher_limited';
 
   /// Initialisation du référentiel cycles/niveaux (SuperAdmin uniquement)
   static const directionSeedReferentiel = '/direction_seed_referentiel';

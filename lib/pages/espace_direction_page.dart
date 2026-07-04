@@ -6,6 +6,7 @@ import '../models/user_model.dart';
 import '../services/user_service.dart';
 import 'direction_comptes_attente_page.dart';
 import 'direction_classes_page.dart';
+import 'direction_inviter_enseignant_page.dart';
 import 'fiche_enseignant_page.dart';
 import 'direction_dashboard_page.dart';
 import 'direction_disponibilites_page.dart';
@@ -243,6 +244,15 @@ class _DirectionHome extends StatelessWidget {
               _buildSectionLabel('Gestion des enseignants'),
               const SizedBox(height: 8),
               _ModuleCard(
+                icon: Icons.person_add_outlined,
+                title: 'Inviter un enseignant',
+                subtitle: 'Générer un code d\'invitation pour un enseignant',
+                colors: const [Color(0xFF6C47FF), Color(0xFF8B5CF6)],
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(
+                        builder: (_) => const DirectionInviterEnseignantPage())),
+              ),
+              _ModuleCard(
                 icon: Icons.badge_outlined,
                 title: 'Fiches enseignants',
                 subtitle: 'Profils complets, disponibilités et statistiques',
@@ -264,7 +274,12 @@ class _DirectionHome extends StatelessWidget {
           .where('statut', isEqualTo: 'en_attente')
           .snapshots(),
       builder: (context, snap) {
-        final count = snap.data?.docs.length ?? 0;
+        // Ne compter que les élèves — les enseignants utilisent le nouveau
+        // système d'invitation par code et ne passent plus par en_attente.
+        final count = snap.data?.docs.where((d) {
+          final data = d.data() as Map<String, dynamic>;
+          return data['role'] != 'professeur';
+        }).length ?? 0;
         return InkWell(
           onTap: () => Navigator.push(
             context,

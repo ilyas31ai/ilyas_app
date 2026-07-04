@@ -110,6 +110,13 @@ class UserModel {
   // Validation
   final String statut; // 'actif' | 'en_attente' | 'refuse'
 
+  // Enseignant — système d'invitation par code
+  /// 'limited' : compte actif mais non rattaché à un établissement.
+  /// 'active'  : code d'invitation utilisé, pleinement fonctionnel.
+  /// null      : ancien compte actif (rétrocompatibilité → traité comme 'active').
+  final String? teacherStatus;
+  final String? linkedSchoolNom;
+
   // Commun
   final String? bio;
   final Timestamp? createdAt;
@@ -130,6 +137,8 @@ class UserModel {
     this.enfantIds = const [],
     this.enfantClasseIds = const [],
     this.statut = 'actif',
+    this.teacherStatus,
+    this.linkedSchoolNom,
     this.bio,
     this.createdAt,
     this.lastSeen,
@@ -155,6 +164,8 @@ class UserModel {
       enfantIds: List<String>.from(d['enfantIds'] as List? ?? []),
       enfantClasseIds: List<String>.from(d['enfantClasseIds'] as List? ?? []),
       statut: (d['statut'] as String?) ?? 'actif',
+      teacherStatus: d['teacherStatus'] as String?,
+      linkedSchoolNom: d['linkedSchoolNom'] as String?,
       bio: d['bio'] as String?,
       createdAt: d['createdAt'] as Timestamp?,
       lastSeen: d['lastSeen'] as Timestamp?,
@@ -176,6 +187,8 @@ class UserModel {
         if (enfantIds.isNotEmpty) 'enfantIds': enfantIds,
         if (enfantClasseIds.isNotEmpty) 'enfantClasseIds': enfantClasseIds,
         'statut': statut,
+        if (teacherStatus != null) 'teacherStatus': teacherStatus,
+        if (linkedSchoolNom != null) 'linkedSchoolNom': linkedSchoolNom,
         if (bio != null) 'bio': bio,
       };
 
@@ -192,6 +205,8 @@ class UserModel {
     List<String>? enfantIds,
     List<String>? enfantClasseIds,
     String? statut,
+    String? teacherStatus,
+    String? linkedSchoolNom,
     String? bio,
   }) =>
       UserModel(
@@ -209,6 +224,8 @@ class UserModel {
         enfantIds: enfantIds ?? this.enfantIds,
         enfantClasseIds: enfantClasseIds ?? this.enfantClasseIds,
         statut: statut ?? this.statut,
+        teacherStatus: teacherStatus ?? this.teacherStatus,
+        linkedSchoolNom: linkedSchoolNom ?? this.linkedSchoolNom,
         bio: bio ?? this.bio,
         createdAt: createdAt,
         lastSeen: lastSeen,

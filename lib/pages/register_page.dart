@@ -6,7 +6,6 @@ import '../models/school_model.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
 import 'pending_validation_page.dart';
-import 'professeur_dossier_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -119,8 +118,10 @@ class _RegisterPageState extends State<RegisterPage> {
     }
     if (_currentStep == 2) {
       if (!(_formKey.currentState?.validate() ?? false)) return;
-      if (_selectedRole == UserRole.eleve ||
-          _selectedRole == UserRole.professeur) {
+      // Seuls les élèves ont besoin de choisir une école à l'inscription.
+      // Les enseignants rejoignent un établissement via code d'invitation
+      // directeur depuis leur espace dédié (TeacherLimitedPage).
+      if (_selectedRole == UserRole.eleve) {
         if (_schoolJoinChoice == null) {
           _showError('Choisissez une option : rejoindre une école ou continuer sans école');
           return;
@@ -176,16 +177,18 @@ class _RegisterPageState extends State<RegisterPage> {
       final displayName =
           '${_prenomCtrl.text.trim()} ${_nomCtrl.text.trim()}';
 
+      // Les enseignants ne passent plus par 'en_attente' :
+      // ils démarrent avec statut actif + teacherStatus limited.
       final bool needsValidation =
-          (_selectedRole == UserRole.professeur ||
-              _selectedRole == UserRole.eleve) &&
+          _selectedRole == UserRole.eleve &&
           _schoolJoinChoice == 'withCode';
       final String statut = needsValidation ? 'en_attente' : 'actif';
+      final String? teacherStatus =
+          _selectedRole == UserRole.professeur ? 'limited' : null;
 
       // Directeur : crée l'école avant le compte utilisateur
       String schoolId = kDefaultSchoolId;
-      if ((_selectedRole == UserRole.eleve ||
-              _selectedRole == UserRole.professeur) &&
+      if (_selectedRole == UserRole.eleve &&
           _schoolJoinChoice == 'withCode' &&
           _resolvedSchoolId.isNotEmpty) {
         schoolId = _resolvedSchoolId;
@@ -218,6 +221,7 @@ class _RegisterPageState extends State<RegisterPage> {
         'createdAt': FieldValue.serverTimestamp(),
         'lastSeen': FieldValue.serverTimestamp(),
         'statut': statut,
+        if (teacherStatus != null) 'teacherStatus': teacherStatus,
       });
 
       if (role == UserRole.parent && _enfantEmailCtrl.text.trim().isNotEmpty) {
@@ -230,19 +234,9 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (mounted) {
         if (role == UserRole.professeur) {
-          // Toujours diriger vers le dossier enseignant, quel que soit le statut
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => ProfesseurDossierPage(
-                uid: uid,
-                displayName: displayName,
-                statut: statut,
-                schoolNom: _resolvedSchoolNom.isNotEmpty
-                    ? _resolvedSchoolNom
-                    : null,
-              ),
-            ),
-          );
+          // Retour à la racine : le StreamBuilder de main.dart détecte
+          // teacherStatus == 'limited' et affiche TeacherLimitedPage.
+          Navigator.of(context).popUntil((r) => r.isFirst);
         } else if (statut == 'en_attente') {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
@@ -878,9 +872,12 @@ class _RegisterPageState extends State<RegisterPage> {
               },
             ),
             const SizedBox(height: 14),
-            if (_selectedRole == UserRole.eleve ||
-                _selectedRole == UserRole.professeur) ...[
+            if (_selectedRole == UserRole.eleve) ...[
               _buildSchoolChoiceSection(),
+              const SizedBox(height: 4),
+            ],
+            if (_selectedRole == UserRole.professeur) ...[
+              _buildProfesseurInfoBanner(),
               const SizedBox(height: 4),
             ],
             if (_selectedRole == UserRole.parent) ...[
@@ -895,6 +892,46 @@ class _RegisterPageState extends State<RegisterPage> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  // ─── Bannière info enseignant ────────────────────────────────────────────
+
+  Widget _buildProfesseurInfoBanner() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161B22),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: const Color(0xFF6C47FF).withValues(alpha: 0.3)),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline,
+                  color: Color(0xFF6C47FF), size: 16),
+              SizedBox(width: 8),
+              Text(
+                'Compte enseignant autonome',
+                style: TextStyle(
+                  color: Color(0xFF6C47FF),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Votre compte sera créé immédiatement. Pour rejoindre un établissement, demandez un code d\'invitation à votre directeur et saisissez-le depuis votre espace personnel.',
+            style: TextStyle(
+                color: Colors.white70, fontSize: 13, height: 1.5),
+          ),
+        ],
       ),
     );
   }
