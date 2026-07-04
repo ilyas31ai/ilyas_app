@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart' hide Query;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../models/groupe_model.dart';
 import '../models/user_model.dart';
 import '../models/school_model.dart';
+import '../services/groupe_service.dart';
 import '../services/social_service.dart';
 import '../services/user_service.dart';
 import '../services/school_service.dart';
@@ -1026,101 +1027,121 @@ class _GroupesTab extends StatefulWidget {
 }
 
 class _GroupesTabState extends State<_GroupesTab> {
-  final _db = FirebaseDatabase.instance.ref('scolar_groupes');
-  late final Stream<List<Map<String, dynamic>>> _groupesStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _groupesStream = _db.onValue.map<List<Map<String, dynamic>>>((e) {
-      if (e.snapshot.value == null) return [];
-      final raw = Map<dynamic, dynamic>.from(e.snapshot.value as Map);
-      final list = raw.entries.map((en) {
-        final d = Map<String, dynamic>.from(en.value as Map);
-        d['id'] = en.key.toString();
-        return d;
-      }).toList();
-      list.sort((a, b) =>
-          (b['createdAt'] as int? ?? 0)
-              .compareTo(a['createdAt'] as int? ?? 0));
-      return list;
-    }).asBroadcastStream();
-  }
+  bool _mesGroupesOnly = false;
 
   Future<void> _showCreateDialog() async {
     final nomCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
     final matiereCtrl = TextEditingController();
     final niveauCtrl = TextEditingController();
+    GroupeType typeSelected = GroupeType.public;
+
     await showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: _card,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(children: [
-          Icon(Icons.group_add_outlined, color: _purple, size: 22),
-          SizedBox(width: 10),
-          Text('Créer un groupe',
-              style: TextStyle(color: Colors.white, fontSize: 16)),
-        ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _DialogField(ctrl: nomCtrl, hint: 'Nom du groupe'),
-            const SizedBox(height: 10),
-            _DialogField(
-                ctrl: matiereCtrl, hint: 'Matière (ex: Mathématiques)'),
-            const SizedBox(height: 10),
-            _DialogField(
-                ctrl: niveauCtrl, hint: 'Niveau (ex: Terminale, L2…)'),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          backgroundColor: _card,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+          title: const Row(children: [
+            Icon(Icons.group_add_outlined, color: _purple, size: 22),
+            SizedBox(width: 10),
+            Text('Créer un groupe',
+                style: TextStyle(color: Colors.white, fontSize: 16)),
+          ]),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _DialogField(ctrl: nomCtrl, hint: 'Nom du groupe *'),
+                const SizedBox(height: 8),
+                _DialogField(
+                    ctrl: descCtrl, hint: 'Description (optionnel)', maxLines: 2),
+                const SizedBox(height: 8),
+                _DialogField(
+                    ctrl: matiereCtrl, hint: 'Matière (ex: Mathématiques)'),
+                const SizedBox(height: 8),
+                _DialogField(
+                    ctrl: niveauCtrl, hint: 'Niveau (ex: Terminale, L2…)'),
+                const SizedBox(height: 12),
+                const Text('Visibilité',
+                    style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  children: GroupeType.values.map((t) => ChoiceChip(
+                    label: Text(t.label),
+                    selected: typeSelected == t,
+                    onSelected: (_) => setSt(() => typeSelected = t),
+                    backgroundColor: _card2,
+                    selectedColor: _purple,
+                    labelStyle: TextStyle(
+                        color: typeSelected == t
+                            ? Colors.white
+                            : Colors.white54,
+                        fontSize: 12),
+                  )).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler',
+                  style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _purple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () async {
+                final nom = nomCtrl.text.trim();
+                if (nom.isEmpty) return;
+                Navigator.pop(ctx);
+                try {
+                  final id = await GroupeService.creerGroupe(
+                    nom: nom,
+                    description: descCtrl.text.trim(),
+                    matiere: matiereCtrl.text.trim(),
+                    niveau: niveauCtrl.text.trim(),
+                    type: typeSelected,
+                  );
+                  if (mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SCOLARGroupeDetailPage(
+                          groupeId: id,
+                          groupeNom: nom,
+                          groupeData: {
+                            'id': id,
+                            'nom': nom,
+                            'matiere': matiereCtrl.text.trim(),
+                            'niveau': niveauCtrl.text.trim(),
+                            'type': typeSelected.value,
+                          },
+                        ),
+                      ),
+                    );
+                  }
+                } catch (_) {}
+              },
+              child: const Text('Créer'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler',
-                style: TextStyle(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _purple,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () async {
-              final nom = nomCtrl.text.trim();
-              if (nom.isEmpty) return;
-              Navigator.pop(context);
-              final ref = _db.push();
-              await ref.set({
-                'name': nom,
-                'matiere': matiereCtrl.text.trim(),
-                'niveau': niveauCtrl.text.trim(),
-                'creatorEmail': _me,
-                'createdAt':
-                    DateTime.now().millisecondsSinceEpoch,
-                'memberCount': 1,
-              });
-              if (mounted) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SCOLARChatRoomPage(
-                      name: 'groupe_${ref.key}',
-                      user: _me,
-                      displayName: nom,
-                    ),
-                  ),
-                );
-              }
-            },
-            child: const Text('Créer'),
-          ),
-        ],
       ),
     );
     nomCtrl.dispose();
+    descCtrl.dispose();
     matiereCtrl.dispose();
     niveauCtrl.dispose();
   }
@@ -1135,53 +1156,284 @@ class _GroupesTabState extends State<_GroupesTab> {
         icon: const Icon(Icons.group_add_outlined),
         label: const Text('Nouveau groupe'),
       ),
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _groupesStream,
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(
-                child: CircularProgressIndicator(color: _purple));
-          }
-          final groups = snap.data ?? [];
-          if (groups.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                          colors: [_purple, _blue]),
-                      borderRadius: BorderRadius.circular(22),
+      body: Column(
+        children: [
+          // Filtre Tous / Mes groupes
+          Container(
+            color: _card,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              children: [
+                _FilterChip(
+                  label: 'Tous',
+                  selected: !_mesGroupesOnly,
+                  onTap: () => setState(() => _mesGroupesOnly = false),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'Mes groupes',
+                  selected: _mesGroupesOnly,
+                  onTap: () => setState(() => _mesGroupesOnly = true),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<List<GroupeModel>>(
+              stream: _mesGroupesOnly
+                  ? GroupeService.mesGroupesStream()
+                  : GroupeService.tousGroupesStream(),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                      child: CircularProgressIndicator(color: _purple));
+                }
+                final groups = snap.data ?? [];
+                if (groups.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                                colors: [_purple, _blue]),
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                          child: const Icon(Icons.groups_outlined,
+                              color: Colors.white54, size: 40),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          _mesGroupesOnly
+                              ? 'Vous n\'avez rejoint aucun groupe'
+                              : 'Aucun groupe de révision',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                            'Créez un groupe pour réviser ensemble !',
+                            style: TextStyle(
+                                color: Colors.white38, fontSize: 13)),
+                        const SizedBox(height: 100),
+                      ],
                     ),
-                    child: const Icon(Icons.groups_outlined,
-                        color: Colors.white54, size: 40),
-                  ),
-                  const SizedBox(height: 18),
-                  const Text('Aucun groupe de révision',
-                      style: TextStyle(
+                  );
+                }
+                return ListView.builder(
+                  padding:
+                      const EdgeInsets.fromLTRB(14, 14, 14, 100),
+                  itemCount: groups.length,
+                  itemBuilder: (_, i) =>
+                      _GroupModelCard(groupe: groups[i]),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FilterChip(
+      {required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: selected
+              ? const LinearGradient(colors: [_purple, _blue])
+              : null,
+          color: selected ? null : _card2,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? Colors.transparent : _border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.white54,
+            fontSize: 12,
+            fontWeight:
+                selected ? FontWeight.w700 : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupModelCard extends StatelessWidget {
+  final GroupeModel groupe;
+  const _GroupModelCard({required this.groupe});
+
+  static const _gradients = [
+    [Color(0xFF6C47FF), Color(0xFF4F35C2)],
+    [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+    [Color(0xFF0D9488), Color(0xFF0F766E)],
+    [Color(0xFFD97706), Color(0xFFB45309)],
+    [Color(0xFFDC2626), Color(0xFFEA580C)],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final hash = groupe.nom.length % _gradients.length;
+    final grad = _gradients[hash];
+    final initiale =
+        groupe.nom.isNotEmpty ? groupe.nom[0].toUpperCase() : 'G';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SCOLARGroupeDetailPage(
+              groupeId: groupe.id,
+              groupeNom: groupe.nom,
+              groupeData: {
+                'id':      groupe.id,
+                'nom':     groupe.nom,
+                'matiere': groupe.matiere,
+                'niveau':  groupe.niveau,
+                'type':    groupe.type.value,
+                'creatorEmail': groupe.creatorEmail,
+                'creatorUid':   groupe.creatorUid,
+              },
+            ),
+          ),
+        ),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: grad),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: Text(initiale,
+                      style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  const Text(
-                      'Créez un groupe pour réviser ensemble !',
-                      style: TextStyle(
-                          color: Colors.white38, fontSize: 13)),
-                  const SizedBox(height: 100),
-                ],
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold)),
+                ),
               ),
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 100),
-            itemCount: groups.length,
-            itemBuilder: (_, i) =>
-                _GroupCard(data: groups[i]),
-          );
-        },
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            groupe.nom,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        _TypeChip(type: groupe.type),
+                      ],
+                    ),
+                    if (groupe.matiere.isNotEmpty ||
+                        groupe.niveau.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        [groupe.matiere, groupe.niveau]
+                            .where((s) => s.isNotEmpty)
+                            .join(' · '),
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (groupe.description.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        groupe.description,
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 11),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.people_outline,
+                            color: Colors.white24, size: 13),
+                        const SizedBox(width: 3),
+                        Text('${groupe.memberCount} membre(s)',
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 11)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right,
+                  color: Colors.white24, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TypeChip extends StatelessWidget {
+  final GroupeType type;
+  const _TypeChip({required this.type});
+
+  Color get _color => switch (type) {
+        GroupeType.public  => const Color(0xFF16A34A),
+        GroupeType.prive   => const Color(0xFFD97706),
+        GroupeType.classe  => const Color(0xFF2563EB),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: _color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        type.label,
+        style: TextStyle(
+            color: _color, fontSize: 10, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -1927,110 +2179,6 @@ class _MiniTag extends StatelessWidget {
   }
 }
 
-class _GroupCard extends StatelessWidget {
-  final Map<String, dynamic> data;
-  const _GroupCard({required this.data});
-
-  static const _matiereGradients = [
-    [Color(0xFF6C47FF), Color(0xFF4F35C2)],
-    [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-    [Color(0xFF0D9488), Color(0xFF0F766E)],
-    [Color(0xFFD97706), Color(0xFFB45309)],
-    [Color(0xFFEC4899), Color(0xFFBE185D)],
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final name = data['name'] as String? ?? 'Groupe';
-    final matiere = data['matiere'] as String? ?? '';
-    final niveau = data['niveau'] as String? ?? '';
-    final members = data['memberCount'] as int? ?? 1;
-    final gradIdx = name.hashCode.abs() % _matiereGradients.length;
-    final gradient = _matiereGradients[gradIdx];
-
-    return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SCOLARGroupeDetailPage(
-            groupeId: data['id'] as String? ?? '',
-            groupeNom: name,
-            groupeData: data,
-          ),
-        ),
-      ),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _border),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                gradient:
-                    LinearGradient(colors: gradient),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(Icons.groups,
-                  color: Colors.white, size: 26),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (matiere.isNotEmpty) ...[
-                        _MiniTag(
-                            text: matiere,
-                            color: const Color(0xFF6C47FF)),
-                        const SizedBox(width: 6),
-                      ],
-                      if (niveau.isNotEmpty)
-                        _MiniTag(
-                            text: niveau,
-                            color: Colors.white38),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.people_outline,
-                          color: Colors.white38, size: 13),
-                      const SizedBox(width: 4),
-                      Text('$members membre${members > 1 ? 's' : ''}',
-                          style: const TextStyle(
-                              color: Colors.white38,
-                              fontSize: 11)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right,
-                color: Colors.white24, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _ConvTile extends StatelessWidget {
   final String email;
