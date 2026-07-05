@@ -36,17 +36,29 @@ class UserService {
           updates['displayName'] = authDisplayName;
         }
 
-        // Auto-correction du role : si le document a role='eleve' (valeur de secours
-        // créée par l'ancien syncProfile quand les règles Firestore bloquaient
-        // l'inscription), vérifie si un document schools/{uid} existe avec
-        // directeurId == uid → restaure role='direction' + schoolId=uid.
+        // Auto-correction du role : cherche d'abord schools/{uid} (accès direct O(1)),
+        // puis si absent fait une requête par directeurId (cas migration).
+        // Ne s'applique que si le role stocké est 'eleve' — valeur de secours.
         if (storedRole == 'eleve') {
           try {
-            final schoolSnap = await _db.collection('schools').doc(uid).get();
-            if (schoolSnap.exists &&
-                (schoolSnap.data()?['directeurId'] as String?) == uid) {
+            String? correctedSchoolId;
+            final schoolDirect = await _db.collection('schools').doc(uid).get();
+            if (schoolDirect.exists &&
+                (schoolDirect.data()?['directeurId'] as String?) == uid) {
+              correctedSchoolId = uid;
+            } else {
+              final schoolQuery = await _db
+                  .collection('schools')
+                  .where('directeurId', isEqualTo: uid)
+                  .limit(1)
+                  .get();
+              if (schoolQuery.docs.isNotEmpty) {
+                correctedSchoolId = schoolQuery.docs.first.id;
+              }
+            }
+            if (correctedSchoolId != null) {
               updates['role'] = 'direction';
-              updates['schoolId'] = uid;
+              updates['schoolId'] = correctedSchoolId;
             }
           } catch (_) {}
         }
