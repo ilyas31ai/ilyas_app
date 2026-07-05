@@ -113,7 +113,7 @@ class _AdditionGamePageState extends State<AdditionGamePage> {
             const SizedBox(height: 10),
 
             const Text(
-              "ILYAS31AI",
+              "SCOLAR AI Educative",
               style: TextStyle(
                 fontSize: 22,
                 color: Colors.white,

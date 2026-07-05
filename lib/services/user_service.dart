@@ -25,6 +25,8 @@ class UserService {
 
       if (snap.exists) {
         final updates = <String, dynamic>{'lastSeen': FieldValue.serverTimestamp()};
+        final storedRole = snap.data()?['role'] as String?;
+
         // Corrige le displayName si Firebase Auth a un vrai nom mais Firestore a
         // l'email en guise de nom (cas d'une inscription partiellement ratée)
         final storedName = snap.data()?['displayName'] as String?;
@@ -33,9 +35,25 @@ class UserService {
             authDisplayName != storedName) {
           updates['displayName'] = authDisplayName;
         }
+
+        // Auto-correction du role : si le document a role='eleve' (valeur de secours
+        // créée par l'ancien syncProfile quand les règles Firestore bloquaient
+        // l'inscription), vérifie si un document schools/{uid} existe avec
+        // directeurId == uid → restaure role='direction' + schoolId=uid.
+        if (storedRole == 'eleve') {
+          try {
+            final schoolSnap = await _db.collection('schools').doc(uid).get();
+            if (schoolSnap.exists &&
+                (schoolSnap.data()?['directeurId'] as String?) == uid) {
+              updates['role'] = 'direction';
+              updates['schoolId'] = uid;
+            }
+          } catch (_) {}
+        }
+
         await ref.update(updates);
         // Re-run parent link in case children have logged in since last parent login
-        if ((snap.data()?['role'] as String?) == 'parent') {
+        if (storedRole == 'parent') {
           await _syncParentEnfantIds(uid, snap.data()?['email'] as String? ?? email);
         }
       } else {

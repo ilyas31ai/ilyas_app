@@ -222,7 +222,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
       case UserRole.professeur:
         return const Color(0xFF6C47FF);
       case UserRole.admin:
+      case UserRole.direction:
+      case UserRole.adminEtablissement:
+      case UserRole.superAdmin:
         return const Color(0xFFD97706);
+      case UserRole.parent:
+        return const Color(0xFFBE185D);
       default:
         return const Color(0xFF16A34A);
     }

@@ -208,25 +208,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
                     ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB)
-                          .withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: const Color(0xFF2563EB)
-                              .withValues(alpha: 0.3)),
-                    ),
-                    child: const Text(
-                      'ILYAS31AI',
-                      style: TextStyle(
-                          color: Color(0xFF2563EB),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700),
-                    ),
-                  ),
                 ],
               ),
             ],
@@ -315,7 +296,12 @@ class _ProfilePageState extends State<ProfilePage> {
       case UserRole.professeur:
         return const Color(0xFF6C47FF);
       case UserRole.admin:
+      case UserRole.direction:
+      case UserRole.adminEtablissement:
+      case UserRole.superAdmin:
         return const Color(0xFFD97706);
+      case UserRole.parent:
+        return const Color(0xFFBE185D);
       default:
         return const Color(0xFF16A34A);
     }

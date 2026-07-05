@@ -113,7 +113,7 @@ class _SoustractionPageState extends State<SoustractionPage> {
             ),
             const SizedBox(height: 10),
             const Text(
-              "ILYAS31AI",
+              "SCOLAR AI Educative",
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
