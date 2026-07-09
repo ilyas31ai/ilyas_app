@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -5,6 +7,9 @@ import 'home_page.dart';
 import 'eleves_page.dart';
 import 'profile_page.dart';
 import 'scolar_connect_page.dart';
+import 'direction_dashboard_page.dart';
+import 'espace_direction_page.dart';
+import '../models/permission_model.dart';
 import '../models/user_model.dart';
 import '../services/notification_service.dart';
 import '../services/social_service.dart';
@@ -19,6 +24,9 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _index = 0;
+  UserRole _role = UserRole.eleve;
+  bool _listenersInit = false;
+  StreamSubscription<UserModel?>? _roleSub;
 
   static String get _user => FirebaseAuth.instance.currentUser?.email ?? '';
 
@@ -28,30 +36,43 @@ class _MainShellState extends State<MainShell> {
     SocialService.goOnline();
     UserService.syncProfile();
     NotificationService.init(_user);
-    _maybeInitRoleListeners();
-  }
 
-  void _maybeInitRoleListeners() {
-    UserService.currentUserStream().first.then((user) {
+    // Écoute les changements de rôle pour mettre à jour la navigation.
+    // N'appelle setState que lorsque le rôle change réellement (pas à chaque
+    // lastSeen) pour éviter de reconstruire l'IndexedStack inutilement.
+    _roleSub = UserService.currentUserStream().listen((user) {
       if (user == null) return;
-      final uid = user.uid;
 
-      // Messagerie — tous les rôles
-      NotificationService.initMessagerieListeners(uid);
-
-      // Rôle parent
-      if (user.role == UserRole.parent && user.enfantIds.isNotEmpty) {
-        NotificationService.initParentListeners(user.enfantIds);
+      // Initialiser les listeners de notification une seule fois.
+      if (!_listenersInit) {
+        _listenersInit = true;
+        final uid = user.uid;
+        NotificationService.initMessagerieListeners(uid);
+        if (user.role == UserRole.parent && user.enfantIds.isNotEmpty) {
+          NotificationService.initParentListeners(user.enfantIds);
+        }
+        if (user.role == UserRole.professeur) {
+          NotificationService.initProfesseurListeners(uid);
+        }
       }
-      // Rôle professeur
-      if (user.role == UserRole.professeur) {
-        NotificationService.initProfesseurListeners(uid);
+
+      // Mettre à jour la navigation uniquement si le rôle change.
+      if (user.role != _role) {
+        final wasDirection = PermissionService.isDirection(_role);
+        final isDirection  = PermissionService.isDirection(user.role);
+        setState(() {
+          _role = user.role;
+          // Réinitialiser l'index si la catégorie change (Direction ↔ autre)
+          // pour éviter d'atterrir sur un onglet invalide.
+          if (wasDirection != isDirection) _index = 0;
+        });
       }
     });
   }
 
   @override
   void dispose() {
+    _roleSub?.cancel();
     SocialService.goOffline();
     NotificationService.disposeParentListeners();
     NotificationService.disposeProfesseurListeners();
@@ -59,8 +80,79 @@ class _MainShellState extends State<MainShell> {
     super.dispose();
   }
 
+  // ─── Configuration par rôle ───────────────────────────────────────────────
+
+  bool get _isDirection => PermissionService.isDirection(_role);
+
+  List<Widget> get _pages => _isDirection
+      ? const [
+          HomePage(),
+          DirectionDashboardPage(),
+          EspaceDirectionPage(),
+          ProfilePage(),
+        ]
+      : const [
+          HomePage(),
+          ElevesPage(),
+          SCOLARConnectPage(),
+          ProfilePage(),
+        ];
+
+  List<BottomNavigationBarItem> get _navItems {
+    if (_isDirection) {
+      return const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.home_outlined),
+          activeIcon: Icon(Icons.home),
+          label: 'Accueil',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.dashboard_outlined),
+          activeIcon: Icon(Icons.dashboard),
+          label: 'Tableau de bord',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.account_balance_outlined),
+          activeIcon: Icon(Icons.account_balance),
+          label: 'Gestion',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.person_outline),
+          activeIcon: Icon(Icons.person),
+          label: 'Profil',
+        ),
+      ];
+    }
+    return [
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.home_outlined),
+        activeIcon: Icon(Icons.home),
+        label: 'Accueil',
+      ),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.school_outlined),
+        activeIcon: const Icon(Icons.school),
+        label: _role == UserRole.professeur ? 'Élèves' : 'Révision',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.hub_outlined),
+        activeIcon: Icon(Icons.hub),
+        label: 'Réseau',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.person_outline),
+        activeIcon: Icon(Icons.person),
+        label: 'Profil',
+      ),
+    ];
+  }
+
+  // ─── Build ────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    final safeIndex = _index.clamp(0, 3);
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -69,13 +161,8 @@ class _MainShellState extends State<MainShell> {
       child: Scaffold(
         backgroundColor: const Color(0xFF0D1117),
         body: IndexedStack(
-          index: _index,
-          children: const [
-            HomePage(),
-            ElevesPage(),
-            SCOLARConnectPage(),
-            ProfilePage(),
-          ],
+          index: safeIndex,
+          children: _pages,
         ),
         bottomNavigationBar: BottomNavigationBar(
           backgroundColor: const Color(0xFF161B22),
@@ -84,30 +171,9 @@ class _MainShellState extends State<MainShell> {
           type: BottomNavigationBarType.fixed,
           selectedFontSize: 11,
           unselectedFontSize: 11,
-          currentIndex: _index,
+          currentIndex: safeIndex,
           onTap: (i) => setState(() => _index = i),
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Accueil',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.school_outlined),
-              activeIcon: Icon(Icons.school),
-              label: 'Révision',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.hub_outlined),
-              activeIcon: Icon(Icons.hub),
-              label: 'Réseau',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profil',
-            ),
-          ],
+          items: _navItems,
         ),
       ),
     );

@@ -185,6 +185,11 @@ class _TabDashboard extends StatelessWidget {
                     child: CircularProgressIndicator(
                         color: Color(0xFF6C47FF), strokeWidth: 2));
               }
+              if (snap.hasError) {
+                return _EmptyState(
+                    icon: Icons.error_outline,
+                    message: 'Erreur de chargement');
+              }
               final list = (snap.data ?? [])
                   .where((r) =>
                       r.statut == RemplacementStatut.enAttente ||
@@ -352,6 +357,11 @@ class _AbsencesDuJour extends StatelessWidget {
               child: CircularProgressIndicator(
                   color: Color(0xFF6C47FF), strokeWidth: 2));
         }
+        if (snap.hasError) {
+          return _EmptyState(
+              icon: Icons.error_outline,
+              message: 'Erreur de chargement');
+        }
         final dispos = snap.data ?? [];
         if (dispos.isEmpty) {
           return _EmptyState(
@@ -507,6 +517,11 @@ class _TabDisponibilitesState extends State<_TabDisponibilites> {
                       return const Center(
                           child: CircularProgressIndicator(
                               color: Color(0xFF6C47FF)));
+                    }
+                    if (profSnap.hasError || dispoSnap.hasError) {
+                      return _EmptyState(
+                          icon: Icons.error_outline,
+                          message: 'Erreur de chargement');
                     }
                     final profs = (profSnap.data ?? []).where((p) {
                       if (_search.isEmpty) {
@@ -776,6 +791,11 @@ class _TabRemplacementsState extends State<_TabRemplacements> {
                       child: CircularProgressIndicator(
                           color: Color(0xFF6C47FF)));
                 }
+                if (snap.hasError) {
+                  return _EmptyState(
+                      icon: Icons.error_outline,
+                      message: 'Erreur de chargement');
+                }
                 final list = snap.data ?? [];
                 if (list.isEmpty) {
                   return _EmptyState(
@@ -1034,9 +1054,19 @@ class _TabCalendrierState extends State<_TabCalendrier> {
         StreamBuilder<List<Remplacement>>(
           stream: RemplacementService.remplacementsStream(),
           builder: (ctx, remSnap) {
+            if (remSnap.hasError) {
+              return _EmptyState(
+                  icon: Icons.error_outline,
+                  message: 'Erreur de chargement');
+            }
             return StreamBuilder<List<DisponibiliteEnseignant>>(
               stream: RemplacementService.allDisponibilitesStream(),
               builder: (ctx2, dispoSnap) {
+                if (dispoSnap.hasError) {
+                  return _EmptyState(
+                      icon: Icons.error_outline,
+                      message: 'Erreur de chargement');
+                }
                 final remplacements = remSnap.data ?? [];
                 return SingleChildScrollView(
                   scrollDirection: Axis.horizontal,

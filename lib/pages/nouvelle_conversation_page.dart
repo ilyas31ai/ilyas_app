@@ -279,8 +279,6 @@ class _DirectList extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
-          .where('statut', whereNotIn: ['en_attente'])
-          .orderBy('statut')
           .orderBy('displayName')
           .snapshots(),
       builder: (ctx, snap) {
@@ -288,9 +286,17 @@ class _DirectList extends StatelessWidget {
           return const Center(
               child: CircularProgressIndicator(color: _kPurple));
         }
+        if (snap.hasError) {
+          return Center(
+            child: Text('Erreur de chargement',
+                style: const TextStyle(color: Colors.white38)),
+          );
+        }
+        // whereNotIn Firestore exclude les docs sans champ 'statut' → filtre Dart
         final users = (snap.data?.docs ?? [])
             .map(UserModel.fromDoc)
             .where((u) => u.uid != me.uid)
+            .where((u) => u.statut != 'en_attente')
             .where((u) {
           if (query.isEmpty) return true;
           return u.displayName
@@ -342,8 +348,6 @@ class _GroupBuilder extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
-          .where('statut', whereNotIn: ['en_attente'])
-          .orderBy('statut')
           .orderBy('displayName')
           .snapshots(),
       builder: (ctx, snap) {
@@ -351,9 +355,17 @@ class _GroupBuilder extends StatelessWidget {
           return const Center(
               child: CircularProgressIndicator(color: _kPurple));
         }
+        if (snap.hasError) {
+          return Center(
+            child: Text('Erreur de chargement',
+                style: const TextStyle(color: Colors.white38)),
+          );
+        }
+        // whereNotIn Firestore exclude les docs sans champ 'statut' → filtre Dart
         final users = (snap.data?.docs ?? [])
             .map(UserModel.fromDoc)
             .where((u) => u.uid != me.uid)
+            .where((u) => u.statut != 'en_attente')
             .where((u) {
           if (query.isEmpty) return true;
           return u.displayName

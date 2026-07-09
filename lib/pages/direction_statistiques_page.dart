@@ -39,6 +39,7 @@ class _StatsBodyState extends State<_StatsBody> {
   int _totalPresencesAuj = 0;
   int _totalAbsencesAuj = 0;
   bool _loading = true;
+  bool _error = false;
 
   @override
   void initState() {
@@ -114,7 +115,10 @@ class _StatsBodyState extends State<_StatsBody> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _error = true;
+      });
     }
   }
 
@@ -127,6 +131,26 @@ class _StatsBodyState extends State<_StatsBody> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)));
+    }
+    if (_error) {
+      return RefreshIndicator(
+        onRefresh: () async {
+          setState(() { _loading = true; _error = false; });
+          await _load();
+        },
+        child: ListView(
+          children: const [
+            SizedBox(height: 80),
+            Center(
+              child: Text(
+                'Erreur de chargement.\nTirez pour réessayer.',
+                style: TextStyle(color: Colors.white38, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      );
     }
     return RefreshIndicator(
       onRefresh: () async {

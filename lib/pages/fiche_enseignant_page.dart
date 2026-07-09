@@ -60,6 +60,22 @@ class _FicheEnseignantPageState extends State<FicheEnseignantPage>
     return StreamBuilder<EnseignantProfil?>(
       stream: _profilStream(),
       builder: (context, snap) {
+        if (snap.hasError) {
+          return Scaffold(
+            backgroundColor: _bg,
+            appBar: AppBar(
+              backgroundColor: const Color(0xFF161B22),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+            body: const Center(
+              child: Text('Erreur de chargement du profil',
+                  style: TextStyle(color: Colors.white38)),
+            ),
+          );
+        }
         final profil = snap.data;
         return Scaffold(
           backgroundColor: _bg,

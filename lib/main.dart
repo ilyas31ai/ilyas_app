@@ -38,6 +38,7 @@ import 'pages/professeur_dossier_page.dart';
 import 'pages/inscription_wizard_page.dart';
 import 'pages/scolar_profile_page.dart';
 import 'pages/scolar_salle_page.dart';
+import 'services/user_service.dart';
 
 // 👩‍🏫 PROFESSEUR — sous-pages (deep-link direct)
 import 'pages/professeur_bulletins_page.dart';
@@ -209,7 +210,23 @@ class MyApp extends StatelessWidget {
       ),
 
       // 🏠 AUTH GUARD
-      home: StreamBuilder<User?>(
+      home: ValueListenableBuilder<bool>(
+        valueListenable: UserService.signupInProgress,
+        builder: (context, signingUp, _) {
+          // RegisterPage écrit encore users/{uid} (+ schools/{uid} pour un
+          // Directeur) : ne pas laisser authStateChanges() monter MainShell
+          // maintenant, sinon syncProfile() lit le doc avant qu'il existe et
+          // le recrée avec des valeurs par défaut (role: eleve), écrasant la
+          // vraie écriture de RegisterPage en cours.
+          if (signingUp) {
+            return const Scaffold(
+              backgroundColor: Color(0xFF0D1117),
+              body: Center(
+                child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+              ),
+            );
+          }
+          return StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -291,6 +308,8 @@ class MyApp extends StatelessWidget {
           }
           _notifInitializedFor = null;
           return const LoginPage();
+        },
+          );
         },
       ),
 

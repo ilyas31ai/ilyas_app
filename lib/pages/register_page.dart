@@ -162,6 +162,9 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
     setState(() => _loading = true);
+    // Bloque l'affichage prématuré de MainShell (voir doc sur signupInProgress)
+    // tant que le document de profil n'est pas entièrement écrit.
+    UserService.signupInProgress.value = true;
     try {
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailCtrl.text.trim(),
@@ -298,6 +301,8 @@ class _RegisterPageState extends State<RegisterPage> {
           SnackBar(content: Text('Erreur: $e')),
         );
       }
+    } finally {
+      UserService.signupInProgress.value = false;
     }
   }
 

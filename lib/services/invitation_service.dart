@@ -76,10 +76,23 @@ class InvitationService {
   }
 
   /// L'enseignant saisit son code. Le système vérifie et active le compte.
+  ///
+  /// Deux systèmes de code coexistent et sont acceptés ici :
+  /// 1. Code nominatif (`teacher_invitations`) généré depuis l'onglet
+  ///    "Rechercher" de [DirectionInviterEnseignantPage] pour un enseignant
+  ///    déjà inscrit (teacherStatus = 'limited').
+  /// 2. Code générique de l'établissement (`schools/{id}.codeInvitation`),
+  ///    celui affiché en évidence sur le tableau de bord Direction et déjà
+  ///    utilisé par les élèves pour rejoindre une école. C'est le code que
+  ///    la Direction copie/partage naturellement — il doit donc aussi
+  ///    fonctionner pour un enseignant.
   static Future<void> utiliserCode(String code) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Session expirée, reconnectez-vous.');
     final trimmed = code.trim().toUpperCase();
+    if (trimmed.isEmpty) {
+      throw Exception('Code invalide ou déjà utilisé.');
+    }
 
     final query = await _db
         .collection('teacher_invitations')
@@ -88,40 +101,61 @@ class InvitationService {
         .where('revoked', isEqualTo: false)
         .get();
 
-    if (query.docs.isEmpty) {
+    if (query.docs.isNotEmpty) {
+      final doc = query.docs.first;
+      final inv = TeacherInvitation.fromDoc(doc);
+
+      if (inv.isExpired) {
+        throw Exception(
+          'Ce code a expiré le ${_formatDate(inv.expiresAt)}.',
+        );
+      }
+
+      // Si le code est nominatif, vérifier que c'est bien ce professeur
+      if (inv.teacherUid.isNotEmpty && inv.teacherUid != user.uid) {
+        throw Exception("Ce code n'est pas destiné à votre compte.");
+      }
+
+      final batch = _db.batch();
+
+      batch.update(doc.reference, {
+        'used': true,
+        'usedAt': FieldValue.serverTimestamp(),
+        'teacherUid': user.uid,
+      });
+
+      batch.update(_db.collection('users').doc(user.uid), {
+        'teacherStatus': 'active',
+        'linkedSchoolNom': inv.schoolNom,
+        'schoolId': inv.schoolId,
+        'statut': 'actif',
+      });
+
+      await batch.commit();
+      return;
+    }
+
+    // Repli : code générique de l'établissement (mêmes codes que les élèves).
+    final schoolSnap = await _db
+        .collection('schools')
+        .where('codeInvitation', isEqualTo: trimmed)
+        .where('statut', isEqualTo: 'actif')
+        .limit(1)
+        .get();
+
+    if (schoolSnap.docs.isEmpty) {
       throw Exception('Code invalide ou déjà utilisé.');
     }
 
-    final doc = query.docs.first;
-    final inv = TeacherInvitation.fromDoc(doc);
+    final schoolDoc = schoolSnap.docs.first;
+    final schoolNom = (schoolDoc.data()['nom'] as String?) ?? '';
 
-    if (inv.isExpired) {
-      throw Exception(
-        'Ce code a expiré le ${_formatDate(inv.expiresAt)}.',
-      );
-    }
-
-    // Si le code est nominatif, vérifier que c'est bien ce professeur
-    if (inv.teacherUid.isNotEmpty && inv.teacherUid != user.uid) {
-      throw Exception("Ce code n'est pas destiné à votre compte.");
-    }
-
-    final batch = _db.batch();
-
-    batch.update(doc.reference, {
-      'used': true,
-      'usedAt': FieldValue.serverTimestamp(),
-      'teacherUid': user.uid,
-    });
-
-    batch.update(_db.collection('users').doc(user.uid), {
+    await _db.collection('users').doc(user.uid).update({
       'teacherStatus': 'active',
-      'linkedSchoolNom': inv.schoolNom,
-      'schoolId': inv.schoolId,
+      'linkedSchoolNom': schoolNom,
+      'schoolId': schoolDoc.id,
       'statut': 'actif',
     });
-
-    await batch.commit();
   }
 
   /// Révoque une invitation non encore utilisée.

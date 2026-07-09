@@ -72,13 +72,18 @@ class SocialService {
         .onValue
         .map<List<Map<String, dynamic>>>((e) {
           if (e.snapshot.value == null) return [];
-          final raw = Map<dynamic, dynamic>.from(e.snapshot.value as Map);
-          final list = raw.values
-              .map((v) => Map<String, dynamic>.from(v as Map))
-              .toList()
-            ..sort((a, b) =>
-                (a['time'] as int? ?? 0).compareTo(b['time'] as int? ?? 0));
-          return list;
+          try {
+            final raw = Map<dynamic, dynamic>.from(e.snapshot.value as Map);
+            final list = raw.values
+                .whereType<Map>()
+                .map((v) => Map<String, dynamic>.from(v))
+                .toList()
+              ..sort((a, b) =>
+                  (a['time'] as int? ?? 0).compareTo(b['time'] as int? ?? 0));
+            return list;
+          } catch (_) {
+            return [];
+          }
         })
         .asBroadcastStream();
   }
@@ -150,14 +155,19 @@ class SocialService {
   }
 
   static Future<void> markSeen(String chatIdStr, String viewer) async {
-    final snap = await _db.child('messages/$chatIdStr').get();
-    if (!snap.exists) return;
-    final data = Map<dynamic, dynamic>.from(snap.value as Map);
-    for (final e in data.entries) {
-      final msg = Map<dynamic, dynamic>.from(e.value as Map);
-      if (msg['sender'] != viewer && msg['seen'] != true) {
-        await _db.child('messages/$chatIdStr/${e.key}/seen').set(true);
+    try {
+      final snap = await _db.child('messages/$chatIdStr').get();
+      if (!snap.exists || snap.value is! Map) return;
+      final data = Map<dynamic, dynamic>.from(snap.value as Map);
+      for (final e in data.entries) {
+        if (e.value is! Map) continue;
+        final msg = Map<dynamic, dynamic>.from(e.value as Map);
+        if (msg['sender'] != viewer && msg['seen'] != true) {
+          await _db.child('messages/$chatIdStr/${e.key}/seen').set(true);
+        }
       }
+    } catch (_) {
+      // Permission denied ou réseau — non critique
     }
   }
 

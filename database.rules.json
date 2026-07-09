@@ -101,6 +101,22 @@
       ".write": false
     },
 
+    // ── Indicateur de frappe (typing/chatId/encodedEmail: timestamp) ────────────
+    "typing": {
+      ".read":  "auth != null",
+      "$chatId": {
+        "$userKey": {
+          ".write": "auth != null"
+        }
+      }
+    },
+
+    // ── Réactions (reactions/chatId/messageTime/emoji: count) ────────────────
+    "reactions": {
+      ".read":  "auth != null",
+      ".write": "auth != null"
+    },
+
     // ── Professeurs (legacy RTDB) ────────────────────────────────────────────
     "professeurs": {
       ".read":  "auth != null",

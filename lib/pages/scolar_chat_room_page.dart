@@ -80,14 +80,14 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
     _typingStream = FirebaseDatabase.instance
         .ref('typing/$_chatId')
         .onValue;
-    _init();
+    _init().catchError((_) {});
     _scrollCtrl.addListener(_onScroll);
     _textCtrl.addListener(_onTextChanged);
     UserService.currentUserStream().first.then((u) {
       if (mounted && u != null && u.displayName.isNotEmpty) {
         _myDisplayName = u.displayName;
       }
-    });
+    }).catchError((_) {});
   }
 
   @override
@@ -123,28 +123,41 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
   }
 
   void _writeTyping(bool typing) {
+    if (widget.user.isEmpty) return;
     final k = SocialService.encodeKey(widget.user);
     if (typing) {
       FirebaseDatabase.instance
           .ref('typing/$_chatId/$k')
-          .set(DateTime.now().millisecondsSinceEpoch);
+          .set(DateTime.now().millisecondsSinceEpoch)
+          .catchError((_) {});
     } else {
-      FirebaseDatabase.instance.ref('typing/$_chatId/$k').remove();
+      FirebaseDatabase.instance
+          .ref('typing/$_chatId/$k')
+          .remove()
+          .catchError((_) {});
     }
   }
 
   void _clearTyping() {
+    if (widget.user.isEmpty) return;
     final k = SocialService.encodeKey(widget.user);
-    FirebaseDatabase.instance.ref('typing/$_chatId/$k').remove();
+    FirebaseDatabase.instance
+        .ref('typing/$_chatId/$k')
+        .remove()
+        .catchError((_) {});
   }
 
   Future<void> _init() async {
-    if (!_isGroup) {
-      _blocked = await SocialService.isBlocked(widget.user, widget.name);
-      if (mounted) setState(() {});
+    try {
+      if (!_isGroup) {
+        _blocked = await SocialService.isBlocked(widget.user, widget.name);
+        if (mounted) setState(() {});
+      }
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (mounted) await SocialService.markSeen(_chatId, widget.user);
+    } catch (_) {
+      // Erreurs réseau ou permissions silencieusement ignorées
     }
-    await Future.delayed(const Duration(milliseconds: 400));
-    if (mounted) await SocialService.markSeen(_chatId, widget.user);
   }
 
   void _onScroll() {
@@ -181,21 +194,32 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
     _clearTyping();
     final reply = _replyToMsg;
     if (mounted) setState(() { _sending = true; _replyToMsg = null; });
-    await SocialService.sendMessage(
-      chatIdStr: _chatId,
-      sender: widget.user,
-      toUser: widget.name,
-      text: text,
-      senderDisplayName: _myDisplayName,
-      replyTo: reply != null
-          ? {
-              'sender': reply['sender'] as String? ?? '',
-              'text': (reply['text'] as String? ?? '').length > 60
-                  ? '${(reply['text'] as String).substring(0, 60)}…'
-                  : reply['text'] as String? ?? '',
-            }
-          : null,
-    );
+    try {
+      await SocialService.sendMessage(
+        chatIdStr: _chatId,
+        sender: widget.user,
+        toUser: widget.name,
+        text: text,
+        senderDisplayName: _myDisplayName,
+        replyTo: reply != null
+            ? {
+                'sender': reply['sender'] as String? ?? '',
+                'text': (reply['text'] as String? ?? '').length > 60
+                    ? '${(reply['text'] as String).substring(0, 60)}…'
+                    : reply['text'] as String? ?? '',
+              }
+            : null,
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erreur d\'envoi du message'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
     if (mounted) setState(() => _sending = false);
     _scrollToBottom();
   }
@@ -359,6 +383,26 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _messagesStream,
       builder: (context, snap) {
+        if (snap.hasError) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.wifi_off_outlined,
+                    color: Colors.white24, size: 48),
+                const SizedBox(height: 12),
+                const Text('Impossible de charger les messages',
+                    style: TextStyle(color: Colors.white38, fontSize: 14)),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => setState(() {}),
+                  child: const Text('Réessayer',
+                      style: TextStyle(color: Color(0xFF6C47FF))),
+                ),
+              ],
+            ),
+          );
+        }
         final msgs = snap.data ?? [];
         if (msgs.isEmpty) {
           return Center(
@@ -432,11 +476,17 @@ class _SCOLARChatRoomPageState extends State<SCOLARChatRoomPage> {
     return StreamBuilder<DatabaseEvent>(
       stream: _typingStream,
       builder: (context, snap) {
-        if (!snap.hasData || snap.data!.snapshot.value == null) {
+        if (snap.hasError ||
+            !snap.hasData ||
+            snap.data!.snapshot.value == null) {
           return const SizedBox.shrink();
         }
-        final raw =
-            Map<dynamic, dynamic>.from(snap.data!.snapshot.value as Map);
+        Map<dynamic, dynamic> raw;
+        try {
+          raw = Map<dynamic, dynamic>.from(snap.data!.snapshot.value as Map);
+        } catch (_) {
+          return const SizedBox.shrink();
+        }
         final myKey = SocialService.encodeKey(widget.user);
         final now = DateTime.now().millisecondsSinceEpoch;
         // Find other users typing (activity within last 3 seconds)
@@ -1404,26 +1454,47 @@ class _ReactionBar extends StatelessWidget {
 }
 
 // ─── Reactions Display (on bubble) ───────────────────────────────────────────
+// StatefulWidget pour stocker le stream en initState (une seule souscription
+// stable même si le parent reconstruit la bulle lors du scroll).
 
-class _ReactionsDisplay extends StatelessWidget {
+class _ReactionsDisplay extends StatefulWidget {
   final String chatId;
   final int messageTime;
   const _ReactionsDisplay(
       {required this.chatId, required this.messageTime});
 
   @override
+  State<_ReactionsDisplay> createState() => _ReactionsDisplayState();
+}
+
+class _ReactionsDisplayState extends State<_ReactionsDisplay> {
+  late final Stream<DatabaseEvent> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = FirebaseDatabase.instance
+        .ref('reactions/${widget.chatId}/${widget.messageTime}')
+        .onValue;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (messageTime == 0) return const SizedBox.shrink();
+    if (widget.messageTime == 0) return const SizedBox.shrink();
     return StreamBuilder<DatabaseEvent>(
-      stream: FirebaseDatabase.instance
-          .ref('reactions/$chatId/$messageTime')
-          .onValue,
+      stream: _stream,
       builder: (context, snap) {
-        if (!snap.hasData || snap.data!.snapshot.value == null) {
+        if (snap.hasError ||
+            !snap.hasData ||
+            snap.data!.snapshot.value == null) {
           return const SizedBox.shrink();
         }
-        final raw =
-            Map<dynamic, dynamic>.from(snap.data!.snapshot.value as Map);
+        Map<dynamic, dynamic> raw;
+        try {
+          raw = Map<dynamic, dynamic>.from(snap.data!.snapshot.value as Map);
+        } catch (_) {
+          return const SizedBox.shrink();
+        }
         if (raw.isEmpty) return const SizedBox.shrink();
         return Padding(
           padding: const EdgeInsets.only(top: 4),

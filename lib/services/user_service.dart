@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/school_model.dart';
 import '../models/user_model.dart';
 
@@ -8,6 +9,14 @@ class UserService {
 
   static String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
   static String get _email => FirebaseAuth.instance.currentUser?.email ?? '';
+
+  /// True while RegisterPage is writing the initial `users/{uid}` (+ `schools/{uid}`
+  /// for direction) document for a brand new account. `authStateChanges()` fires the
+  /// instant `createUserWithEmailAndPassword` resolves — before those writes happen —
+  /// so without this guard the app root can mount MainShell early and its own
+  /// `syncProfile()` call races the registration write, sometimes overwriting the
+  /// just-chosen role/schoolId with defaults (role: eleve, schoolId: kDefaultSchoolId).
+  static final ValueNotifier<bool> signupInProgress = ValueNotifier(false);
 
   /// Create profile on first signup, update lastSeen on subsequent logins.
   /// Silently ignores transient Firestore errors.

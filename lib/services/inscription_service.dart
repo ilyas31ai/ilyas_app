@@ -217,7 +217,16 @@ class InscriptionService {
             .where('email', isEqualTo: inscription.eleve.emailEleve)
             .limit(1)
             .get();
-        if (usersSnap.docs.isNotEmpty) {
+        // FIX : ne jamais écraser le rôle d'un compte existant qui n'est pas
+        // déjà 'eleve'. Sans cette garde, un email d'inscription élève
+        // coïncidant avec un compte professeur/direction/parent existant
+        // (doublon, faute de frappe) reclassait silencieusement ce compte
+        // en 'eleve' — il disparaissait alors de son vrai rôle et apparaissait
+        // à tort dans la liste des élèves.
+        final existingRole =
+            usersSnap.docs.isNotEmpty ? usersSnap.docs.first.data()['role'] as String? : null;
+        if (usersSnap.docs.isNotEmpty &&
+            (existingRole == null || existingRole == 'eleve')) {
           final userRef = usersSnap.docs.first.reference;
           final uid = usersSnap.docs.first.id;
           final oldClasseId = usersSnap.docs.first.data()['classeId'] as String?;

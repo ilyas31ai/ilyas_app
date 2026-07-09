@@ -300,17 +300,19 @@ class _HomePageState extends State<HomePage> {
   List<_QItem> get _quickItems {
     // ── Direction ─────────────────────────────────────────────────────────────
     if (PermissionService.isDirection(_role)) {
-      return [
-        const _QItem(Icons.account_balance, 'Direction',
+      return const [
+        _QItem(Icons.account_balance_outlined, 'Gestion',
             [Color(0xFF6C47FF), Color(0xFF2563EB)], '/espace_direction'),
-        const _QItem(Icons.school, 'Professeur',
-            [Color(0xFF0F766E), Color(0xFF0891B2)], '/espace_professeur'),
-        const _QItem(Icons.family_restroom, 'Parent',
-            [Color(0xFFBE185D), Color(0xFF9D174D)], '/espace_parent'),
-        const _QItem(Icons.notifications, 'Alertes',
-            [Color(0xFF374151), Color(0xFF1F2937)], '/notifications'),
-        const _QItem(Icons.bar_chart_outlined, 'Révision',
-            [Color(0xFF2563EB), Color(0xFF0891B2)], '/eleves'),
+        _QItem(Icons.groups_outlined, 'Élèves',
+            [Color(0xFF2563EB), Color(0xFF0891B2)], '/direction_eleves'),
+        _QItem(Icons.class_outlined, 'Classes',
+            [Color(0xFF0F766E), Color(0xFF0891B2)], '/direction_classes'),
+        _QItem(Icons.description_outlined, 'Bulletins',
+            [Color(0xFF7C3AED), Color(0xFF6C47FF)], '/direction_bulletins'),
+        _QItem(Icons.bar_chart_outlined, 'Statistiques',
+            [Color(0xFFD97706), Color(0xFFF59E0B)], '/direction_statistiques'),
+        _QItem(Icons.notifications_outlined, 'Alertes',
+            [Color(0xFF374151), Color(0xFF4B5563)], '/notifications'),
       ];
     }
 
@@ -363,8 +365,8 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildToolsList(BuildContext context) {
     final isEleve = _role == UserRole.eleve;
-    final isProfOrDirection =
-        _role == UserRole.professeur || PermissionService.isDirection(_role);
+    final isProf = _role == UserRole.professeur;
+    final isDirection = PermissionService.isDirection(_role);
 
     return Column(
       children: [
@@ -377,15 +379,24 @@ class _HomePageState extends State<HomePage> {
             onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
           ),
         if (isEleve) const SizedBox(height: 8),
-        if (isProfOrDirection)
+        if (isProf)
           _ToolCard(
             icon: Icons.people_outline,
-            title: 'Élèves',
+            title: 'Mes élèves',
             subtitle: 'Gestion et suivi de vos élèves',
             colors: const [Color(0xFF0F766E), Color(0xFF0891B2)],
             onTap: () => Navigator.pushNamed(context, '/eleves'),
           ),
-        if (isProfOrDirection) const SizedBox(height: 8),
+        if (isProf) const SizedBox(height: 8),
+        if (isDirection)
+          _ToolCard(
+            icon: Icons.account_balance_outlined,
+            title: 'Espace Direction',
+            subtitle: 'Inscriptions · Classes · Élèves · Bulletins',
+            colors: const [Color(0xFF6C47FF), Color(0xFF2563EB)],
+            onTap: () => Navigator.pushNamed(context, '/espace_direction'),
+          ),
+        if (isDirection) const SizedBox(height: 8),
         _ToolCard(
           icon: Icons.forum_outlined,
           title: 'Messagerie interne',

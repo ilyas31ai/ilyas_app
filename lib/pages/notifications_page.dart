@@ -39,6 +39,12 @@ class NotificationsPage extends StatelessWidget {
               child: CircularProgressIndicator(color: Color(0xFF2563EB)),
             );
           }
+          if (snap.hasError) {
+            return const Center(
+              child: Text('Erreur de chargement',
+                  style: TextStyle(color: Colors.white38)),
+            );
+          }
           final user = snap.data;
           if (user == null) {
             return const Center(
@@ -226,6 +232,7 @@ class _NotesSection extends StatelessWidget {
         if (snap.connectionState == ConnectionState.waiting) {
           return const _Loading();
         }
+        if (snap.hasError) return const _Empty('Erreur de chargement');
         final notes = List<NoteModel>.from(snap.data ?? [])
           ..sort((a, b) => b.date.compareTo(a.date));
         if (notes.isEmpty) return const _Empty('Aucune note récente');
@@ -308,6 +315,7 @@ class _DevoirsSection extends StatelessWidget {
         if (snap.connectionState == ConnectionState.waiting) {
           return const _Loading();
         }
+        if (snap.hasError) return const _Empty('Erreur de chargement');
         final devoirs = (snap.data ?? [])
             .where((d) => d.dateLimite != null && d.dateLimite!.isAfter(now))
             .toList()
@@ -401,6 +409,7 @@ class _AnnoncesSection extends StatelessWidget {
         if (snap.connectionState == ConnectionState.waiting) {
           return const _Loading();
         }
+        if (snap.hasError) return const _Empty('Erreur de chargement');
         final annonces = snap.data ?? [];
         if (annonces.isEmpty) return const _Empty('Aucune annonce');
         return Column(
@@ -481,6 +490,7 @@ class _ProfRdvSection extends StatelessWidget {
         if (snap.connectionState == ConnectionState.waiting) {
           return const _Loading();
         }
+        if (snap.hasError) return const _Empty('Erreur de chargement');
         final rdvs = (snap.data ?? [])
             .where((r) => r.statut == RdvStatut.demande)
             .toList();

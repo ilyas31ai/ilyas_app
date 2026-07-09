@@ -18,6 +18,8 @@ service cloud.firestore {
       return isAuth() && (
         role() == 'admin' ||
         role() == 'direction' ||
+        role() == 'adminEtablissement' ||
+        role() == 'superAdmin' ||
         request.auth.token.email == 'ilyas31ai@outlook.fr'
       );
     }

@@ -78,6 +78,12 @@ class _DirectionBulletinsPageState
             return const Center(
                 child: CircularProgressIndicator(color: _kBlue));
           }
+          if (snap.hasError) {
+            return const Center(
+              child: Text('Erreur de chargement des classes',
+                  style: TextStyle(color: Colors.white38)),
+            );
+          }
           final classes = snap.data?.docs
                   .map((d) => ClasseModel.fromFirestore(d))
                   .toList() ??
@@ -91,6 +97,12 @@ class _DirectionBulletinsPageState
           return StreamBuilder<List<BulletinValidationModel>>(
             stream: BulletinValidationService.streamAll(_anneeScol),
             builder: (ctx2, valSnap) {
+              if (valSnap.hasError) {
+                return const Center(
+                  child: Text('Erreur de chargement des validations',
+                      style: TextStyle(color: Colors.white38)),
+                );
+              }
               final validations = valSnap.data ?? [];
               final valMap = {
                 for (final v in validations) v.id: v

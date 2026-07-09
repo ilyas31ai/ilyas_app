@@ -24,13 +24,13 @@ import 'notifications_page.dart';
 
 class _Stats {
   final double? presenceRate;
-  final double? moyenneGenerale;
-  final int? totalNotes;
+  final int? inscriptionsValidees;
+  final int? devoirsActifs;
   final int? totalAbsences;
   const _Stats({
     this.presenceRate,
-    this.moyenneGenerale,
-    this.totalNotes,
+    this.inscriptionsValidees,
+    this.devoirsActifs,
     this.totalAbsences,
   });
 }
@@ -143,25 +143,25 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
       }
     } catch (_) {}
 
-    double? moyenneGenerale;
-    int? totalNotes;
+    int? inscriptionsValidees;
+    int? devoirsActifs;
     try {
-      final notesSnap = await _db.collection('notes').limit(300).get();
-      final values = notesSnap.docs
-          .map((d) => (d.data()['note'] as num?)?.toDouble())
-          .whereType<double>()
-          .where((v) => v > 0 && v <= 20)
-          .toList();
-      if (values.isNotEmpty) {
-        moyenneGenerale = values.reduce((a, b) => a + b) / values.length;
-        totalNotes = values.length;
-      }
+      final inscSnap = await _db
+          .collection('eleves')
+          .where('statutInscription', isEqualTo: 'validee')
+          .limit(500)
+          .get();
+      inscriptionsValidees = inscSnap.docs.length;
+    } catch (_) {}
+    try {
+      final devoirsSnap = await _db.collection('devoirs').limit(300).get();
+      devoirsActifs = devoirsSnap.docs.length;
     } catch (_) {}
 
     return _Stats(
       presenceRate: presenceRate,
-      moyenneGenerale: moyenneGenerale,
-      totalNotes: totalNotes,
+      inscriptionsValidees: inscriptionsValidees,
+      devoirsActifs: devoirsActifs,
       totalAbsences: totalAbsences,
     );
   }
@@ -621,53 +621,43 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
                   fontSize: 12,
                   fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
-          Row(children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: _card2,
-                  borderRadius: BorderRadius.circular(10),
-                  border:
-                      Border.all(color: _orange.withValues(alpha: 0.4)),
-                ),
-                child: _codeLoading || code.isEmpty
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                            color: _orange, strokeWidth: 2))
-                    : Row(children: [
-                        Text(code,
-                            style: const TextStyle(
-                              color: _orange,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 6,
-                            )),
-                        const Spacer(),
-                        Text('SCOLAR AI Educative',
-                            style: TextStyle(
-                                color:
-                                    Colors.white.withValues(alpha: 0.2),
-                                fontSize: 10,
-                                letterSpacing: 1)),
-                      ]),
-              ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: _card2,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _orange.withValues(alpha: 0.4)),
             ),
-            const SizedBox(width: 8),
-            _iconBtn(Icons.copy_outlined, _orange,
-                () => code.isNotEmpty ? _copyCode(code) : null,
-                tooltip: 'Copier'),
-            const SizedBox(width: 6),
-            _iconBtn(Icons.share_outlined, _blue,
-                () => code.isNotEmpty ? _shareCode(code, nom) : null,
-                tooltip: 'Partager'),
-            const SizedBox(width: 6),
-            _iconBtn(Icons.refresh, Colors.white38, _regenerateCode,
-                tooltip: 'Nouveau code'),
-          ]),
+            child: _codeLoading || code.isEmpty
+                ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                        color: _orange, strokeWidth: 2))
+                : Row(children: [
+                    Expanded(
+                      child: Text(code,
+                          style: const TextStyle(
+                            color: _orange,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 6,
+                          )),
+                    ),
+                    const SizedBox(width: 8),
+                    _iconBtn(Icons.copy_outlined, _orange,
+                        () => _copyCode(code),
+                        tooltip: 'Copier'),
+                    const SizedBox(width: 6),
+                    _iconBtn(Icons.share_outlined, _blue,
+                        () => _shareCode(code, nom),
+                        tooltip: 'Partager'),
+                    const SizedBox(width: 6),
+                    _iconBtn(Icons.refresh, Colors.white38,
+                        _regenerateCode,
+                        tooltip: 'Nouveau code'),
+                  ]),
+          ),
           const SizedBox(height: 8),
           Text(
             'Partagez ce code pour que vos utilisateurs rejoignent cet établissement',
@@ -703,10 +693,15 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
   // ─── Pending banner ────────────────────────────────────────────────────────
 
   Widget _buildPendingBanner() {
+    // Seuls les élèves passent par la validation manuelle (voir
+    // DirectionComptesAttentePage) — les enseignants utilisent le système
+    // de codes d'invitation et ne sont donc jamais 'en_attente'. On filtre
+    // par rôle pour que ce compteur reste cohérent avec la liste réelle.
     return StreamBuilder<QuerySnapshot>(
       stream: _db
           .collection('users')
           .where('statut', isEqualTo: 'en_attente')
+          .where('role', isEqualTo: 'eleve')
           .snapshots(),
       builder: (ctx, snap) {
         final count = snap.data?.docs.length ?? 0;
@@ -847,7 +842,7 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
             crossAxisCount: cols,
             mainAxisSpacing: 10,
             crossAxisSpacing: 10,
-            childAspectRatio: cols == 4 ? 1.2 : 1.5,
+            childAspectRatio: cols == 4 ? 0.95 : 1.2,
             children: [
               _roleKpiCard('eleve', Icons.groups_outlined, 'Élèves',
                   [_blue, _cyan]),
@@ -1135,7 +1130,7 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
                 Expanded(
                   child: _StatBar(
                     icon: Icons.how_to_reg_outlined,
-                    label: 'Présence (7j)',
+                    label: 'Présence globale (7j)',
                     value: loading ? null : stats?.presenceRate,
                     unit: '%',
                     color: _green,
@@ -1146,13 +1141,16 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _StatBar(
-                    icon: Icons.bar_chart,
-                    label: 'Moyenne générale',
-                    value: loading ? null : stats?.moyenneGenerale,
-                    unit: '/20',
+                    icon: Icons.how_to_reg_outlined,
+                    label: 'Inscriptions validées',
+                    value: loading
+                        ? null
+                        : stats?.inscriptionsValidees?.toDouble(),
+                    unit: '',
                     color: _blue,
-                    maxValue: 20,
+                    maxValue: 500,
                     loading: loading,
+                    showRaw: true,
                   ),
                 ),
               ]),
@@ -1160,11 +1158,11 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
               Row(children: [
                 Expanded(
                   child: _StatBar(
-                    icon: Icons.grade_outlined,
-                    label: 'Notes enregistrées',
+                    icon: Icons.assignment_outlined,
+                    label: 'Devoirs publiés',
                     value: loading
                         ? null
-                        : stats?.totalNotes?.toDouble(),
+                        : stats?.devoirsActifs?.toDouble(),
                     unit: '',
                     color: _purple,
                     maxValue: 300,
@@ -1471,13 +1469,15 @@ class _KpiCard extends StatelessWidget {
           Text(value,
               style: TextStyle(
                   color: colors[0],
-                  fontSize: 26,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold)),
           Text(label,
               style: const TextStyle(
                   color: Colors.white54,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500)),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
         ],
       ),
     );

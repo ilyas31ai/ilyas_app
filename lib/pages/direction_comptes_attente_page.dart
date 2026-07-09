@@ -24,7 +24,6 @@ class DirectionComptesAttentePage extends StatelessWidget {
         stream: FirebaseFirestore.instance
             .collection('users')
             .where('statut', isEqualTo: 'en_attente')
-            .orderBy('createdAt', descending: false)
             .snapshots(),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -35,14 +34,26 @@ class DirectionComptesAttentePage extends StatelessWidget {
           }
           if (snap.hasError) {
             return Center(
-              child: Text(
-                'Erreur : ${snap.error}',
-                style: const TextStyle(color: Colors.white54),
-                textAlign: TextAlign.center,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Erreur de chargement.\nVérifiez votre connexion.',
+                  style: const TextStyle(color: Colors.white54),
+                  textAlign: TextAlign.center,
+                ),
               ),
             );
           }
-          final docs = snap.data?.docs ?? [];
+          final docs = List<DocumentSnapshot>.from(snap.data?.docs ?? []);
+          // Tri par createdAt côté client (index composite déployé en parallèle)
+          docs.sort((a, b) {
+            final aTs = (a.data() as Map<String, dynamic>)['createdAt'];
+            final bTs = (b.data() as Map<String, dynamic>)['createdAt'];
+            if (aTs == null && bTs == null) return 0;
+            if (aTs == null) return -1;
+            if (bTs == null) return 1;
+            return (aTs as Timestamp).compareTo(bTs as Timestamp);
+          });
 
           // Seuls les élèves passent par la validation manuelle.
           // Les enseignants utilisent le système de codes d'invitation.
