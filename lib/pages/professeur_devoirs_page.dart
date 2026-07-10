@@ -1532,6 +1532,7 @@ class _DevoirFormState extends State<_DevoirForm> {
   bool _saving = false;
 
   List<ClasseModel> _classes = [];
+  ClasseModel? _selectedClasse;
 
   @override
   void initState() {
@@ -1584,7 +1585,12 @@ class _DevoirFormState extends State<_DevoirForm> {
                             style: const TextStyle(color: Colors.white))))
                     .toList(),
                 onChanged: (c) {
-                  if (c != null) _classeNom.text = c.nom;
+                  if (c != null) {
+                    setState(() {
+                      _selectedClasse = c;
+                      _classeNom.text = c.nom;
+                    });
+                  }
                 },
               )
             else
@@ -1714,7 +1720,7 @@ class _DevoirFormState extends State<_DevoirForm> {
         titre: _titre.text.trim(),
         description: _desc.text.trim(),
         matiere: _matiere.text.trim(),
-        classeId: '',
+        classeId: _selectedClasse?.id ?? '',
         classeNom: _classeNom.text.trim(),
         dateLimite: _dateLimite,
         fichier: _fichier,

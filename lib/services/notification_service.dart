@@ -56,9 +56,48 @@ class NotificationService {
 
   // ── Listeners parent en temps réel ────────────────────────────────────────
 
-  static Future<void> initParentListeners(List<String> enfantIds) async {
+  static Future<void> initParentListeners(List<String> enfantIds,
+      {List<String> enfantClasseIds = const []}) async {
     await disposeParentListeners();
     if (enfantIds.isEmpty) return;
+
+    // Bulletins : un parent doit être notifié quand la Direction publie un
+    // bulletin pour la classe d'un de ses enfants (symétrique à
+    // initEleveListeners, qui ne couvre que l'élève lui-même).
+    if (enfantClasseIds.isNotEmpty) {
+      final year = DateTime.now().month >= 9
+          ? DateTime.now().year
+          : DateTime.now().year - 1;
+      for (final classeId in enfantClasseIds) {
+        if (classeId.isEmpty) continue;
+        for (int t = 1; t <= 3; t++) {
+          final docId = '${classeId}_t${t}_$year';
+          _parentSubs.add(
+            FirebaseFirestore.instance
+                .collection('bulletin_validations')
+                .doc(docId)
+                .snapshots()
+                .listen((snap) async {
+              if (!snap.exists) return;
+              final publie = snap.data()?['publie'] as bool? ?? false;
+              if (!publie || _notifiedBulletins.contains(docId)) return;
+              _notifiedBulletins.add(docId);
+              final prefs = await SharedPreferences.getInstance();
+              final key = 'bn_parent_$docId';
+              if (prefs.getBool(key) == true) return;
+              await prefs.setBool(key, true);
+              await _showOnChannel(
+                id: 30 + t,
+                title: 'Bulletin disponible',
+                body: 'Le bulletin du Trimestre $t a été publié par la Direction',
+                channelId: 'parent_bulletins',
+                channelName: 'Bulletins enfants',
+              );
+            }),
+          );
+        }
+      }
+    }
 
     final prefs = await SharedPreferences.getInstance();
 

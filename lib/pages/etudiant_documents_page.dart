@@ -47,6 +47,21 @@ class _EtudiantDocumentsPageState extends State<EtudiantDocumentsPage> {
                     color: Color(0xFF2563EB)));
           }
           final classeNom = snap.data ?? '';
+          if (classeNom.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.school_outlined,
+                      color: Colors.white24, size: 48),
+                  SizedBox(height: 12),
+                  Text('Classe non assignee',
+                      style:
+                          TextStyle(color: Colors.white38, fontSize: 15)),
+                ],
+              ),
+            );
+          }
           return Column(
             children: [
               _SearchField(

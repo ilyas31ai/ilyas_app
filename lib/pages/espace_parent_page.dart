@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/bulletin_validation_model.dart';
 import '../models/devoir_model.dart';
+import '../models/document_model.dart';
 import '../models/note_model.dart';
 import '../models/rdv_model.dart';
 import '../models/user_model.dart';
@@ -60,11 +61,7 @@ class EspaceParentPage extends StatelessWidget {
             );
           }
           if (user.enfantIds.isEmpty) {
-            return _centered(
-              Icons.child_care_outlined,
-              'Aucun enfant lié à votre compte.\n'
-              "Contactez la Direction de l'établissement.",
-            );
+            return _NoEnfantLinkedView(parentUid: user.uid);
           }
           // Un seul enfant : vue directe. Plusieurs : sélecteur en haut.
           if (user.enfantIds.length == 1) {
@@ -91,6 +88,126 @@ class EspaceParentPage extends StatelessWidget {
           ),
         ),
       );
+}
+
+// ── Aucun enfant lié : ressaisie de l'email pour relancer le rattachement ────
+// Couvre le cas où le rattachement automatique à l'inscription (email non
+// encore reconnu, faute de frappe, enfant pas encore inscrit à ce moment-là)
+// a échoué silencieusement : le parent peut réessayer lui-même sans dépendre
+// uniquement d'une intervention manuelle de la Direction.
+class _NoEnfantLinkedView extends StatefulWidget {
+  final String parentUid;
+  const _NoEnfantLinkedView({required this.parentUid});
+
+  @override
+  State<_NoEnfantLinkedView> createState() => _NoEnfantLinkedViewState();
+}
+
+class _NoEnfantLinkedViewState extends State<_NoEnfantLinkedView> {
+  final _emailCtrl = TextEditingController();
+  bool _loading = false;
+  String? _message;
+  bool _success = false;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _retry() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) return;
+    setState(() {
+      _loading = true;
+      _message = null;
+    });
+    final linked =
+        await UserService.linkParentToChildByEmail(widget.parentUid, email);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _success = linked;
+      _message = linked
+          ? 'Enfant relié avec succès !'
+          : "Aucun élève trouvé avec cet email, ou son compte n'est pas "
+              "encore créé. Vérifiez l'orthographe ou contactez la Direction.";
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.child_care_outlined,
+                color: Colors.white24, size: 56),
+            const SizedBox(height: 16),
+            const Text(
+              "Aucun enfant lié à votre compte.\n"
+              "Saisissez l'email utilisé par votre enfant pour le relier, "
+              "ou contactez la Direction de l'établissement.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white54, fontSize: 15),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _emailCtrl,
+              enabled: !_loading,
+              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Email de votre enfant',
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: const Color(0xFF161B22),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _retry,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFBE185D),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: _loading
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text('Relier mon enfant',
+                        style: TextStyle(color: Colors.white)),
+              ),
+            ),
+            if (_message != null) ...[
+              const SizedBox(height: 14),
+              Text(
+                _message!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _success
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFFEF4444),
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ── Sélecteur multi-enfants ───────────────────────────────────────────────────
@@ -179,11 +296,24 @@ class _EnfantView extends StatelessWidget {
     return StreamBuilder<UserModel?>(
       stream: ParentService.enfantStream(uid),
       builder: (ctx, snap) {
+        if (snap.hasError) {
+          return EspaceParentPage._centered(
+            Icons.error_outline,
+            'Impossible de charger le profil de votre enfant.\n'
+            'Vérifiez votre connexion et réessayez.',
+          );
+        }
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         final enfant = snap.data;
-        if (enfant == null) return const SizedBox.shrink();
+        if (enfant == null) {
+          return EspaceParentPage._centered(
+            Icons.person_off_outlined,
+            "Le profil de cet enfant est introuvable.\n"
+            "Contactez la Direction de l'établissement.",
+          );
+        }
 
         switch (enfant.categorie) {
           case 'Maternelle':
@@ -460,6 +590,12 @@ class _NotesCard extends StatelessWidget {
     return StreamBuilder<List<NoteModel>>(
       stream: ParentService.notesEnfantStream(uid),
       builder: (ctx, snap) {
+        if (snap.hasError) {
+          return const _Card(
+            child: Text('Impossible de charger les notes.',
+                style: TextStyle(color: Colors.redAccent)),
+          );
+        }
         final notes = snap.data ?? [];
         if (notes.isEmpty && snap.hasData) {
           return const _Card(
@@ -525,6 +661,12 @@ class _DevoirsTab extends StatelessWidget {
       builder: (ctx, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.hasError) {
+          return const Center(
+            child: Text('Impossible de charger les devoirs.',
+                style: TextStyle(color: Colors.redAccent)),
+          );
         }
         final devoirs = snap.data ?? [];
         if (devoirs.isEmpty) {
@@ -606,18 +748,25 @@ class _ParentDocumentsTab extends StatelessWidget {
             style: TextStyle(color: Colors.white38)),
       );
     }
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('documents')
-          .where('classeNom', isEqualTo: classeNom)
-          .orderBy('uploadedAt', descending: true)
-          .limit(30)
-          .snapshots(),
+    // NOTE : utilise ParentService.documentsEnfantStream (collection
+    // `documents_prof`), la même source que l'espace Professeur/Élève.
+    // Cet onglet interrogeait auparavant une collection `documents` inexistante
+    // dans les règles Firestore (accès refusé en silence) et lisait un champ
+    // `url` qui n'a jamais existé (le champ réel est `fichierUrl`) : le résultat
+    // était un onglet Documents systématiquement vide pour tous les parents.
+    return StreamBuilder<List<DocumentPedagogique>>(
+      stream: ParentService.documentsEnfantStream(classeNom),
       builder: (ctx, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs = snap.data?.docs ?? [];
+        if (snap.hasError) {
+          return const Center(
+            child: Text('Impossible de charger les documents.',
+                style: TextStyle(color: Colors.redAccent)),
+          );
+        }
+        final docs = snap.data ?? [];
         if (docs.isEmpty) {
           return const Center(
             child: Text('Aucun document partagé.',
@@ -628,10 +777,11 @@ class _ParentDocumentsTab extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           itemCount: docs.length,
           itemBuilder: (ctx, i) {
-            final d = docs[i].data() as Map<String, dynamic>;
-            final titre = (d['titre'] as String?) ?? 'Document';
-            final type = (d['type'] as String?) ?? '';
-            final url = (d['url'] as String?) ?? '';
+            final d = docs[i];
+            final titre = d.titre.isNotEmpty ? d.titre : 'Document';
+            final sousTitre = [d.matiere, d.type]
+                .where((s) => s.isNotEmpty)
+                .join(' · ');
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
@@ -653,19 +803,19 @@ class _ParentDocumentsTab extends StatelessWidget {
                                 color: Colors.white, fontSize: 13),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis),
-                        if (type.isNotEmpty)
-                          Text(type,
+                        if (sousTitre.isNotEmpty)
+                          Text(sousTitre,
                               style: const TextStyle(
                                   color: Colors.white38, fontSize: 11)),
                       ],
                     ),
                   ),
-                  if (url.isNotEmpty)
+                  if (d.fichierUrl.isNotEmpty)
                     IconButton(
                       icon: const Icon(Icons.open_in_new,
                           color: Color(0xFF2563EB), size: 18),
                       onPressed: () async {
-                        final uri = Uri.tryParse(url);
+                        final uri = Uri.tryParse(d.fichierUrl);
                         if (uri != null) await launchUrl(uri);
                       },
                     ),
@@ -697,6 +847,12 @@ class _EmploiTab extends StatelessWidget {
       builder: (ctx, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.hasError) {
+          return const Center(
+            child: Text("Impossible de charger l'emploi du temps.",
+                style: TextStyle(color: Colors.redAccent)),
+          );
         }
         final slots = snap.data ?? [];
         if (slots.isEmpty) {
@@ -784,6 +940,12 @@ class _PresencesTab extends StatelessWidget {
       builder: (ctx, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.hasError) {
+          return const Center(
+            child: Text('Impossible de charger les présences.',
+                style: TextStyle(color: Colors.redAccent)),
+          );
         }
 
         final incidents = (snap.data ?? [])
@@ -899,7 +1061,15 @@ class _RdvTab extends StatelessWidget {
               onPressed: () => _showRdvForm(context),
             ),
             const SizedBox(height: 16),
-            if (enfantRdv.isEmpty && snap.hasData)
+            if (snap.hasError)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 32),
+                  child: Text('Impossible de charger vos rendez-vous.',
+                      style: TextStyle(color: Colors.redAccent)),
+                ),
+              )
+            else if (enfantRdv.isEmpty && snap.hasData)
               const Center(
                 child: Padding(
                   padding: EdgeInsets.only(top: 32),
@@ -1645,6 +1815,12 @@ class _ParentJourneeTab extends StatelessWidget {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+        if (snap.hasError) {
+          return const Center(
+            child: Text('Impossible de charger la journée.',
+                style: TextStyle(color: Colors.redAccent)),
+          );
+        }
         final docs = snap.data?.docs ?? [];
         if (docs.isEmpty) {
           return const Center(
@@ -1712,6 +1888,12 @@ class _ParentCahierVieTab extends StatelessWidget {
       builder: (ctx, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.hasError) {
+          return const Center(
+            child: Text('Impossible de charger le cahier de vie.',
+                style: TextStyle(color: Colors.redAccent)),
+          );
         }
         final docs = snap.data?.docs ?? [];
         if (docs.isEmpty) {
@@ -1805,16 +1987,26 @@ class _ParentCompetencesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Les évaluations qualitatives (maternelle) sont saisies par le
+    // professeur dans `competences_maternelle` (voir
+    // professeur_evaluations_qualitative_page.dart) — c'est la seule
+    // collection réellement alimentée pour cette fonctionnalité.
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('evaluations_qualitatives')
+          .collection('competences_maternelle')
           .where('eleveId', isEqualTo: enfantUid)
-          .orderBy('date', descending: true)
+          .orderBy('updatedAt', descending: true)
           .limit(30)
           .snapshots(),
       builder: (ctx, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.hasError) {
+          return const Center(
+            child: Text('Impossible de charger les compétences.',
+                style: TextStyle(color: Colors.redAccent)),
+          );
         }
         final docs = snap.data?.docs ?? [];
         if (docs.isEmpty) {
@@ -1841,18 +2033,27 @@ class _ParentCompetencesTab extends StatelessWidget {
             final d = docs[i].data() as Map<String, dynamic>;
             final competence = (d['competence'] as String?) ?? '';
             final niveau = (d['niveau'] as String?) ?? '';
-            final date = (d['date'] as String?) ?? '';
+            final updatedAt = d['updatedAt'] as Timestamp?;
+            final date = updatedAt != null
+                ? DateFormat('dd/MM/yyyy').format(updatedAt.toDate())
+                : '';
             Color niveauColor;
             switch (niveau.toLowerCase()) {
               case 'acquis':
                 niveauColor = Colors.green;
                 break;
-              case 'en cours':
+              case 'en_cours':
                 niveauColor = Colors.amber;
                 break;
               default:
                 niveauColor = Colors.red;
             }
+            final niveauLabel = switch (niveau.toLowerCase()) {
+              'acquis' => 'Acquis',
+              'en_cours' => 'En cours',
+              'non_acquis' => 'Non acquis',
+              _ => niveau,
+            };
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1877,7 +2078,7 @@ class _ParentCompetencesTab extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(niveau,
+                      Text(niveauLabel,
                           style: TextStyle(
                               color: niveauColor,
                               fontSize: 11,
@@ -1963,6 +2164,12 @@ class _ParentContactTab extends StatelessWidget {
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('classes').doc(classeId).get(),
       builder: (ctx, classeSnap) {
+        if (classeSnap.hasError) {
+          return const Center(
+            child: Text('Impossible de charger les informations de la classe.',
+                style: TextStyle(color: Colors.redAccent)),
+          );
+        }
         if (!classeSnap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -1977,6 +2184,12 @@ class _ParentContactTab extends StatelessWidget {
         return FutureBuilder<DocumentSnapshot>(
           future: FirebaseFirestore.instance.collection('users').doc(profId).get(),
           builder: (ctx2, profSnap) {
+            if (profSnap.hasError) {
+              return const Center(
+                child: Text('Impossible de charger le professeur.',
+                    style: TextStyle(color: Colors.redAccent)),
+              );
+            }
             if (!profSnap.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -2538,6 +2751,12 @@ class _CycleNotesTabState extends State<_CycleNotesTab> {
               if (snap.connectionState == ConnectionState.waiting) {
                 return Center(child: CircularProgressIndicator(color: widget.accentColor));
               }
+              if (snap.hasError) {
+                return const Center(
+                  child: Text('Impossible de charger les notes.',
+                      style: TextStyle(color: Colors.redAccent)),
+                );
+              }
               final filtered = (snap.data ?? []).where((n) => _trimestreDe(n.date) == _trimestre).toList();
               if (filtered.isEmpty) {
                 return Center(
@@ -2877,7 +3096,7 @@ class _LivePresenceBanner extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('presences')
-          .where('eleveUid', isEqualTo: enfantUid)
+          .where('eleveId', isEqualTo: enfantUid)
           .where('date', isEqualTo: today)
           .limit(1)
           .snapshots(),

@@ -152,17 +152,26 @@ class ParentService {
   }
 
   // ── Documents publiés pour la classe de l'enfant ─────────────────────────
-
+  //
+  // BUG CORRIGÉ : cette méthode interrogeait la collection `documents_pedagogiques`,
+  // qui n'est alimentée par aucun écran Professeur (les documents sont déposés
+  // dans `documents_prof` — voir ProfesseurService._documents et
+  // EtudiantService.documentsStream). Résultat : l'onglet Documents du parent
+  // était systématiquement vide, quel que soit le contenu réel de la classe.
+  // On aligne désormais sur la même collection et le même filtrage (par
+  // classeNom, tri fait côté client) que le côté Élève, pour éviter de
+  // dépendre d'un index composite Firestore non garanti.
   static Stream<List<DocumentPedagogique>> documentsEnfantStream(String classeNom) {
     if (classeNom.isEmpty) return Stream.value([]);
     return _db
-        .collection('documents_pedagogiques')
+        .collection('documents_prof')
         .where('classeNom', isEqualTo: classeNom)
-        .where('statut', isEqualTo: 'publie')
-        .orderBy('dateDepot', descending: true)
-        .limit(40)
         .snapshots()
-        .map((s) => s.docs.map(DocumentPedagogique.fromFirestore).toList());
+        .map((s) {
+      final list = s.docs.map(DocumentPedagogique.fromFirestore).toList();
+      list.sort((a, b) => b.dateDepot.compareTo(a.dateDepot));
+      return list;
+    });
   }
 
   // ── Maternelle : Cahier de vie ─────────────────────────────────────────

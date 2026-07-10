@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/appreciation_model.dart';
 import '../models/note_model.dart';
 import '../models/user_model.dart';
+import 'user_service.dart';
 
 class AppreciationService {
   static final _db = FirebaseFirestore.instance;
@@ -132,8 +133,15 @@ class AppreciationService {
         .where('role', isEqualTo: 'eleve')
         .where('classeNom', isEqualTo: classeNom)
         .snapshots()
-        .map((s) {
-      final list = s.docs.map(UserModel.fromDoc).toList();
+        .asyncMap((s) async {
+      // Isolation multi-établissement : deux écoles peuvent avoir une classe
+      // du même nom — ne garder que les élèves de l'établissement du
+      // professeur connecté (cf. ProfesseurService.elevesParClasseStream).
+      final mySchoolId = await UserService.currentSchoolId();
+      final list = s.docs
+          .map(UserModel.fromDoc)
+          .where((u) => u.schoolId == mySchoolId)
+          .toList();
       list.sort((a, b) => a.displayName.compareTo(b.displayName));
       return list;
     });

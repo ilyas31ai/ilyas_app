@@ -362,12 +362,15 @@ class EtudiantService {
   }
 
   // ── Documents pédagogiques ──────────────────────────────────────────────────
+  // Si classeNom est vide (élève pas encore assigné à une classe, ou erreur de
+  // lecture du profil), on NE DOIT PAS retourner tous les documents de
+  // l'établissement — cela fuiterait les documents des autres classes.
   static Stream<List<DocumentPedagogique>> documentsStream(String classeNom) {
+    if (classeNom.isEmpty) return Stream.value([]);
     final uid = _uid;
-    Query<Map<String, dynamic>> query = _db.collection('documents_prof');
-    if (classeNom.isNotEmpty) {
-      query = query.where('classeNom', isEqualTo: classeNom);
-    }
+    final Query<Map<String, dynamic>> query = _db
+        .collection('documents_prof')
+        .where('classeNom', isEqualTo: classeNom);
 
     return query.snapshots().handleError((Object e) {
       debugPrint('[Etudiant] documentsStream ERROR '
@@ -456,10 +459,10 @@ class EtudiantService {
   }
 
   static Stream<int> documentsCountStream(String classeNom) {
-    Query<Map<String, dynamic>> query = _db.collection('documents_prof');
-    if (classeNom.isNotEmpty) {
-      query = query.where('classeNom', isEqualTo: classeNom);
-    }
+    if (classeNom.isEmpty) return Stream.value(0);
+    final Query<Map<String, dynamic>> query = _db
+        .collection('documents_prof')
+        .where('classeNom', isEqualTo: classeNom);
     return query.snapshots().handleError((Object e) {
       debugPrint('[Etudiant] documentsCountStream ERROR [classeNom=$classeNom, uid=$_uid]: $e');
       throw e;

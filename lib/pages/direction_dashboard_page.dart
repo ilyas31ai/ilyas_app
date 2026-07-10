@@ -890,8 +890,14 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
   // ─── Présences du jour ─────────────────────────────────────────────────────
 
   Widget _buildPresenceDuJour() {
-    final today =
-        DateFormat('yyyy-MM-dd').format(DateTime.now());
+    // Le champ Firestore 'presences.date' est un Timestamp (voir
+    // PresenceRecord.toMap()) — comparer avec une chaîne 'yyyy-MM-dd' ne
+    // matchait jamais aucun document et affichait toujours "Aucune présence"
+    // même quand des présences existaient pour aujourd'hui.
+    final now = DateTime.now();
+    final startOfDay = Timestamp.fromDate(DateTime(now.year, now.month, now.day));
+    final endOfDay = Timestamp.fromDate(
+        DateTime(now.year, now.month, now.day).add(const Duration(days: 1)));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -900,7 +906,8 @@ class _DirectionDashboardPageState extends State<DirectionDashboardPage> {
         StreamBuilder<QuerySnapshot>(
           stream: _db
               .collection('presences')
-              .where('date', isEqualTo: today)
+              .where('date', isGreaterThanOrEqualTo: startOfDay)
+              .where('date', isLessThan: endOfDay)
               .limit(200)
               .snapshots(),
           builder: (ctx, snap) {

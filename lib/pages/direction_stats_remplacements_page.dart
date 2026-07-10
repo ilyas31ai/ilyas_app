@@ -74,6 +74,18 @@ class _DirectionStatsRemplacementsPageState
                       child: CircularProgressIndicator(
                           color: Color(0xFFD97706)));
                 }
+                if (snap.hasError) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'Erreur de chargement des statistiques.\nVérifiez votre connexion.',
+                        style: TextStyle(color: Colors.white54),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
                 final allRemplacements = snap.data ?? [];
                 final filtered = _filterByPeriod(allRemplacements, _period);
                 final stats = _computeStats(filtered);

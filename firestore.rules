@@ -485,6 +485,208 @@ service cloud.firestore {
       allow update, delete: if isDirection();
     }
 
+    // ── Disponibilités enseignants (remplacements) ───────────────────────────
+    // doc id = uid de l'enseignant
+    match /disponibilites/{uid} {
+      allow read: if isAuth() && (isDirection() || isProfesseur());
+      allow write: if isDirection() ||
+        (isActiveProfesseur() && uid == request.auth.uid);
+
+      match /absences/{absId} {
+        allow read: if isAuth() && (isDirection() || isProfesseur());
+        allow write: if isDirection() ||
+          (isActiveProfesseur() && uid == request.auth.uid);
+      }
+    }
+
+    // ── Remplacements ─────────────────────────────────────────────────────────
+    match /remplacements/{id} {
+      allow read: if isAuth() && (isDirection() || isProfesseur());
+      allow create: if isDirection() || isActiveProfesseur();
+      allow update: if isDirection() || isActiveProfesseur();
+      allow delete: if isDirection();
+    }
+
+    // ── Profils enseignants étendus (fiche consultée par la Direction) ───────
+    match /enseignants_profils/{uid} {
+      allow read: if isAuth() && (isDirection() || isProfesseur());
+      allow write: if isDirection();
+    }
+
+    // ── Dossiers enseignants (rempli par l'enseignant lui-même) ──────────────
+    match /enseignant_dossiers/{uid} {
+      allow read: if isAuth() &&
+        (isDirection() || uid == request.auth.uid);
+      allow write: if isDirection() ||
+        (isActiveProfesseur() && uid == request.auth.uid);
+    }
+
+    // ── Évaluations qualitatives (maternelle) ────────────────────────────────
+    match /evaluations_qualitatives/{id} {
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() ||
+        (isEleve() && resource.data.get('eleveId', '') == request.auth.uid) ||
+        isParentOf(resource.data.get('eleveId', ''))
+      );
+      allow write: if isDirection() || isActiveProfesseur();
+    }
+
+    // ── Cahier de vie / observations / repas / sieste (maternelle) ───────────
+    match /cahier_vie/{id} {
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() ||
+        (isEleve() && resource.data.get('eleveId', '') == request.auth.uid) ||
+        isParentOf(resource.data.get('eleveId', ''))
+      );
+      allow write: if isDirection() || isActiveProfesseur();
+    }
+    match /observations/{id} {
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() ||
+        (isEleve() && resource.data.get('eleveId', '') == request.auth.uid) ||
+        isParentOf(resource.data.get('eleveId', ''))
+      );
+      allow write: if isDirection() || isActiveProfesseur();
+    }
+    match /repas_maternelle/{id} {
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() ||
+        (isEleve() && resource.data.get('eleveId', '') == request.auth.uid) ||
+        isParentOf(resource.data.get('eleveId', ''))
+      );
+      allow write: if isDirection() || isActiveProfesseur();
+    }
+    match /sieste_maternelle/{id} {
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() ||
+        (isEleve() && resource.data.get('eleveId', '') == request.auth.uid) ||
+        isParentOf(resource.data.get('eleveId', ''))
+      );
+      allow write: if isDirection() || isActiveProfesseur();
+    }
+    match /competences_maternelle/{id} {
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() ||
+        (isEleve() && resource.data.get('eleveId', '') == request.auth.uid) ||
+        isParentOf(resource.data.get('eleveId', ''))
+      );
+      allow write: if isDirection() || isActiveProfesseur();
+    }
+
+    // ── Galerie photos / événements de classe (maternelle) ───────────────────
+    // Scoping par classeNom (pas de donnée personnelle sensible individuelle)
+    match /galerie_photos/{id} {
+      allow read: if isAuth();
+      allow write: if isDirection() || isActiveProfesseur();
+    }
+    match /evenements_maternelle/{id} {
+      allow read: if isAuth();
+      allow write: if isDirection() || isActiveProfesseur();
+    }
+
+    // ── Documents pédagogiques publiés pour une classe ───────────────────────
+    match /documents_pedagogiques/{id} {
+      allow read: if isAuth();
+      allow write: if isDirection() || isActiveProfesseur();
+    }
+
+    // ── Messages enseignant → parents (maternelle) ───────────────────────────
+    match /messages_parents/{id} {
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() ||
+        (isEleve() && resource.data.get('eleveId', '') == request.auth.uid) ||
+        isParentOf(resource.data.get('eleveId', ''))
+      );
+      allow create, delete: if isDirection() || isActiveProfesseur();
+      allow update: if isDirection() || isActiveProfesseur() ||
+        (isParentOf(resource.data.get('eleveId', '')) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lu']));
+    }
+
+    // ── Révision (élève) : sessions + statistiques personnelles ──────────────
+    match /revision_sessions/{uid} {
+      allow read, write: if isDirection() || uid == request.auth.uid;
+      match /sessions/{sessionId} {
+        allow read, write: if isDirection() || uid == request.auth.uid;
+      }
+    }
+    match /revision_stats/{uid} {
+      allow read, write: if isDirection() || uid == request.auth.uid;
+    }
+
+    // ── Université : mémoires / soutenances / stages (lecture élève) ─────────
+    match /memoires/{id} {
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() ||
+        (isEleve() && resource.data.get('etudiantId', '') == request.auth.uid) ||
+        isParentOf(resource.data.get('etudiantId', ''))
+      );
+      allow write: if isDirection();
+    }
+    match /soutenances/{id} {
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() ||
+        (isEleve() && resource.data.get('etudiantId', '') == request.auth.uid) ||
+        isParentOf(resource.data.get('etudiantId', ''))
+      );
+      allow write: if isDirection();
+    }
+    match /stages/{id} {
+      allow read: if isAuth() && (
+        isDirection() || isProfesseur() ||
+        (isEleve() && resource.data.get('etudiantId', '') == request.auth.uid) ||
+        isParentOf(resource.data.get('etudiantId', ''))
+      );
+      allow write: if isDirection();
+    }
+
+    // ── Référentiels globaux (cycles / niveaux scolaires) ────────────────────
+    match /cycles/{id} {
+      allow read: if isAuth();
+      allow write: if isDirection();
+    }
+    match /niveaux/{id} {
+      allow read: if isAuth();
+      allow write: if isDirection();
+    }
+
+    // ── Brouillons d'inscription (outil assistant Direction) ─────────────────
+    match /inscription_wizards/{id} {
+      allow read, write: if isDirection();
+    }
+
+    // ── SCOLAR Connect : groupes d'étude, partages, salles ───────────────────
+    match /scolar_groupes/{groupeId} {
+      allow read: if isAuth();
+      allow create: if isAuth() &&
+        request.resource.data.get('creatorUid', '') == request.auth.uid;
+      allow update: if isDirection() ||
+        (isAuth() &&
+          exists(/databases/$(database)/documents/scolar_groupes/$(groupeId)/membres/$(request.auth.uid)));
+      allow delete: if isDirection() ||
+        resource.data.get('creatorUid', '') == request.auth.uid;
+
+      match /membres/{uid} {
+        allow read: if isAuth();
+        allow write: if isDirection() || uid == request.auth.uid;
+      }
+      match /documents/{docId} {
+        allow read: if isAuth();
+        allow write: if isDirection() ||
+          exists(/databases/$(database)/documents/scolar_groupes/$(groupeId)/membres/$(request.auth.uid));
+      }
+    }
+    match /scolar_partages/{id} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update, delete: if isDirection() ||
+        resource.data.get('auteurEmail', '') == request.auth.token.email;
+    }
+    match /scolar_salles/{id} {
+      allow read: if isAuth();
+      allow write: if isAuth();
+    }
+
     // ── Fallback : refuse tout accès non couvert ──────────────────────────────
     match /{document=**} {
       allow read:  if isDirection();

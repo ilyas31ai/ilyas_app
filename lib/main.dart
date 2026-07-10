@@ -122,9 +122,6 @@ import 'pages/lycee_controle_continu_page.dart';
 import 'pages/lycee_specialites_page.dart';
 
 // 🧠 ÉLÈVES
-import 'pages/quiz_page.dart';
-import 'pages/fiches_page.dart';
-import 'pages/flashcards_page.dart';
 import 'pages/devoirs_page.dart';
 import 'pages/etudiant_devoirs_page.dart';
 import 'pages/etudiant_revisions_page.dart';
@@ -132,7 +129,6 @@ import 'pages/ai_scolaire_page.dart';
 import 'pages/notes_page.dart';
 import 'pages/emploi_page.dart';
 import 'pages/notifications_page.dart';
-import 'pages/plan_classe_page.dart';
 import 'pages/etudiant_dashboard_page.dart';
 import 'pages/etudiant_documents_page.dart';
 import 'pages/etudiant_annonces_page.dart';
@@ -348,13 +344,6 @@ class MyApp extends StatelessWidget {
         '/leaderboard': (context) => const LeaderboardPage(),
 
         // 🎓 ÉLÈVES
-        '/quiz': (context) => const QuizPage(),
-
-        '/fiches': (context) => const FichesPage(),
-
-        '/flashcards': (context) =>
-            const FlashcardsPage(),
-
         '/devoirs': (context) => const DevoirsPage(),
 
         '/etudiant_devoirs': (context) => const EtudiantDevoirsPage(),
@@ -372,8 +361,6 @@ class MyApp extends StatelessWidget {
             NotificationsPage(
               currentUser: currentUser,
             ),
-
-        '/plan': (context) => const PlanClassePage(),
 
         '/etudiant_dashboard': (context) => const EtudiantDashboardPage(),
 

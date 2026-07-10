@@ -11,8 +11,10 @@ import '../models/devoir_model.dart';
 import '../models/document_model.dart';
 import '../models/note_model.dart';
 import '../models/presence_model.dart';
+import '../models/school_model.dart' show kDefaultSchoolId;
 import '../models/submission_model.dart';
 import '../models/user_model.dart';
+import 'user_service.dart';
 
 class ProfesseurService {
   static final _db = FirebaseFirestore.instance;
@@ -141,8 +143,16 @@ class ProfesseurService {
         .where('role', isEqualTo: 'eleve')
         .where('classeNom', isEqualTo: classeNom)
         .snapshots()
-        .map((s) {
-          final list = s.docs.map((d) {
+        .asyncMap((s) async {
+          // Isolation multi-établissement : deux écoles peuvent avoir une
+          // classe du même nom (ex: "6ème A") — on ne garde que les élèves
+          // de l'établissement du professeur connecté.
+          final mySchoolId = await UserService.currentSchoolId();
+          final list = s.docs
+              .where((d) =>
+                  (d.data()['schoolId'] as String? ?? kDefaultSchoolId) ==
+                  mySchoolId)
+              .map((d) {
             final data = d.data();
             // Dériver prenom/nom depuis displayName si les champs séparés sont absents
             final displayName = (data['displayName'] as String? ?? '').trim();
@@ -668,8 +678,13 @@ class ProfesseurService {
         .where('role', isEqualTo: 'eleve')
         .where('classeNom', isEqualTo: classeNom)
         .snapshots()
-        .map((s) {
-      final list = s.docs.map((d) => UserModel.fromDoc(d)).toList();
+        .asyncMap((s) async {
+      // Isolation multi-établissement : voir elevesParClasseStream ci-dessus.
+      final mySchoolId = await UserService.currentSchoolId();
+      final list = s.docs
+          .map((d) => UserModel.fromDoc(d))
+          .where((u) => u.schoolId == mySchoolId)
+          .toList();
       list.sort((a, b) => a.displayName.compareTo(b.displayName));
       return list;
     });
@@ -688,6 +703,8 @@ class ProfesseurService {
           .where((n) => n.isNotEmpty)
           .toList();
       if (noms.isEmpty) return 0;
+      // Isolation multi-établissement : voir elevesParClasseStream ci-dessus.
+      final mySchoolId = await UserService.currentSchoolId();
       int count = 0;
       for (final nom in noms) {
         final snap = await _db
@@ -696,7 +713,11 @@ class ProfesseurService {
             .where('classeNom', isEqualTo: nom)
             .where('maitrise_en_difficulte', isEqualTo: true)
             .get();
-        count += snap.docs.length;
+        count += snap.docs
+            .where((d) =>
+                (d.data()['schoolId'] as String? ?? kDefaultSchoolId) ==
+                mySchoolId)
+            .length;
       }
       return count;
     });

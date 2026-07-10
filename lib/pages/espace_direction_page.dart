@@ -22,11 +22,14 @@ import 'direction_bulletins_consulter_page.dart';
 import 'inscription_verification_page.dart';
 import 'messagerie_page.dart';
 
-// Restreint l'Espace Direction aux comptes [UserRole.admin] uniquement.
+// Restreint l'Espace Direction aux rôles Direction
+// ([PermissionService.isDirection] : admin, direction, adminEtablissement,
+// superAdmin) — voir la vérification dans le StreamBuilder ci-dessous.
 const bool _kAdminOnly = true;
 
 /// Hub de l'Espace Direction — gestion des inscriptions scolaires.
-/// Accès conditionné par [_kAdminOnly] : si true, réservé à [UserRole.admin].
+/// Accès conditionné par [_kAdminOnly] : si true, réservé aux rôles Direction
+/// (voir [PermissionService.isDirection]).
 class EspaceDirectionPage extends StatelessWidget {
   const EspaceDirectionPage({super.key});
 

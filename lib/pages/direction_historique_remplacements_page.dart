@@ -97,6 +97,18 @@ class _DirectionHistoriqueRemplacementsPageState
                       child: CircularProgressIndicator(
                           color: Color(0xFF6C47FF)));
                 }
+                if (snap.hasError) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'Erreur de chargement des remplacements.\nVérifiez votre connexion.',
+                        style: TextStyle(color: Colors.white54),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
                 var list = snap.data ?? [];
 
                 // Date filter

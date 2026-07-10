@@ -40,6 +40,7 @@ class _ProfesseurBulletinsPageState
   String _matiere = '';
   String _profNom = '';
   bool _savingAll = false;
+  final _bulletinContentKey = GlobalKey<_BulletinContentState>();
 
   static int _currentTrimestre() {
     final m = DateTime.now().month;
@@ -96,6 +97,7 @@ class _ProfesseurBulletinsPageState
               child: _classe == null
                   ? const SizedBox.shrink()
                   : _BulletinContent(
+                      key: _bulletinContentKey,
                       classe: _classe!,
                       trimestre: _trimestre,
                       matiere: _matiere,
@@ -138,6 +140,12 @@ class _ProfesseurBulletinsPageState
                 child: CircularProgressIndicator(
                     color: _kTeal, strokeWidth: 2),
               ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.save_outlined, color: Colors.white70),
+              tooltip: 'Tout enregistrer',
+              onPressed: _classe == null ? null : _saveAll,
             ),
         ],
       );
@@ -146,9 +154,17 @@ class _ProfesseurBulletinsPageState
     if (_classe == null) return;
     setState(() => _savingAll = true);
     try {
-      // Déclenche la sauvegarde depuis le state de chaque card
-      // via la clé globale (voir _BulletinContent)
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+      // Sauvegarde toutes les appréciations modifiées mais non enregistrées,
+      // via les états des cartes élève exposés par _BulletinContentState.
+      await _bulletinContentKey.currentState?.saveAllDirty();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Appréciations en attente enregistrées'),
+            backgroundColor: _kGreen,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _savingAll = false);
     }
@@ -300,6 +316,7 @@ class _BulletinContent extends StatefulWidget {
   final VoidCallback onSaveAll;
 
   const _BulletinContent({
+    super.key,
     required this.classe,
     required this.trimestre,
     required this.matiere,
@@ -320,11 +337,24 @@ class _BulletinContentState extends State<_BulletinContent> {
   StreamSubscription<List<AppreciationModel>>? _appSub;
   bool _loadingMoyennes = true;
   int _savedCount = 0;
+  final Map<String, GlobalKey<_EleveAppreciationCardState>> _cardKeys = {};
 
   @override
   void initState() {
     super.initState();
     _reload();
+  }
+
+  GlobalKey<_EleveAppreciationCardState> _keyFor(String composite) =>
+      _cardKeys.putIfAbsent(
+          composite, () => GlobalKey<_EleveAppreciationCardState>());
+
+  /// Enregistre toutes les appréciations modifiées mais pas encore
+  /// sauvegardées (bouton « Tout enregistrer » de l'AppBar).
+  Future<void> saveAllDirty() async {
+    for (final key in _cardKeys.values) {
+      await key.currentState?.saveIfDirty();
+    }
   }
 
   @override
@@ -417,7 +447,7 @@ class _BulletinContentState extends State<_BulletinContent> {
                           .where((a) => a.eleveId == eleve.uid)
                           .firstOrNull;
                       return _EleveAppreciationCard(
-                        key: ValueKey(
+                        key: _keyFor(
                             '${eleve.uid}_${widget.trimestre}_${widget.matiere}'),
                         eleve: eleve,
                         moyenne: moy,
@@ -656,6 +686,14 @@ class _EleveAppreciationCardState
   void dispose() {
     _ctrl.dispose();
     super.dispose();
+  }
+
+  /// Sauvegarde cette carte seulement si elle a été modifiée et non vide
+  /// (appelé par le bouton « Tout enregistrer » de la page parente).
+  Future<void> saveIfDirty() async {
+    if (_dirty && !_saving && _ctrl.text.trim().isNotEmpty) {
+      await _save();
+    }
   }
 
   Future<void> _save() async {

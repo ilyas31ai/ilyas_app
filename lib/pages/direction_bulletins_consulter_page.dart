@@ -338,6 +338,10 @@ class _ClassesTab extends StatelessWidget {
           return const Center(
               child: CircularProgressIndicator(color: _kPurple));
         }
+        if (snapC.hasError) {
+          return _empty('Erreur de chargement',
+              'Impossible de charger les classes. Vérifiez votre connexion.');
+        }
         final classes = snapC.data?.docs
                 .map(ClasseModel.fromFirestore)
                 .toList() ??

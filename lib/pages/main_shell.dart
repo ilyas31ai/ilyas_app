@@ -9,6 +9,8 @@ import 'profile_page.dart';
 import 'scolar_connect_page.dart';
 import 'direction_dashboard_page.dart';
 import 'espace_direction_page.dart';
+import 'professeur_eleves_page.dart';
+import 'espace_parent_page.dart';
 import '../models/permission_model.dart';
 import '../models/user_model.dart';
 import '../services/notification_service.dart';
@@ -49,7 +51,8 @@ class _MainShellState extends State<MainShell> {
         final uid = user.uid;
         NotificationService.initMessagerieListeners(uid);
         if (user.role == UserRole.parent && user.enfantIds.isNotEmpty) {
-          NotificationService.initParentListeners(user.enfantIds);
+          NotificationService.initParentListeners(user.enfantIds,
+              enfantClasseIds: user.enfantClasseIds);
         }
         if (user.role == UserRole.professeur) {
           NotificationService.initProfesseurListeners(uid);
@@ -84,19 +87,32 @@ class _MainShellState extends State<MainShell> {
 
   bool get _isDirection => PermissionService.isDirection(_role);
 
-  List<Widget> get _pages => _isDirection
-      ? const [
-          HomePage(),
-          DirectionDashboardPage(),
-          EspaceDirectionPage(),
-          ProfilePage(),
-        ]
-      : const [
-          HomePage(),
-          ElevesPage(),
-          SCOLARConnectPage(),
-          ProfilePage(),
-        ];
+  List<Widget> get _pages {
+    if (_isDirection) {
+      return const [
+        HomePage(),
+        DirectionDashboardPage(),
+        EspaceDirectionPage(),
+        ProfilePage(),
+      ];
+    }
+    // L'onglet 2 doit pointer vers l'espace propre à chaque rôle : le hub
+    // "Espace Étudiant" (ElevesPage) n'a de sens que pour un élève — un
+    // professeur y voyait par erreur "Mes devoirs/Mes notes" au lieu de sa
+    // liste d'élèves, et un parent y voyait le même hub élève au lieu de
+    // l'espace de suivi de son enfant.
+    final Widget secondTab = switch (_role) {
+      UserRole.professeur => const ProfesseurElevesPage(),
+      UserRole.parent => const EspaceParentPage(),
+      _ => const ElevesPage(),
+    };
+    return [
+      const HomePage(),
+      secondTab,
+      const SCOLARConnectPage(),
+      const ProfilePage(),
+    ];
+  }
 
   List<BottomNavigationBarItem> get _navItems {
     if (_isDirection) {
@@ -132,7 +148,11 @@ class _MainShellState extends State<MainShell> {
       BottomNavigationBarItem(
         icon: const Icon(Icons.school_outlined),
         activeIcon: const Icon(Icons.school),
-        label: _role == UserRole.professeur ? 'Élèves' : 'Révision',
+        label: switch (_role) {
+          UserRole.professeur => 'Élèves',
+          UserRole.parent => 'Mon enfant',
+          _ => 'Révision',
+        },
       ),
       const BottomNavigationBarItem(
         icon: Icon(Icons.hub_outlined),

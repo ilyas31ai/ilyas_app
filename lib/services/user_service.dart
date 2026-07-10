@@ -180,18 +180,18 @@ class UserService {
 
   /// Resolves children's Auth UIDs from the `parents` collection and writes
   /// them to `users/{uid}.enfantIds`. Updates the parent's role if needed.
-  static Future<void> _syncParentEnfantIds(String uid, String email) async {
+  static Future<bool> _syncParentEnfantIds(String uid, String email) async {
     try {
       final parentSnap = await _db
           .collection('parents')
           .where('email', isEqualTo: email)
           .limit(1)
           .get();
-      if (parentSnap.docs.isEmpty) return;
+      if (parentSnap.docs.isEmpty) return false;
 
       final eleveDocIds =
           List<String>.from(parentSnap.docs.first.data()['enfantIds'] as List? ?? []);
-      if (eleveDocIds.isEmpty) return;
+      if (eleveDocIds.isEmpty) return false;
 
       final authUids = <String>[];
       final classeIds = <String>[];
@@ -209,17 +209,23 @@ class UserService {
       if (classeIds.isNotEmpty) update['enfantClasseIds'] = classeIds;
       if (update.isNotEmpty) {
         await _db.collection('users').doc(uid).update(update);
+        return true;
       }
+      return false;
     } catch (_) {
       // Best-effort
+      return false;
     }
   }
 
   /// Lie un parent à un enfant en cherchant l'enfant par email dans `users`.
-  /// Met à jour enfantIds / enfantClasseIds du parent.
-  static Future<void> linkParentToChildByEmail(
+  /// Met à jour enfantIds / enfantClasseIds du parent. Retourne `true` si la
+  /// liaison a effectivement été établie (utilisé par l'inscription en
+  /// fire-and-forget, et par l'Espace Parent pour permettre une nouvelle
+  /// tentative si l'enfant ne s'était pas encore inscrit à ce moment-là).
+  static Future<bool> linkParentToChildByEmail(
       String parentUid, String childEmail) async {
-    if (parentUid.isEmpty || childEmail.isEmpty) return;
+    if (parentUid.isEmpty || childEmail.isEmpty) return false;
     try {
       final snap = await _db
           .collection('users')
@@ -240,17 +246,19 @@ class UserService {
         }
         if (update.isNotEmpty) {
           await _db.collection('users').doc(parentUid).update(update);
-          return;
+          return true;
         }
       }
 
       // Fallback via collection `parents` (liaison pré-inscription)
       final parentEmail = FirebaseAuth.instance.currentUser?.email ?? '';
       if (parentEmail.isNotEmpty) {
-        await _syncParentEnfantIds(parentUid, parentEmail);
+        return await _syncParentEnfantIds(parentUid, parentEmail);
       }
+      return false;
     } catch (_) {
       // Best-effort — la liaison sera complétée à la prochaine connexion
+      return false;
     }
   }
 

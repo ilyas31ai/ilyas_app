@@ -49,6 +49,16 @@ class _StatsBodyState extends State<_StatsBody> {
 
   Future<void> _load() async {
     try {
+      // Le champ Firestore 'presences.date' est un Timestamp (voir
+      // PresenceRecord.toMap()) — comparer avec une chaîne 'yyyy-MM-dd'
+      // (comme le faisait _todayStr()) ne matchait jamais aucun document et
+      // affichait toujours 0 présence/absence pour aujourd'hui.
+      final now = DateTime.now();
+      final startOfDay =
+          Timestamp.fromDate(DateTime(now.year, now.month, now.day));
+      final endOfDay = Timestamp.fromDate(
+          DateTime(now.year, now.month, now.day).add(const Duration(days: 1)));
+
       // Chargements en parallèle
       final results = await Future.wait([
         _db.collection('classes').get(),
@@ -56,7 +66,8 @@ class _StatsBodyState extends State<_StatsBody> {
         _db.collection('users').where('role', isEqualTo: 'professeur').get(),
         _db.collection('users').where('role', isEqualTo: 'parent').get(),
         _db.collection('presences')
-            .where('date', isEqualTo: _todayStr())
+            .where('date', isGreaterThanOrEqualTo: startOfDay)
+            .where('date', isLessThan: endOfDay)
             .get(),
       ]);
 
@@ -120,11 +131,6 @@ class _StatsBodyState extends State<_StatsBody> {
         _error = true;
       });
     }
-  }
-
-  String _todayStr() {
-    final now = DateTime.now();
-    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
   @override

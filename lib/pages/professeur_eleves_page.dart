@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../models/classe_model.dart';
+import '../models/school_model.dart' show kDefaultSchoolId;
 import '../models/user_model.dart';
 import '../services/maitrise_service.dart';
 import '../services/professeur_service.dart';
@@ -676,38 +677,47 @@ class _GlobalSearchView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<UserModel>>(
-      stream: UserService.usersByRoleStream('eleve'),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF7C3AED)));
-        }
-        final all = snap.data ?? [];
-        final q   = query.toLowerCase();
-        final results = all.where((u) {
-          return u.displayName.toLowerCase().contains(q) ||
-              u.email.toLowerCase().contains(q) ||
-              (u.classeNom ?? '').toLowerCase().contains(q) ||
-              (u.niveau ?? '').toLowerCase().contains(q) ||
-              (u.categorie ?? '').toLowerCase().contains(q);
-        }).toList();
+    return StreamBuilder<String>(
+      stream: UserService.currentSchoolIdStream(),
+      builder: (context, schoolSnap) {
+        final mySchoolId = schoolSnap.data ?? kDefaultSchoolId;
+        return StreamBuilder<List<UserModel>>(
+          stream: UserService.usersByRoleStream('eleve'),
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator(color: Color(0xFF7C3AED)));
+            }
+            // Isolation multi-établissement : ne montrer que les élèves du
+            // même établissement que le professeur connecté (évite une fuite
+            // de données entre écoles une fois plusieurs schoolId en usage).
+            final all = (snap.data ?? [])
+                .where((u) => u.schoolId == mySchoolId)
+                .toList();
+            final q   = query.toLowerCase();
+            final results = all.where((u) {
+              return u.displayName.toLowerCase().contains(q) ||
+                  u.email.toLowerCase().contains(q) ||
+                  (u.classeNom ?? '').toLowerCase().contains(q) ||
+                  (u.niveau ?? '').toLowerCase().contains(q) ||
+                  (u.categorie ?? '').toLowerCase().contains(q);
+            }).toList();
 
-        if (results.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.search_off, color: Colors.white24, size: 48),
-                const SizedBox(height: 12),
-                Text('Aucun élève trouvé pour « $query »',
-                    style: const TextStyle(color: Colors.white38, fontSize: 13),
-                    textAlign: TextAlign.center),
-              ]),
-            ),
-          );
-        }
+            if (results.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.search_off, color: Colors.white24, size: 48),
+                    const SizedBox(height: 12),
+                    Text('Aucun élève trouvé pour « $query »',
+                        style: const TextStyle(color: Colors.white38, fontSize: 13),
+                        textAlign: TextAlign.center),
+                  ]),
+                ),
+              );
+            }
 
-        return ListView.builder(
+            return ListView.builder(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 32),
           itemCount: results.length,
           itemBuilder: (ctx, i) {
@@ -780,6 +790,8 @@ class _GlobalSearchView extends StatelessWidget {
                 ]),
               ),
             );
+          },
+        );
           },
         );
       },

@@ -366,11 +366,17 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
           .createUserWithEmailAndPassword(email: email, password: password);
       final uid = cred.user!.uid;
 
+      // schoolId de la Direction courante — sans ce champ, le nouvel élève
+      // retombait sur kDefaultSchoolId (repli de UserModel.fromDoc) au lieu
+      // d'être rattaché au bon établissement en contexte multi-écoles.
+      final schoolId = await UserService.currentSchoolId();
+
       final data = <String, dynamic>{
         'uid': uid,
         'email': email,
         'displayName': displayName,
         'role': 'eleve',
+        'schoolId': schoolId,
         'createdAt': FieldValue.serverTimestamp(),
         'lastSeen': FieldValue.serverTimestamp(),
         // Champs prof — toujours présents (vides si aucune classe/prof assigné)
