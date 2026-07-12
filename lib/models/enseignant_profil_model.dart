@@ -18,6 +18,8 @@ class EnseignantProfil {
   final String? nationalite;
   final String? matricule;
   final String? photoUrl;
+  final String? cvUrl;
+  final String? cvNom;
 
   // Infos professionnelles
   final List<String> matieres;
@@ -46,6 +48,8 @@ class EnseignantProfil {
     this.nationalite,
     this.matricule,
     this.photoUrl,
+    this.cvUrl,
+    this.cvNom,
     this.matieres = const [],
     this.cycles = const [],
     this.niveaux = const [],
@@ -79,6 +83,8 @@ class EnseignantProfil {
       nationalite: m['nationalite'] as String?,
       matricule: m['matricule'] as String?,
       photoUrl: m['photoUrl'] as String?,
+      cvUrl: m['cvUrl'] as String?,
+      cvNom: m['cvNom'] as String?,
       matieres: List<String>.from((m['matieres'] as List<dynamic>?) ?? []),
       cycles: List<String>.from((m['cycles'] as List<dynamic>?) ?? []),
       niveaux: List<String>.from((m['niveaux'] as List<dynamic>?) ?? []),
@@ -125,6 +131,8 @@ class EnseignantProfil {
       if (nationalite != null) 'nationalite': nationalite,
       if (matricule != null) 'matricule': matricule,
       if (photoUrl != null) 'photoUrl': photoUrl,
+      if (cvUrl != null) 'cvUrl': cvUrl,
+      if (cvNom != null) 'cvNom': cvNom,
       'matieres': matieres,
       'cycles': cycles,
       'niveaux': niveaux,
@@ -152,6 +160,8 @@ class EnseignantProfil {
     String? nationalite,
     String? matricule,
     String? photoUrl,
+    String? cvUrl,
+    String? cvNom,
     List<String>? matieres,
     List<String>? cycles,
     List<String>? niveaux,
@@ -175,6 +185,8 @@ class EnseignantProfil {
       nationalite: nationalite ?? this.nationalite,
       matricule: matricule ?? this.matricule,
       photoUrl: photoUrl ?? this.photoUrl,
+      cvUrl: cvUrl ?? this.cvUrl,
+      cvNom: cvNom ?? this.cvNom,
       matieres: matieres ?? this.matieres,
       cycles: cycles ?? this.cycles,
       niveaux: niveaux ?? this.niveaux,

@@ -1,10 +1,15 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/disponibilite_model.dart';
 import '../models/enseignant_profil_model.dart';
 import '../models/remplacement_model.dart';
 import '../services/remplacement_service.dart';
+import '../services/storage_service.dart';
 
 // ─── Constantes de couleurs ───────────────────────────────────────────────────
 
@@ -13,6 +18,7 @@ const _card = Color(0xFF161B22);
 const _card2 = Color(0xFF1F2937);
 const _blue = Color(0xFF2563EB);
 const _purple = Color(0xFF6C47FF);
+const _green = Color(0xFF16A34A);
 
 // ─── Page principale ──────────────────────────────────────────────────────────
 
@@ -135,6 +141,11 @@ class _FicheEnseignantPageState extends State<FicheEnseignantPage>
             tooltip: 'Modifier le profil',
             onPressed: () => _openEditDialog(profil),
           ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444)),
+          tooltip: 'Supprimer le professeur',
+          onPressed: () => _confirmDeleteProfesseur(name),
+        ),
       ],
       bottom: TabBar(
         controller: _tabController,
@@ -252,6 +263,96 @@ class _FicheEnseignantPageState extends State<FicheEnseignantPage>
       builder: (_) => _EditProfilDialog(profil: profil),
     );
   }
+
+  /// Supprime le compte professeur. Bloque si des classes lui sont encore
+  /// affectées (professeurId == uid) — la Direction doit d'abord réaffecter
+  /// ces classes à un autre enseignant.
+  Future<void> _confirmDeleteProfesseur(String name) async {
+    final db = FirebaseFirestore.instance;
+    final classesSnap = await db
+        .collection('classes')
+        .where('professeurId', isEqualTo: widget.uid)
+        .get();
+
+    if (!mounted) return;
+
+    if (classesSnap.docs.isNotEmpty) {
+      final noms = classesSnap.docs
+          .map((d) => (d.data())['nom'] as String? ?? d.id)
+          .join(', ');
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: _card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Suppression impossible',
+              style: TextStyle(color: Colors.white, fontSize: 16)),
+          content: Text(
+            'Ce professeur est encore affecté à la classe : $noms.\n\n'
+            'Réaffectez d\'abord ces classes à un autre enseignant depuis '
+            '« Gestion des classes » avant de supprimer ce compte.',
+            style: const TextStyle(color: Colors.white54, fontSize: 13, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Compris', style: TextStyle(color: _purple)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Supprimer ce professeur ?',
+            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Text(
+          'Cette action supprime définitivement le compte de $name '
+          'ainsi que sa fiche enseignante.\n\nCette action est irréversible.',
+          style: const TextStyle(color: Colors.white54, fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler', style: TextStyle(color: Colors.white60)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer',
+                style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final batch = db.batch();
+      batch.delete(db.collection('users').doc(widget.uid));
+      batch.delete(db.collection('enseignants_profils').doc(widget.uid));
+      await batch.commit();
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('$name supprimé(e)'),
+          backgroundColor: const Color(0xFF16A34A),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur lors de la suppression : $e'),
+          backgroundColor: const Color(0xFFEF4444),
+          duration: const Duration(seconds: 6),
+        ));
+      }
+    }
+  }
 }
 
 // ─── Tab 1 — Profil ───────────────────────────────────────────────────────────
@@ -298,6 +399,11 @@ class _TabProfil extends StatelessWidget {
           _SectionCard(
             title: 'Informations professionnelles',
             child: _ProfessionalInfoSection(uid: uid, profil: profil!),
+          ),
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'CV',
+            child: _CvSection(uid: uid, profil: profil!),
           ),
         ],
       ),
@@ -468,6 +574,125 @@ class _ProfessionalInfoSection extends StatelessWidget {
               child: _StatutBadgeField(statut: profil.statut),
             ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+class _CvSection extends StatefulWidget {
+  final String uid;
+  final EnseignantProfil profil;
+  const _CvSection({required this.uid, required this.profil});
+
+  @override
+  State<_CvSection> createState() => _CvSectionState();
+}
+
+class _CvSectionState extends State<_CvSection> {
+  bool _uploading = false;
+
+  Future<void> _pickAndUpload() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'doc', 'docx'],
+    );
+    if (result == null || result.files.single.path == null) return;
+
+    final file = File(result.files.single.path!);
+    final fileName = result.files.single.name;
+    setState(() => _uploading = true);
+    try {
+      final url =
+          await StorageService.uploadTeacherDocument(file, widget.uid, 'cv');
+      if (url == null) {
+        throw Exception('Échec de l\'envoi du fichier');
+      }
+      await FirebaseFirestore.instance
+          .collection('enseignants_profils')
+          .doc(widget.uid)
+          .set({'cvUrl': url, 'cvNom': fileName}, SetOptions(merge: true));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur lors de l\'envoi du CV : $e'),
+          backgroundColor: const Color(0xFFEF4444),
+          duration: const Duration(seconds: 6),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _openCv(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Impossible d\'ouvrir le CV'),
+        backgroundColor: Color(0xFFEF4444),
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCv = widget.profil.cvUrl != null && widget.profil.cvUrl!.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (hasCv)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: _green.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _green.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.description_outlined, color: _green, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    widget.profil.cvNom ?? 'CV.pdf',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _openCv(widget.profil.cvUrl!),
+                  child: const Text('Consulter',
+                      style: TextStyle(color: _green, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          )
+        else
+          const Text(
+            'Aucun CV téléversé pour ce professeur.',
+            style: TextStyle(color: Colors.white38, fontSize: 12),
+          ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _uploading ? null : _pickAndUpload,
+            icon: _uploading
+                ? const SizedBox(
+                    width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: _purple))
+                : const Icon(Icons.upload_file_outlined, size: 16, color: _purple),
+            label: Text(hasCv ? 'Remplacer le CV' : 'Téléverser un CV',
+                style: const TextStyle(color: _purple)),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: _purple),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+          ),
         ),
       ],
     );

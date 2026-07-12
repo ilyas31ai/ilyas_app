@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import '../models/enseignant_profil_model.dart';
 import '../models/permission_model.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
@@ -507,6 +510,12 @@ class _DirectionEnseignantsListPageState
               color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
         ),
       ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF6C47FF),
+        tooltip: 'Ajouter un professeur',
+        onPressed: () => _showAddProfesseurDialog(context),
+        child: const Icon(Icons.person_add_outlined, color: Colors.white),
+      ),
       body: Column(
         children: [
           // Barre de recherche
@@ -542,6 +551,18 @@ class _DirectionEnseignantsListPageState
                         CircularProgressIndicator(color: Color(0xFF6C47FF)),
                   );
                 }
+                if (snap.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Erreur de chargement des enseignants :\n${snap.error}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ),
+                  );
+                }
                 var teachers = snap.data ?? [];
                 if (_search.isNotEmpty) {
                   teachers = teachers
@@ -570,6 +591,332 @@ class _DirectionEnseignantsListPageState
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Création directe d'un compte professeur ─────────────────────────────
+
+  Future<void> _showAddProfesseurDialog(BuildContext context) async {
+    final prenomCtrl = TextEditingController();
+    final nomCtrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final adresseCtrl = TextEditingController();
+    final telephoneCtrl = TextEditingController();
+    final matiereCtrl = TextEditingController();
+    final pwdCtrl = TextEditingController();
+    bool pwdVisible = false;
+    bool sendReset = true;
+    bool busy = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: const Color(0xFF161B22),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Ajouter un professeur',
+              style: TextStyle(
+                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                        child: _ProfDialogField(prenomCtrl, 'Prénom',
+                            Icons.person_outline)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: _ProfDialogField(
+                            nomCtrl, 'Nom', Icons.person_outline)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _ProfDialogField(emailCtrl, 'Adresse email',
+                    Icons.email_outlined,
+                    type: TextInputType.emailAddress),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pwdCtrl,
+                  obscureText: !pwdVisible,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'Mot de passe temporaire',
+                    hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                    prefixIcon: const Icon(Icons.lock_outline,
+                        color: Colors.white38, size: 18),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        pwdVisible
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: Colors.white38, size: 18,
+                      ),
+                      onPressed: () => setDlg(() => pwdVisible = !pwdVisible),
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFF0D1117),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            BorderSide(color: Colors.white.withValues(alpha: 0.1))),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            BorderSide(color: Colors.white.withValues(alpha: 0.1))),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF6C47FF))),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _ProfDialogField(adresseCtrl, 'Adresse (optionnel)',
+                    Icons.home_outlined,
+                    type: TextInputType.streetAddress),
+                const SizedBox(height: 12),
+                _ProfDialogField(
+                    telephoneCtrl, 'Numéro de téléphone (optionnel)',
+                    Icons.phone_outlined,
+                    type: TextInputType.phone),
+                const SizedBox(height: 12),
+                _ProfDialogField(matiereCtrl, 'Matière principale (optionnel)',
+                    Icons.menu_book_outlined),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Checkbox(
+                      value: sendReset,
+                      onChanged: busy
+                          ? null
+                          : (v) => setDlg(() => sendReset = v ?? true),
+                      activeColor: const Color(0xFF6C47FF),
+                      side: const BorderSide(color: Colors.white38),
+                    ),
+                    const Expanded(
+                      child: Text(
+                        "Envoyer un email d'invitation",
+                        style: TextStyle(color: Colors.white60, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(ctx),
+              child: const Text('Annuler',
+                  style: TextStyle(color: Colors.white60)),
+            ),
+            TextButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final prenom = prenomCtrl.text.trim();
+                      final nom = nomCtrl.text.trim();
+                      final email = emailCtrl.text.trim();
+                      final pwd = pwdCtrl.text.trim();
+                      if (prenom.isEmpty || nom.isEmpty || email.isEmpty ||
+                          pwd.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text(
+                              'Remplissez le prénom, le nom, l\'email et le mot de passe'),
+                          backgroundColor: Color(0xFFDC2626),
+                        ));
+                        return;
+                      }
+                      if (pwd.length < 6) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text(
+                              'Mot de passe trop court (minimum 6 caractères)'),
+                          backgroundColor: Color(0xFFDC2626),
+                        ));
+                        return;
+                      }
+                      setDlg(() => busy = true);
+                      final err = await _createProfesseurCompte(
+                        prenom: prenom,
+                        nom: nom,
+                        email: email,
+                        password: pwd,
+                        adresse: adresseCtrl.text.trim(),
+                        telephone: telephoneCtrl.text.trim(),
+                        matiere: matiereCtrl.text.trim(),
+                        sendResetEmail: sendReset,
+                      );
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
+                      if (err != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(err),
+                          backgroundColor: const Color(0xFFDC2626),
+                          duration: const Duration(seconds: 6),
+                        ));
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(sendReset
+                              ? 'Professeur créé — invitation envoyée à $email'
+                              : 'Compte professeur créé'),
+                          backgroundColor: const Color(0xFF16A34A),
+                        ));
+                      }
+                    },
+              child: busy
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Color(0xFF6C47FF)))
+                  : const Text('Créer',
+                      style: TextStyle(
+                          color: Color(0xFF6C47FF), fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    prenomCtrl.dispose();
+    nomCtrl.dispose();
+    emailCtrl.dispose();
+    adresseCtrl.dispose();
+    telephoneCtrl.dispose();
+    matiereCtrl.dispose();
+    pwdCtrl.dispose();
+  }
+
+  /// Crée un compte Firebase Auth + document Firestore pour un professeur,
+  /// créé directement par la Direction (hors flux d'invitation par code).
+  /// Utilise une application secondaire pour ne pas déconnecter l'admin.
+  /// Retourne null si succès, ou le message d'erreur.
+  Future<String?> _createProfesseurCompte({
+    required String prenom,
+    required String nom,
+    required String email,
+    required String password,
+    String adresse = '',
+    String telephone = '',
+    String matiere = '',
+    bool sendResetEmail = true,
+  }) async {
+    FirebaseApp? secondaryApp;
+    try {
+      secondaryApp = await Firebase.initializeApp(
+        name: 'prof_${DateTime.now().millisecondsSinceEpoch}',
+        options: Firebase.app().options,
+      );
+
+      final cred = await FirebaseAuth.instanceFor(app: secondaryApp)
+          .createUserWithEmailAndPassword(email: email, password: password);
+      final uid = cred.user!.uid;
+
+      final schoolId = await UserService.currentSchoolId();
+      final displayName = '$prenom $nom'.trim();
+
+      final userData = <String, dynamic>{
+        'uid': uid,
+        'email': email,
+        'displayName': displayName,
+        'nom': nom,
+        'prenom': prenom,
+        'role': 'professeur',
+        // Créé directement par la Direction : déjà rattaché à l'établissement,
+        // contrairement au flux d'invitation par code (teacherStatus 'limited').
+        'teacherStatus': 'active',
+        'statut': 'actif',
+        'schoolId': schoolId,
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastSeen': FieldValue.serverTimestamp(),
+      };
+      if (adresse.isNotEmpty) userData['adresse'] = adresse;
+      if (telephone.isNotEmpty) userData['telephone'] = telephone;
+      if (matiere.isNotEmpty) userData['matiere'] = matiere;
+
+      final profil = EnseignantProfil(
+        uid: uid,
+        nom: nom,
+        prenom: prenom,
+        adresse: adresse.isNotEmpty ? adresse : null,
+        telephone: telephone.isNotEmpty ? telephone : null,
+        email: email,
+        matieres: matiere.isNotEmpty ? [matiere] : const [],
+      );
+
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+      batch.set(db.collection('users').doc(uid), userData);
+      batch.set(db.collection('enseignants_profils').doc(uid), profil.toMap());
+      await batch.commit();
+
+      if (sendResetEmail) {
+        await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      }
+
+      return null;
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'email-already-in-use':
+          return 'Un compte existe déjà avec cet email';
+        case 'invalid-email':
+          return 'Adresse email invalide';
+        case 'weak-password':
+          return 'Mot de passe trop faible (minimum 6 caractères)';
+        default:
+          return '[${e.code}] ${e.message ?? 'Erreur inconnue'}';
+      }
+    } catch (e) {
+      return 'Erreur : $e';
+    } finally {
+      try {
+        await FirebaseAuth.instanceFor(app: secondaryApp!).signOut();
+      } catch (_) {}
+      try {
+        await secondaryApp?.delete();
+      } catch (_) {}
+    }
+  }
+}
+
+/// Champ texte réutilisé dans la dialog de création d'un professeur.
+class _ProfDialogField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final IconData icon;
+  final TextInputType type;
+  const _ProfDialogField(this.controller, this.hint, this.icon,
+      {this.type = TextInputType.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: type,
+      style: const TextStyle(color: Colors.white, fontSize: 14),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+        prefixIcon: Icon(icon, color: Colors.white38, size: 18),
+        filled: true,
+        fillColor: const Color(0xFF0D1117),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF6C47FF)),
+        ),
       ),
     );
   }

@@ -101,6 +101,14 @@ class UserModel {
   // Professeur
   final String? matiere;
 
+  // Fiche contact — renseignée par la Direction (gestion élèves/professeurs).
+  // Additif : reste null pour tous les comptes existants (aucune régression
+  // sur displayName, qui demeure la source d'affichage historique).
+  final String? nom;
+  final String? prenom;
+  final String? adresse;
+  final String? telephone;
+
   // Parent
   /// UIDs des élèves enfants (utilisé dans les règles Firestore)
   final List<String> enfantIds;
@@ -134,6 +142,10 @@ class UserModel {
     this.classeId,
     this.classeNom,
     this.matiere,
+    this.nom,
+    this.prenom,
+    this.adresse,
+    this.telephone,
     this.enfantIds = const [],
     this.enfantClasseIds = const [],
     this.statut = 'actif',
@@ -161,6 +173,10 @@ class UserModel {
       classeId: d['classeId'] as String?,
       classeNom: d['classeNom'] as String?,
       matiere: d['matiere'] as String?,
+      nom: d['nom'] as String?,
+      prenom: d['prenom'] as String?,
+      adresse: d['adresse'] as String?,
+      telephone: d['telephone'] as String?,
       enfantIds: List<String>.from(d['enfantIds'] as List? ?? []),
       enfantClasseIds: List<String>.from(d['enfantClasseIds'] as List? ?? []),
       statut: (d['statut'] as String?) ?? 'actif',
@@ -184,6 +200,10 @@ class UserModel {
         if (classeId != null) 'classeId': classeId,
         if (classeNom != null) 'classeNom': classeNom,
         if (matiere != null) 'matiere': matiere,
+        if (nom != null) 'nom': nom,
+        if (prenom != null) 'prenom': prenom,
+        if (adresse != null) 'adresse': adresse,
+        if (telephone != null) 'telephone': telephone,
         if (enfantIds.isNotEmpty) 'enfantIds': enfantIds,
         if (enfantClasseIds.isNotEmpty) 'enfantClasseIds': enfantClasseIds,
         'statut': statut,
@@ -202,6 +222,10 @@ class UserModel {
     String? classeId,
     String? classeNom,
     String? matiere,
+    String? nom,
+    String? prenom,
+    String? adresse,
+    String? telephone,
     List<String>? enfantIds,
     List<String>? enfantClasseIds,
     String? statut,
@@ -221,6 +245,10 @@ class UserModel {
         classeId: classeId ?? this.classeId,
         classeNom: classeNom ?? this.classeNom,
         matiere: matiere ?? this.matiere,
+        nom: nom ?? this.nom,
+        prenom: prenom ?? this.prenom,
+        adresse: adresse ?? this.adresse,
+        telephone: telephone ?? this.telephone,
         enfantIds: enfantIds ?? this.enfantIds,
         enfantClasseIds: enfantClasseIds ?? this.enfantClasseIds,
         statut: statut ?? this.statut,

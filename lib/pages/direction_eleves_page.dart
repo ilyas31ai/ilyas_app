@@ -32,8 +32,11 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
   // ── Création d'un compte élève ──────────────────────────────────────────────
 
   Future<void> _showAddEleveDialog(BuildContext context) async {
-    final nameCtrl = TextEditingController();
+    final prenomCtrl = TextEditingController();
+    final nomCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
+    final adresseCtrl = TextEditingController();
+    final telephoneCtrl = TextEditingController();
     final pwdCtrl = TextEditingController();
     bool pwdVisible = false;
     bool sendReset = true;
@@ -104,9 +107,25 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── Identité ──────────────────────────────────────────────
-                  _dialogField(nameCtrl, 'Nom complet', Icons.person_outline, TextInputType.text),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _dialogField(prenomCtrl, 'Prénom',
+                              Icons.person_outline, TextInputType.text)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: _dialogField(nomCtrl, 'Nom',
+                              Icons.person_outline, TextInputType.text)),
+                    ],
+                  ),
                   const SizedBox(height: 12),
                   _dialogField(emailCtrl, 'Adresse email', Icons.email_outlined, TextInputType.emailAddress),
+                  const SizedBox(height: 12),
+                  _dialogField(adresseCtrl, 'Adresse (optionnel)',
+                      Icons.home_outlined, TextInputType.streetAddress),
+                  const SizedBox(height: 12),
+                  _dialogField(telephoneCtrl, 'Numéro de téléphone (optionnel)',
+                      Icons.phone_outlined, TextInputType.phone),
                   const SizedBox(height: 12),
                   // ── Mot de passe ──────────────────────────────────────────
                   TextField(
@@ -215,12 +234,15 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
                 onPressed: busy
                     ? null
                     : () async {
-                        final name = nameCtrl.text.trim();
+                        final prenom = prenomCtrl.text.trim();
+                        final nom = nomCtrl.text.trim();
                         final email = emailCtrl.text.trim();
+                        final adresse = adresseCtrl.text.trim();
+                        final telephone = telephoneCtrl.text.trim();
                         final pwd = pwdCtrl.text.trim();
-                        if (name.isEmpty || email.isEmpty || pwd.isEmpty) {
+                        if (prenom.isEmpty || nom.isEmpty || email.isEmpty || pwd.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                            content: Text('Remplissez le nom, l\'email et le mot de passe'),
+                            content: Text('Remplissez le prénom, le nom, l\'email et le mot de passe'),
                             backgroundColor: Color(0xFFDC2626),
                           ));
                           return;
@@ -234,9 +256,12 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
                         }
                         setDlg(() => busy = true);
                         final err = await _createEleveCompte(
-                          displayName: name,
+                          prenom: prenom,
+                          nom: nom,
                           email: email,
                           password: pwd,
+                          adresse: adresse.isNotEmpty ? adresse : null,
+                          telephone: telephone.isNotEmpty ? telephone : null,
                           categorie: selectedCategorie,
                           classeId: selectedClasse?.id,
                           classeNom: selectedClasse?.nom,
@@ -278,8 +303,11 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
       ),
     );
 
-    nameCtrl.dispose();
+    prenomCtrl.dispose();
+    nomCtrl.dispose();
     emailCtrl.dispose();
+    adresseCtrl.dispose();
+    telephoneCtrl.dispose();
     pwdCtrl.dispose();
   }
 
@@ -345,9 +373,12 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
   /// en batch atomique pour garantir la cohérence classe ↔ élèves.
   /// Retourne null si succès, ou le message d'erreur.
   Future<String?> _createEleveCompte({
-    required String displayName,
+    required String prenom,
+    required String nom,
     required String email,
     required String password,
+    String? adresse,
+    String? telephone,
     String? categorie,
     String? classeId,
     String? classeNom,
@@ -371,10 +402,13 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
       // d'être rattaché au bon établissement en contexte multi-écoles.
       final schoolId = await UserService.currentSchoolId();
 
+      final displayName = '$prenom $nom'.trim();
       final data = <String, dynamic>{
         'uid': uid,
         'email': email,
         'displayName': displayName,
+        'nom': nom,
+        'prenom': prenom,
         'role': 'eleve',
         'schoolId': schoolId,
         'createdAt': FieldValue.serverTimestamp(),
@@ -385,6 +419,8 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
         'profDisplayName': '',
         'profMatiere': '',
       };
+      if (adresse != null && adresse.isNotEmpty) data['adresse'] = adresse;
+      if (telephone != null && telephone.isNotEmpty) data['telephone'] = telephone;
       if (categorie != null && categorie.isNotEmpty) data['categorie'] = categorie;
       if (niveau != null && niveau.isNotEmpty) data['niveau'] = niveau;
       if (classeId != null && classeId.isNotEmpty) {
@@ -915,6 +951,22 @@ class _EleveItemState extends State<_EleveItem> {
                 const SizedBox(height: 2),
                 Text(eleve.email,
                     style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                if (eleve.telephone != null && eleve.telephone!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(eleve.telephone!,
+                        style: const TextStyle(
+                            color: Colors.white24, fontSize: 11)),
+                  ),
+                if (eleve.adresse != null && eleve.adresse!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(eleve.adresse!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white24, fontSize: 11)),
+                  ),
                 const SizedBox(height: 4),
                 if (hasClasse)
                   _ClasseChip(
@@ -937,15 +989,281 @@ class _EleveItemState extends State<_EleveItem> {
                   strokeWidth: 2, color: Color(0xFF2563EB)),
             )
           else
-            IconButton(
-              icon: const Icon(Icons.edit_outlined,
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert,
                   color: Colors.white38, size: 18),
-              onPressed: () => _showClassePicker(context),
-              tooltip: 'Affecter une classe',
+              color: const Color(0xFF161B22),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              onSelected: (v) {
+                switch (v) {
+                  case 'edit':
+                    _showEditEleveDialog(context);
+                    break;
+                  case 'classe':
+                    _showClassePicker(context);
+                    break;
+                  case 'delete':
+                    _showDeleteEleveDialog(context);
+                    break;
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'edit',
+                  child: Text('Modifier les informations',
+                      style: TextStyle(color: Colors.white, fontSize: 13)),
+                ),
+                PopupMenuItem(
+                  value: 'classe',
+                  child: Text('Affecter une classe',
+                      style: TextStyle(color: Colors.white, fontSize: 13)),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Supprimer l\'élève',
+                      style: TextStyle(color: Color(0xFFDC2626), fontSize: 13)),
+                ),
+              ],
             ),
         ],
       ),
     );
+  }
+
+  // ── Modifier les informations ───────────────────────────────────────────
+
+  Future<void> _showEditEleveDialog(BuildContext context) async {
+    final eleve = widget.eleve;
+    final prenomCtrl = TextEditingController(text: eleve.prenom ?? '');
+    final nomCtrl = TextEditingController(text: eleve.nom ?? '');
+    final adresseCtrl = TextEditingController(text: eleve.adresse ?? '');
+    final telephoneCtrl = TextEditingController(text: eleve.telephone ?? '');
+    bool busy = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: const Color(0xFF161B22),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Modifier les informations',
+              style: TextStyle(
+                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                        child: _EditField(prenomCtrl, 'Prénom',
+                            Icons.person_outline)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child:
+                            _EditField(nomCtrl, 'Nom', Icons.person_outline)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _EditField(adresseCtrl, 'Adresse', Icons.home_outlined),
+                const SizedBox(height: 12),
+                _EditField(
+                    telephoneCtrl, 'Numéro de téléphone', Icons.phone_outlined),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0D1117),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.email_outlined,
+                          color: Colors.white24, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(eleve.email,
+                                style: const TextStyle(
+                                    color: Colors.white54, fontSize: 13)),
+                            const Text(
+                                'Non modifiable — identifiant de connexion',
+                                style: TextStyle(
+                                    color: Colors.white24, fontSize: 10)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(ctx),
+              child: const Text('Annuler',
+                  style: TextStyle(color: Colors.white60)),
+            ),
+            TextButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final prenom = prenomCtrl.text.trim();
+                      final nom = nomCtrl.text.trim();
+                      if (prenom.isEmpty || nom.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Le prénom et le nom sont obligatoires'),
+                          backgroundColor: Color(0xFFDC2626),
+                        ));
+                        return;
+                      }
+                      setDlg(() => busy = true);
+                      try {
+                        await FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(eleve.uid)
+                            .update({
+                          'nom': nom,
+                          'prenom': prenom,
+                          'displayName': '$prenom $nom'.trim(),
+                          'adresse': adresseCtrl.text.trim(),
+                          'telephone': telephoneCtrl.text.trim(),
+                        });
+                        if (!ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                            content: Text('Informations mises à jour'),
+                            backgroundColor: Color(0xFF16A34A),
+                          ));
+                        }
+                      } catch (e) {
+                        setDlg(() => busy = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text('Erreur : $e'),
+                            backgroundColor: const Color(0xFFDC2626),
+                            duration: const Duration(seconds: 6),
+                          ));
+                        }
+                      }
+                    },
+              child: busy
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Color(0xFF2563EB)))
+                  : const Text('Enregistrer',
+                      style: TextStyle(
+                          color: Color(0xFF2563EB), fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    prenomCtrl.dispose();
+    nomCtrl.dispose();
+    adresseCtrl.dispose();
+    telephoneCtrl.dispose();
+  }
+
+  // ── Suppression ──────────────────────────────────────────────────────────
+
+  Future<void> _showDeleteEleveDialog(BuildContext context) async {
+    final eleve = widget.eleve;
+    final label = eleve.displayName.isNotEmpty ? eleve.displayName : eleve.email;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF161B22),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Supprimer cet élève ?',
+            style: TextStyle(
+                color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Text(
+          'Cette action supprime définitivement le compte de $label.\n\n'
+          'L\'élève sera retiré de sa classe et de la liste des enfants de '
+          'ses parents éventuellement liés. Les notes, devoirs et bulletins '
+          'déjà enregistrés ne sont pas supprimés.\n\n'
+          'Cette action est irréversible.',
+          style: const TextStyle(color: Colors.white54, fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler', style: TextStyle(color: Colors.white60)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer',
+                style: TextStyle(
+                    color: Color(0xFFDC2626), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await _deleteEleve(eleve);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('$label supprimé(e)'),
+          backgroundColor: const Color(0xFF16A34A),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur lors de la suppression : $e'),
+          backgroundColor: const Color(0xFFDC2626),
+          duration: const Duration(seconds: 6),
+        ));
+      }
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Supprime le compte élève et nettoie les références croisées :
+  /// classe.eleveIds et parent.enfantIds. Les données académiques
+  /// historiques (notes, devoirs, bulletins) restent en base, rattachées à
+  /// l'ancien uid — non supprimées pour ne pas casser les historiques.
+  Future<void> _deleteEleve(UserModel eleve) async {
+    final db = FirebaseFirestore.instance;
+    final batch = db.batch();
+
+    if (eleve.classeId != null && eleve.classeId!.isNotEmpty) {
+      batch.update(
+        db.collection('classes').doc(eleve.classeId!),
+        {'eleveIds': FieldValue.arrayRemove([eleve.uid])},
+      );
+    }
+
+    // Retire l'élève des enfantIds de tout parent qui l'aurait lié.
+    final parentsSnap = await db
+        .collection('users')
+        .where('role', isEqualTo: 'parent')
+        .where('enfantIds', arrayContains: eleve.uid)
+        .get();
+    for (final p in parentsSnap.docs) {
+      batch.update(p.reference, {
+        'enfantIds': FieldValue.arrayRemove([eleve.uid]),
+      });
+    }
+
+    batch.delete(db.collection('users').doc(eleve.uid));
+    await batch.commit();
   }
 
   Future<void> _showClassePicker(BuildContext context) async {
@@ -1153,6 +1471,42 @@ class _ClasseChip extends StatelessWidget {
             color: Color(0xFF16A34A),
             fontSize: 11,
             fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+/// Champ texte réutilisé dans les dialogs d'édition des informations élève.
+class _EditField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  const _EditField(this.controller, this.label, this.icon);
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      style: const TextStyle(color: Colors.white, fontSize: 14),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+        prefixIcon: Icon(icon, color: Colors.white38, size: 18),
+        filled: true,
+        fillColor: const Color(0xFF0D1117),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF2563EB)),
+        ),
       ),
     );
   }
