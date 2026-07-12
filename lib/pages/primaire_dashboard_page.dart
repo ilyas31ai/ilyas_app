@@ -291,7 +291,6 @@ class _QuickGrid extends StatelessWidget {
     _NavItem(Icons.assignment_outlined, 'Devoirs',    AppRoutes.primaireDevoirs,   [Color(0xFF6C47FF), Color(0xFF2563EB)]),
     _NavItem(Icons.grade_outlined,      'Notes',      AppRoutes.primaireNotes,     [Color(0xFFD97706), Color(0xFFDC2626)]),
     _NavItem(Icons.description_outlined,'Bulletin',   AppRoutes.primaireBulletin,  [Color(0xFF15803D), Color(0xFF16A34A)]),
-    _NavItem(Icons.book_outlined,       'Révisions',  AppRoutes.primaireRevisions, _kColors),
     _NavItem(Icons.folder_outlined,     'Documents',  AppRoutes.primaireDocuments, [Color(0xFF374151), Color(0xFF1E3A5F)]),
     _NavItem(Icons.sports_esports_outlined,'Jeux',    AppRoutes.primaireJeux,      [Color(0xFFBE185D), Color(0xFF7C3AED)]),
   ];

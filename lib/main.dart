@@ -124,7 +124,6 @@ import 'pages/lycee_specialites_page.dart';
 // 🧠 ÉLÈVES
 import 'pages/devoirs_page.dart';
 import 'pages/etudiant_devoirs_page.dart';
-import 'pages/etudiant_revisions_page.dart';
 import 'pages/ai_scolaire_page.dart';
 import 'pages/notes_page.dart';
 import 'pages/emploi_page.dart';
@@ -347,8 +346,6 @@ class MyApp extends StatelessWidget {
         '/devoirs': (context) => const DevoirsPage(),
 
         '/etudiant_devoirs': (context) => const EtudiantDevoirsPage(),
-
-        '/etudiant_revisions': (context) => const EtudiantRevisionsPage(),
 
         '/ai_scolaire': (context) => const AiScolairePage(),
 

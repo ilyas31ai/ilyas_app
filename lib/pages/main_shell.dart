@@ -151,7 +151,7 @@ class _MainShellState extends State<MainShell> {
         label: switch (_role) {
           UserRole.professeur => 'Élèves',
           UserRole.parent => 'Mon enfant',
-          _ => 'Révision',
+          _ => 'Mon espace',
         },
       ),
       const BottomNavigationBarItem(

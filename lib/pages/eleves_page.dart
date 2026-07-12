@@ -114,15 +114,6 @@ class _StudentHub extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               _NavCard(
-                icon: Icons.menu_book_outlined,
-                title: 'Révisions',
-                subtitle: 'Cours, exercices et quiz par matière',
-                colors: const [Color(0xFF0F766E), Color(0xFF16A34A)],
-                onTap: () =>
-                    Navigator.pushNamed(context, '/etudiant_revisions'),
-              ),
-              const SizedBox(height: 10),
-              _NavCard(
                 icon: Icons.bar_chart_outlined,
                 title: 'Notes & Resultats',
                 subtitle: 'Vos notes et moyennes par matiere',

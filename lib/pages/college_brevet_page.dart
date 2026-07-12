@@ -92,7 +92,7 @@ class _Body extends StatelessWidget {
             children: [
               Text('Examens blancs chronométrés', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
               SizedBox(height: 3),
-              Text('Disponible depuis Révisions · Examens blancs', style: TextStyle(color: Colors.white38, fontSize: 12)),
+              Text('Fonctionnalité à venir', style: TextStyle(color: Colors.white38, fontSize: 12)),
             ],
           ),
         ),

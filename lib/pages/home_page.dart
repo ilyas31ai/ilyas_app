@@ -221,7 +221,7 @@ class _HomePageState extends State<HomePage> {
     if (_role == UserRole.professeur) {
       return (
         'Espace Professeur',
-        'Devoirs · Notes · Présences · Révisions',
+        'Devoirs · Notes · Présences',
         [const Color(0xFF0F766E), const Color(0xFF0891B2)],
       );
     }
@@ -241,17 +241,17 @@ class _HomePageState extends State<HomePage> {
         ),
       _Cycle.primaire => (
           'Plateforme scolaire',
-          'Révision · Jeux éducatifs · Devoirs',
+          'Jeux éducatifs · Devoirs',
           [const Color(0xFF6C47FF), const Color(0xFF2563EB)],
         ),
       _Cycle.universite => (
           'Espace Étudiant',
-          'Révisions · Ressources · Examens',
+          'Ressources · Examens',
           [const Color(0xFF374151), const Color(0xFF1F2937)],
         ),
       _ => (
           'Plateforme scolaire',
-          'Révision intelligente · Devoirs · Notes',
+          'Devoirs · Notes',
           [const Color(0xFF6C47FF), const Color(0xFF2563EB)],
         ),
     };
@@ -321,8 +321,6 @@ class _HomePageState extends State<HomePage> {
       return [
         const _QItem(Icons.school, 'Mon espace',
             [Color(0xFF0F766E), Color(0xFF0891B2)], '/espace_professeur'),
-        const _QItem(Icons.school_outlined, 'Révision',
-            [Color(0xFF2563EB), Color(0xFF0891B2)], '/eleves'),
         const _QItem(Icons.notifications, 'Alertes',
             [Color(0xFF374151), Color(0xFF1F2937)], '/notifications'),
       ];
@@ -345,8 +343,6 @@ class _HomePageState extends State<HomePage> {
   List<_QItem> get _eleveItems {
     const alertes = _QItem(Icons.notifications, 'Alertes',
         [Color(0xFF374151), Color(0xFF1F2937)], '/notifications');
-    const revisions = _QItem(Icons.school, 'Révisions',
-        [Color(0xFF2563EB), Color(0xFF0891B2)], '/eleves');
     const enfants = _QItem(Icons.child_care, 'Enfants',
         [Color(0xFFBE185D), Color(0xFF7C3AED)], '/monde_enfants');
     const jeux = _QItem(Icons.sports_esports, 'Jeux',
@@ -354,10 +350,10 @@ class _HomePageState extends State<HomePage> {
 
     return switch (_cycle) {
       _Cycle.maternelle => [enfants, alertes],
-      _Cycle.primaire => [revisions, enfants, jeux, alertes],
-      _Cycle.college => [revisions, jeux, alertes],
-      _Cycle.lycee => [revisions, jeux, alertes],
-      _Cycle.universite => [revisions, alertes],
+      _Cycle.primaire => [enfants, jeux, alertes],
+      _Cycle.college => [jeux, alertes],
+      _Cycle.lycee => [jeux, alertes],
+      _Cycle.universite => [alertes],
     };
   }
 
@@ -667,19 +663,19 @@ class _CycleBanner extends StatelessWidget {
           ),
         _Cycle.primaire => (
             'École Primaire',
-            'Devoirs · Notes · Révisions · Jeux',
+            'Devoirs · Notes · Jeux',
             [const Color(0xFF16A34A), const Color(0xFF0891B2)],
             Icons.school_outlined,
           ),
         _Cycle.college => (
             'Collège',
-            'Matières · Notes · BEM · Révisions',
+            'Matières · Notes · BEM',
             [const Color(0xFF0F766E), const Color(0xFF0891B2)],
             Icons.menu_book_outlined,
           ),
         _Cycle.lycee => (
             'Lycée',
-            'Spécialités · BAC · Bulletin · Révisions',
+            'Spécialités · BAC · Bulletin',
             [const Color(0xFF6C47FF), const Color(0xFF2563EB)],
             Icons.auto_awesome,
           ),
@@ -873,9 +869,6 @@ class _CycleNavGrid extends StatelessWidget {
             _CycleNavItem(Icons.description_outlined, 'Bulletin',
                 AppRoutes.primaireBulletin,
                 const [Color(0xFF15803D), Color(0xFF16A34A)]),
-            _CycleNavItem(Icons.school_outlined, 'Révisions',
-                AppRoutes.primaireRevisions,
-                const [Color(0xFF2563EB), Color(0xFF0891B2)]),
             const _CycleNavItem(Icons.sports_esports_outlined, 'Jeux',
                 '/jeux_scolaires', [Color(0xFFBE185D), Color(0xFF7C3AED)]),
           ],
@@ -898,9 +891,6 @@ class _CycleNavGrid extends StatelessWidget {
             _CycleNavItem(Icons.emoji_events_outlined, 'BEM',
                 AppRoutes.collegeBrevet,
                 const [Color(0xFFBE185D), Color(0xFF7C3AED)]),
-            _CycleNavItem(Icons.school_outlined, 'Révisions',
-                AppRoutes.collegeRevisions,
-                const [Color(0xFF374151), Color(0xFF1E3A5F)]),
             _CycleNavItem(Icons.how_to_reg_outlined, 'Présences',
                 AppRoutes.collegePresences,
                 const [Color(0xFF0F766E), Color(0xFF15803D)]),
@@ -927,9 +917,6 @@ class _CycleNavGrid extends StatelessWidget {
             _CycleNavItem(Icons.emoji_events_outlined, 'BAC',
                 AppRoutes.lyceeBacBlanc,
                 const [Color(0xFFBE185D), Color(0xFF9D174D)]),
-            _CycleNavItem(Icons.school_outlined, 'Révisions',
-                AppRoutes.lyceeRevisions,
-                const [Color(0xFF374151), Color(0xFF1E3A5F)]),
             _CycleNavItem(Icons.science_outlined, 'Spécialités',
                 AppRoutes.lyceeSpecialites,
                 const [Color(0xFF0F766E), Color(0xFF0891B2)]),
@@ -956,9 +943,6 @@ class _CycleNavGrid extends StatelessWidget {
             _CycleNavItem(Icons.menu_book_outlined, 'Mémoire',
                 AppRoutes.universiteMemoire,
                 const [Color(0xFF7C3AED), Color(0xFF6C47FF)]),
-            _CycleNavItem(Icons.school_outlined, 'Révisions',
-                AppRoutes.universiteRevisions,
-                const [Color(0xFF0F766E), Color(0xFF0891B2)]),
             _CycleNavItem(Icons.calendar_view_week_outlined, 'Semestres',
                 AppRoutes.universiteSemestres,
                 const [Color(0xFF374151), Color(0xFF1E3A5F)]),

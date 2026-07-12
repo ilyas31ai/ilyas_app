@@ -134,7 +134,6 @@ class _Body extends StatelessWidget {
       _NavItem(Icons.grade_outlined, 'Notes', AppRoutes.collegeNotes, [Color(0xFFD97706), Color(0xFFDC2626)]),
       _NavItem(Icons.description_outlined, 'Bulletin', AppRoutes.collegeBulletin, [Color(0xFF15803D), Color(0xFF16A34A)]),
       _NavItem(Icons.emoji_events_outlined, 'BEM', AppRoutes.collegeBrevet, [Color(0xFFBE185D), Color(0xFF7C3AED)]),
-      _NavItem(Icons.school_outlined, 'Révisions', AppRoutes.collegeRevisions, [Color(0xFF374151), Color(0xFF1E3A5F)]),
       _NavItem(Icons.how_to_reg_outlined, 'Présences', AppRoutes.collegePresences, [Color(0xFF0F766E), Color(0xFF15803D)]),
       _NavItem(Icons.folder_outlined, 'Documents', AppRoutes.collegeDocuments, [Color(0xFF1E3A5F), Color(0xFF374151)]),
       _NavItem(Icons.explore_outlined, 'Orientation', AppRoutes.collegeOrientation, [Color(0xFF374151), Color(0xFF0F172A)]),

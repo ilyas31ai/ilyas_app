@@ -67,8 +67,6 @@ class _Body extends StatelessWidget {
           _sectionLabel('Conseils de préparation'),
           const SizedBox(height: 10),
           ..._conseils.map((c) => _ConseilCard(icon: c.icon, titre: c.titre, desc: c.desc)),
-          const SizedBox(height: 20),
-          _RevisionsBanner(context),
         ],
       ),
     );
