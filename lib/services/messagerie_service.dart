@@ -180,6 +180,62 @@ class MessagerieService {
     return ids;
   }
 
+  // ── Autorisation Parent ↔ Direction ──────────────────────────────────────
+  //
+  // Note : le filtrage se fait côté client sur `UserModel.schoolId` (qui
+  // retombe sur kDefaultSchoolId en mémoire si absent du document) plutôt
+  // que via `.where('schoolId', isEqualTo: ...)`. Firestore ne matche que
+  // les documents où le champ existe réellement avec cette valeur — la
+  // grande majorité des comptes existants n'ont pas encore ce champ
+  // (backfill Phase 2 non effectué), donc une requête serveur par égalité
+  // sur schoolId ne renverrait aucun résultat pour ces comptes.
+
+  /// UIDs des comptes Direction qu'un parent est autorisé à contacter :
+  /// les rôles admin/direction du même établissement que lui.
+  static Future<Set<String>> directionsAutoriseesPourParent(
+      UserModel parent) async {
+    final ids = <String>{};
+    try {
+      final snap = await _db
+          .collection('users')
+          .where('role', isEqualTo: 'admin')
+          .get();
+      for (final d in snap.docs) {
+        final u = UserModel.fromDoc(d);
+        if (u.schoolId == parent.schoolId) ids.add(d.id);
+      }
+    } catch (_) {}
+    try {
+      final snap = await _db
+          .collection('users')
+          .where('role', isEqualTo: 'direction')
+          .get();
+      for (final d in snap.docs) {
+        final u = UserModel.fromDoc(d);
+        if (u.schoolId == parent.schoolId) ids.add(d.id);
+      }
+    } catch (_) {}
+    return ids;
+  }
+
+  /// UIDs des parents qu'un compte Direction est autorisé à contacter :
+  /// les parents du même établissement que lui.
+  static Future<Set<String>> parentsAutorisesPourDirection(
+      UserModel direction) async {
+    final ids = <String>{};
+    try {
+      final snap = await _db
+          .collection('users')
+          .where('role', isEqualTo: 'parent')
+          .get();
+      for (final d in snap.docs) {
+        final u = UserModel.fromDoc(d);
+        if (u.schoolId == direction.schoolId) ids.add(d.id);
+      }
+    } catch (_) {}
+    return ids;
+  }
+
   // ── Messages ──────────────────────────────────────────────────────────────
 
   static Stream<List<MessageModel>> messagesStream(String convId,

@@ -48,15 +48,21 @@ class _NouvelleConversationPageState
     _loadAllowed();
   }
 
-  /// Restreint la messagerie Élève ↔ Professeur : un élève ne doit voir que
-  /// ses professeurs, un professeur que les élèves de son établissement.
-  /// Les autres rôles (Direction, Parent…) ne sont pas concernés.
+  /// Restreint la messagerie Élève ↔ Professeur et Parent ↔ Direction : un
+  /// élève ne doit voir que ses professeurs, un professeur que les élèves de
+  /// son établissement, un parent que la Direction de son établissement, et
+  /// la Direction que les parents de son établissement.
   Future<void> _loadAllowed() async {
     Set<String>? ids;
     if (widget.me.role == UserRole.eleve) {
       ids = await MessagerieService.profsAutorisesPourEleve(widget.me);
     } else if (widget.me.role == UserRole.professeur) {
       ids = await MessagerieService.elevesAutorisesPourProf(widget.me);
+    } else if (widget.me.role == UserRole.parent) {
+      ids = await MessagerieService.directionsAutoriseesPourParent(widget.me);
+    } else if (widget.me.role == UserRole.admin ||
+        widget.me.role == UserRole.direction) {
+      ids = await MessagerieService.parentsAutorisesPourDirection(widget.me);
     }
     if (mounted) {
       setState(() {
@@ -78,6 +84,21 @@ class _NouvelleConversationPageState
       final allowed = _allowedIds ?? const <String>{};
       return users
           .where((u) => u.role != UserRole.eleve || allowed.contains(u.uid))
+          .toList();
+    }
+    if (widget.me.role == UserRole.parent) {
+      final allowed = _allowedIds ?? const <String>{};
+      return users
+          .where((u) =>
+              (u.role == UserRole.admin || u.role == UserRole.direction) &&
+              allowed.contains(u.uid))
+          .toList();
+    }
+    if (widget.me.role == UserRole.admin ||
+        widget.me.role == UserRole.direction) {
+      final allowed = _allowedIds ?? const <String>{};
+      return users
+          .where((u) => u.role != UserRole.parent || allowed.contains(u.uid))
           .toList();
     }
     return users;
@@ -368,7 +389,12 @@ class _DirectList extends StatelessWidget {
                     ? 'Aucun professeur disponible.\nContactez la Direction si votre classe n\'est pas encore assignée.'
                     : me.role == UserRole.professeur
                         ? 'Aucun élève trouvé.\nSeuls les élèves de vos classes apparaissent ici.'
-                        : 'Aucun utilisateur trouvé',
+                        : me.role == UserRole.parent
+                            ? 'Aucune Direction disponible pour votre établissement.'
+                            : (me.role == UserRole.admin ||
+                                    me.role == UserRole.direction)
+                                ? 'Aucun parent trouvé pour votre établissement.'
+                                : 'Aucun utilisateur trouvé',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white38),
               ),
