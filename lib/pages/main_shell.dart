@@ -24,7 +24,7 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
   UserRole _role = UserRole.eleve;
   bool _listenersInit = false;
@@ -35,7 +35,8 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
-    SocialService.goOnline();
+    WidgetsBinding.instance.addObserver(this);
+    SocialService.initPresence();
     UserService.syncProfile();
     NotificationService.init(_user);
 
@@ -75,12 +76,32 @@ class _MainShellState extends State<MainShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _roleSub?.cancel();
+    SocialService.disposePresence();
     SocialService.goOffline();
     NotificationService.disposeParentListeners();
     NotificationService.disposeProfesseurListeners();
     NotificationService.disposeMessagerieListeners();
     super.dispose();
+  }
+
+  // Bascule online/offline quasi instantanément sur mise en arrière-plan ou
+  // fermeture de l'app, plutôt que d'attendre le timeout de déconnexion
+  // socket détecté côté serveur RTDB (jusqu'à ~60s, parfois plus).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        SocialService.initPresence();
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        SocialService.goOffline();
+        break;
+      default:
+        break;
+    }
   }
 
   // ─── Configuration par rôle ───────────────────────────────────────────────

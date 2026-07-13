@@ -10,6 +10,12 @@
   "database": {
     "rules": "database.rules.json"
   },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default"
+    }
+  ],
   "flutter": {
     "platforms": {
       "android": {

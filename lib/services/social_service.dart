@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 class SocialService {
   static final _db = FirebaseDatabase.instance.ref();
+
+  static StreamSubscription<DatabaseEvent>? _presenceSub;
 
   static String get me => FirebaseAuth.instance.currentUser?.email ?? '';
 
@@ -46,6 +50,42 @@ class SocialService {
       'online': false,
       'lastSeen': DateTime.now().millisecondsSinceEpoch,
     });
+  }
+
+  /// Maintient le statut de présence exact sur toute la durée de session,
+  /// au lieu d'un simple appel ponctuel à [goOnline].
+  ///
+  /// Firebase efface le handler `onDisconnect()` dès que la connexion socket
+  /// tombe — un simple appel de [goOnline] au démarrage de l'app ne le
+  /// réarme donc jamais après une coupure réseau ou un retour au premier
+  /// plan, et l'utilisateur peut rester "En ligne" indéfiniment même après
+  /// avoir fermé l'app. On écoute `.info/connected` et on réarme le handler
+  /// à chaque (re)connexion.
+  static void initPresence() {
+    final u = me;
+    if (u.isEmpty) return;
+    final k = encodeKey(u);
+    _presenceSub?.cancel();
+    _presenceSub =
+        _db.child('.info/connected').onValue.listen((event) async {
+      final connected = event.snapshot.value == true;
+      if (!connected) return;
+      final statusRef = _db.child('status/$k');
+      await statusRef.onDisconnect().set({
+        'online': false,
+        'lastSeen': ServerValue.timestamp,
+      });
+      await statusRef.set({
+        'online': true,
+        'lastSeen': ServerValue.timestamp,
+      });
+    });
+  }
+
+  /// Arrête l'écoute de présence (à appeler à la déconnexion de l'app).
+  static void disposePresence() {
+    _presenceSub?.cancel();
+    _presenceSub = null;
   }
 
   static Stream<bool> onlineStream(String user) {
