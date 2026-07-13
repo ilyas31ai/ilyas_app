@@ -719,13 +719,19 @@ class _DirectionEnseignantsListPageState
               onPressed: busy
                   ? null
                   : () async {
+                      // Capturé avant tout await/pop : réutiliser
+                      // ScaffoldMessenger.of(context) après la fermeture de la
+                      // dialog pouvait référencer un Element en cours de
+                      // démontage et provoquer un crash
+                      // ('_dependents.isEmpty': is not true).
+                      final messenger = ScaffoldMessenger.of(context);
                       final prenom = prenomCtrl.text.trim();
                       final nom = nomCtrl.text.trim();
                       final email = emailCtrl.text.trim();
                       final pwd = pwdCtrl.text.trim();
                       if (prenom.isEmpty || nom.isEmpty || email.isEmpty ||
                           pwd.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        messenger.showSnackBar(const SnackBar(
                           content: Text(
                               'Remplissez le prénom, le nom, l\'email et le mot de passe'),
                           backgroundColor: Color(0xFFDC2626),
@@ -733,7 +739,7 @@ class _DirectionEnseignantsListPageState
                         return;
                       }
                       if (pwd.length < 6) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        messenger.showSnackBar(const SnackBar(
                           content: Text(
                               'Mot de passe trop court (minimum 6 caractères)'),
                           backgroundColor: Color(0xFFDC2626),
@@ -754,13 +760,13 @@ class _DirectionEnseignantsListPageState
                       if (!ctx.mounted) return;
                       Navigator.pop(ctx);
                       if (err != null) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        messenger.showSnackBar(SnackBar(
                           content: Text(err),
                           backgroundColor: const Color(0xFFDC2626),
                           duration: const Duration(seconds: 6),
                         ));
                       } else {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        messenger.showSnackBar(SnackBar(
                           content: Text(sendReset
                               ? 'Professeur créé — invitation envoyée à $email'
                               : 'Compte professeur créé'),

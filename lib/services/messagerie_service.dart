@@ -104,6 +104,82 @@ class MessagerieService {
     return ref.id;
   }
 
+  // ── Autorisation Élève ↔ Professeur ──────────────────────────────────────
+
+  /// UIDs des professeurs qu'un élève est autorisé à contacter : le
+  /// professeur de sa classe (profId) et tout professeur intervenant dans
+  /// son emploi du temps (matières multiples).
+  static Future<Set<String>> profsAutorisesPourEleve(UserModel eleve) async {
+    final ids = <String>{};
+    final profId = eleve.profId ?? '';
+    if (profId.isNotEmpty) ids.add(profId);
+
+    final classeNom = eleve.classeNom ?? '';
+    if (classeNom.isNotEmpty) {
+      try {
+        final snap = await _db
+            .collection('emplois_du_temps')
+            .where('classeNom', isEqualTo: classeNom)
+            .get();
+        for (final d in snap.docs) {
+          final pid = d.data()['professeurId'] as String? ?? '';
+          if (pid.isNotEmpty) ids.add(pid);
+        }
+      } catch (_) {}
+    }
+    return ids;
+  }
+
+  /// UIDs des élèves qu'un professeur est autorisé à contacter : élèves de
+  /// ses classes, via plusieurs stratégies de repli cumulées (profId direct,
+  /// classes.professeurId + eleveIds, classeNom).
+  static Future<Set<String>> elevesAutorisesPourProf(UserModel prof) async {
+    final ids = <String>{};
+    final uid = prof.uid;
+    if (uid.isEmpty) return ids;
+
+    // Approche 1 — profId écrit directement sur le profil élève
+    try {
+      final snap =
+          await _db.collection('users').where('profId', isEqualTo: uid).get();
+      for (final d in snap.docs) {
+        ids.add(d.id);
+      }
+    } catch (_) {}
+
+    // Approche 2 — classes dont ce professeur est titulaire
+    final classeNoms = <String>{};
+    try {
+      final snap = await _db
+          .collection('classes')
+          .where('professeurId', isEqualTo: uid)
+          .get();
+      for (final d in snap.docs) {
+        final data = d.data();
+        final nom = data['nom'] as String? ?? '';
+        if (nom.isNotEmpty) classeNoms.add(nom);
+        final eleveIds = List<String>.from(data['eleveIds'] as List? ?? []);
+        ids.addAll(eleveIds.where((e) => e.isNotEmpty));
+      }
+    } catch (_) {}
+
+    // Approche 3 — élèves rattachés par classeNom (repli si eleveIds absent)
+    if (classeNoms.isNotEmpty) {
+      try {
+        final snap = await _db
+            .collection('users')
+            .where('role', isEqualTo: 'eleve')
+            .where('classeNom', whereIn: classeNoms.take(10).toList())
+            .get();
+        for (final d in snap.docs) {
+          ids.add(d.id);
+        }
+      } catch (_) {}
+    }
+
+    return ids;
+  }
+
   // ── Messages ──────────────────────────────────────────────────────────────
 
   static Stream<List<MessageModel>> messagesStream(String convId,
@@ -161,26 +237,19 @@ class MessagerieService {
     // Reset unread count
     await _convs.doc(convId).update({'unreadCounts.$uid': 0});
 
-    // Mark recent unread messages
-    final unread = await _convs
+    // Marque comme lus les 30 derniers messages non encore lus par cet
+    // utilisateur. Firestore ne permet pas de filtrer directement sur
+    // "readBy ne contient pas uid" : on récupère les derniers messages puis
+    // on filtre côté client avant de les mettre à jour.
+    final recent = await _convs
         .doc(convId)
         .collection('messages')
-        .where('readBy', arrayContains: uid, isEqualTo: false)
         .orderBy('sentAt', descending: true)
         .limit(30)
-        .get()
-        .catchError((_) async {
-      // Fallback: get last 30 messages
-      return await _convs
-          .doc(convId)
-          .collection('messages')
-          .orderBy('sentAt', descending: true)
-          .limit(30)
-          .get();
-    });
+        .get();
 
     final batch = _db.batch();
-    for (final doc in unread.docs) {
+    for (final doc in recent.docs) {
       final readBy =
           List<String>.from((doc.data()['readBy'] as List?) ?? []);
       if (!readBy.contains(uid)) {

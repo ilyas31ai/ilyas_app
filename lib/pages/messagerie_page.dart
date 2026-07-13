@@ -197,6 +197,18 @@ class _ConvList extends StatelessWidget {
           return const Center(
               child: CircularProgressIndicator(color: _kPurple));
         }
+        if (snap.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Erreur de chargement des conversations.\nVérifiez votre connexion.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white38, fontSize: 13),
+              ),
+            ),
+          );
+        }
         var all = snap.data ?? [];
 
         // Filtre principal

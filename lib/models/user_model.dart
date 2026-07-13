@@ -101,6 +101,11 @@ class UserModel {
   // Professeur
   final String? matiere;
 
+  /// UID du professeur de la classe de l'élève — écrit par la Direction à
+  /// l'affectation de classe ([direction_eleves_page.dart]). Utilisé pour
+  /// restreindre la messagerie élève → professeur à ses vrais enseignants.
+  final String? profId;
+
   // Fiche contact — renseignée par la Direction (gestion élèves/professeurs).
   // Additif : reste null pour tous les comptes existants (aucune régression
   // sur displayName, qui demeure la source d'affichage historique).
@@ -142,6 +147,7 @@ class UserModel {
     this.classeId,
     this.classeNom,
     this.matiere,
+    this.profId,
     this.nom,
     this.prenom,
     this.adresse,
@@ -173,6 +179,7 @@ class UserModel {
       classeId: d['classeId'] as String?,
       classeNom: d['classeNom'] as String?,
       matiere: d['matiere'] as String?,
+      profId: d['profId'] as String?,
       nom: d['nom'] as String?,
       prenom: d['prenom'] as String?,
       adresse: d['adresse'] as String?,
@@ -200,6 +207,7 @@ class UserModel {
         if (classeId != null) 'classeId': classeId,
         if (classeNom != null) 'classeNom': classeNom,
         if (matiere != null) 'matiere': matiere,
+        if (profId != null) 'profId': profId,
         if (nom != null) 'nom': nom,
         if (prenom != null) 'prenom': prenom,
         if (adresse != null) 'adresse': adresse,
@@ -222,6 +230,7 @@ class UserModel {
     String? classeId,
     String? classeNom,
     String? matiere,
+    String? profId,
     String? nom,
     String? prenom,
     String? adresse,
@@ -245,6 +254,7 @@ class UserModel {
         classeId: classeId ?? this.classeId,
         classeNom: classeNom ?? this.classeNom,
         matiere: matiere ?? this.matiere,
+        profId: profId ?? this.profId,
         nom: nom ?? this.nom,
         prenom: prenom ?? this.prenom,
         adresse: adresse ?? this.adresse,

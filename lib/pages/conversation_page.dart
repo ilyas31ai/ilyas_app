@@ -548,6 +548,18 @@ class _ConversationPageState extends State<ConversationPage>
                     child: CircularProgressIndicator(
                         color: _kPurple));
               }
+              if (snap.hasError && snap.data == null) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Erreur de chargement des messages.\nVérifiez votre connexion.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white38, fontSize: 13),
+                    ),
+                  ),
+                );
+              }
               final msgs = snap.data ?? [];
 
               // Mark as read when new messages arrive

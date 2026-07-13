@@ -36,10 +36,51 @@ class _NouvelleConversationPageState
   final Map<String, UserModel> _selectedUsers = {};
   bool _creating = false;
 
+  /// UIDs autorisés pour le rôle courant (professeurs pour un élève, élèves
+  /// pour un professeur). `null` = pas de restriction pour ce rôle.
+  Set<String>? _allowedIds;
+  bool _loadingAllowed = true;
+
   @override
   void initState() {
     super.initState();
     _tc = TabController(length: 2, vsync: this);
+    _loadAllowed();
+  }
+
+  /// Restreint la messagerie Élève ↔ Professeur : un élève ne doit voir que
+  /// ses professeurs, un professeur que les élèves de son établissement.
+  /// Les autres rôles (Direction, Parent…) ne sont pas concernés.
+  Future<void> _loadAllowed() async {
+    Set<String>? ids;
+    if (widget.me.role == UserRole.eleve) {
+      ids = await MessagerieService.profsAutorisesPourEleve(widget.me);
+    } else if (widget.me.role == UserRole.professeur) {
+      ids = await MessagerieService.elevesAutorisesPourProf(widget.me);
+    }
+    if (mounted) {
+      setState(() {
+        _allowedIds = ids;
+        _loadingAllowed = false;
+      });
+    }
+  }
+
+  /// Applique la restriction de rôle sur une liste de contacts déjà chargée.
+  List<UserModel> _applyRoleFilter(List<UserModel> users) {
+    if (widget.me.role == UserRole.eleve) {
+      final allowed = _allowedIds ?? const <String>{};
+      return users
+          .where((u) => u.role == UserRole.professeur && allowed.contains(u.uid))
+          .toList();
+    }
+    if (widget.me.role == UserRole.professeur) {
+      final allowed = _allowedIds ?? const <String>{};
+      return users
+          .where((u) => u.role != UserRole.eleve || allowed.contains(u.uid))
+          .toList();
+    }
+    return users;
   }
 
   @override
@@ -117,11 +158,15 @@ class _NouvelleConversationPageState
               _DirectList(
                 me: widget.me,
                 query: _query,
+                loadingAllowed: _loadingAllowed,
+                roleFilter: _applyRoleFilter,
                 onSelect: (u) => _createDirect(u),
               ),
               _GroupBuilder(
                 me: widget.me,
                 query: _query,
+                loadingAllowed: _loadingAllowed,
+                roleFilter: _applyRoleFilter,
                 selectedIds: _selectedIds,
                 groupNameCtrl: _groupNameCtrl,
                 onToggle: (u) {
@@ -267,15 +312,23 @@ class _SelectedChips extends StatelessWidget {
 class _DirectList extends StatelessWidget {
   final UserModel me;
   final String query;
+  final bool loadingAllowed;
+  final List<UserModel> Function(List<UserModel>) roleFilter;
   final ValueChanged<UserModel> onSelect;
 
   const _DirectList(
       {required this.me,
       required this.query,
+      required this.loadingAllowed,
+      required this.roleFilter,
       required this.onSelect});
 
   @override
   Widget build(BuildContext context) {
+    if (loadingAllowed) {
+      return const Center(
+          child: CircularProgressIndicator(color: _kPurple));
+    }
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
@@ -293,11 +346,13 @@ class _DirectList extends StatelessWidget {
           );
         }
         // whereNotIn Firestore exclude les docs sans champ 'statut' → filtre Dart
-        final users = (snap.data?.docs ?? [])
+        var users = (snap.data?.docs ?? [])
             .map(UserModel.fromDoc)
             .where((u) => u.uid != me.uid)
             .where((u) => u.statut != 'en_attente')
-            .where((u) {
+            .toList();
+        users = roleFilter(users);
+        users = users.where((u) {
           if (query.isEmpty) return true;
           return u.displayName
               .toLowerCase()
@@ -305,9 +360,19 @@ class _DirectList extends StatelessWidget {
         }).toList();
 
         if (users.isEmpty) {
-          return const Center(
-            child: Text('Aucun utilisateur trouvé',
-                style: TextStyle(color: Colors.white38)),
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                me.role == UserRole.eleve
+                    ? 'Aucun professeur disponible.\nContactez la Direction si votre classe n\'est pas encore assignée.'
+                    : me.role == UserRole.professeur
+                        ? 'Aucun élève trouvé.\nSeuls les élèves de vos classes apparaissent ici.'
+                        : 'Aucun utilisateur trouvé',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white38),
+              ),
+            ),
           );
         }
 
@@ -331,6 +396,8 @@ class _DirectList extends StatelessWidget {
 class _GroupBuilder extends StatelessWidget {
   final UserModel me;
   final String query;
+  final bool loadingAllowed;
+  final List<UserModel> Function(List<UserModel>) roleFilter;
   final Set<String> selectedIds;
   final TextEditingController groupNameCtrl;
   final ValueChanged<UserModel> onToggle;
@@ -338,6 +405,8 @@ class _GroupBuilder extends StatelessWidget {
   const _GroupBuilder({
     required this.me,
     required this.query,
+    required this.loadingAllowed,
+    required this.roleFilter,
     required this.selectedIds,
     required this.groupNameCtrl,
     required this.onToggle,
@@ -345,6 +414,10 @@ class _GroupBuilder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (loadingAllowed) {
+      return const Center(
+          child: CircularProgressIndicator(color: _kPurple));
+    }
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
@@ -362,11 +435,13 @@ class _GroupBuilder extends StatelessWidget {
           );
         }
         // whereNotIn Firestore exclude les docs sans champ 'statut' → filtre Dart
-        final users = (snap.data?.docs ?? [])
+        var users = (snap.data?.docs ?? [])
             .map(UserModel.fromDoc)
             .where((u) => u.uid != me.uid)
             .where((u) => u.statut != 'en_attente')
-            .where((u) {
+            .toList();
+        users = roleFilter(users);
+        users = users.where((u) {
           if (query.isEmpty) return true;
           return u.displayName
               .toLowerCase()
