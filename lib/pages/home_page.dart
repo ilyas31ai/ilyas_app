@@ -12,6 +12,7 @@ import '../models/user_model.dart';
 import '../routes/app_routes.dart';
 import '../services/etudiant_service.dart';
 import '../services/notification_service.dart';
+import '../services/social_service.dart';
 import '../services/user_service.dart';
 import '../widgets/user_avatar.dart';
 
@@ -156,7 +157,14 @@ class _HomePageState extends State<HomePage> {
           ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white30, size: 20),
-            onPressed: () => FirebaseAuth.instance.signOut(),
+            onPressed: () async {
+              // Fixer le statut hors ligne avant signOut() : une fois
+              // déconnecté, FirebaseAuth.instance.currentUser devient null et
+              // SocialService.goOffline() ne peut plus retrouver l'utilisateur
+              // à mettre à jour, laissant le statut "En ligne" bloqué en RTDB.
+              await SocialService.goOffline();
+              await FirebaseAuth.instance.signOut();
+            },
           ),
         ],
       ),
@@ -582,7 +590,14 @@ class _EleveFullDashboard extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white30, size: 20),
-            onPressed: () => FirebaseAuth.instance.signOut(),
+            onPressed: () async {
+              // Fixer le statut hors ligne avant signOut() : une fois
+              // déconnecté, FirebaseAuth.instance.currentUser devient null et
+              // SocialService.goOffline() ne peut plus retrouver l'utilisateur
+              // à mettre à jour, laissant le statut "En ligne" bloqué en RTDB.
+              await SocialService.goOffline();
+              await FirebaseAuth.instance.signOut();
+            },
           ),
         ],
       ),

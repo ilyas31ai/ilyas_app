@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 // 🔥 FIREBASE
 import 'package:firebase_core/firebase_core.dart';
@@ -178,6 +179,11 @@ void main() async {
     if (e.code != 'duplicate-app') rethrow;
     // duplicate-app = hot restart ou pré-init native Android, app déjà prête
   }
+
+  // Requis par DateFormat(pattern, 'fr_FR') (ex. messagerie_page.dart) — sans
+  // cet appel, intl lève LocaleDataException dès qu'un message date de plus
+  // d'un jour mais moins d'une semaine.
+  await initializeDateFormatting('fr_FR');
 
   runApp(const MyApp());
 }

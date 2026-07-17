@@ -48,21 +48,28 @@ class _NouvelleConversationPageState
     _loadAllowed();
   }
 
-  /// Restreint la messagerie Élève ↔ Professeur et Parent ↔ Direction : un
-  /// élève ne doit voir que ses professeurs, un professeur que les élèves de
-  /// son établissement, un parent que la Direction de son établissement, et
-  /// la Direction que les parents de son établissement.
+  /// Restreint la messagerie Élève ↔ Professeur, Parent ↔ Direction et
+  /// Direction ↔ Professeur : un élève ne doit voir que ses professeurs, un
+  /// professeur que les élèves et la Direction de son établissement, un
+  /// parent que la Direction de son établissement, et la Direction que les
+  /// parents et professeurs de son établissement.
   Future<void> _loadAllowed() async {
     Set<String>? ids;
     if (widget.me.role == UserRole.eleve) {
       ids = await MessagerieService.profsAutorisesPourEleve(widget.me);
     } else if (widget.me.role == UserRole.professeur) {
-      ids = await MessagerieService.elevesAutorisesPourProf(widget.me);
+      final eleves = await MessagerieService.elevesAutorisesPourProf(widget.me);
+      final directions =
+          await MessagerieService.directionsAutoriseesPourProfesseur(widget.me);
+      ids = {...eleves, ...directions};
     } else if (widget.me.role == UserRole.parent) {
       ids = await MessagerieService.directionsAutoriseesPourParent(widget.me);
     } else if (widget.me.role == UserRole.admin ||
         widget.me.role == UserRole.direction) {
-      ids = await MessagerieService.parentsAutorisesPourDirection(widget.me);
+      final parents = await MessagerieService.parentsAutorisesPourDirection(widget.me);
+      final profs =
+          await MessagerieService.professeursAutorisesPourDirection(widget.me);
+      ids = {...parents, ...profs};
     }
     if (mounted) {
       setState(() {
@@ -82,9 +89,13 @@ class _NouvelleConversationPageState
     }
     if (widget.me.role == UserRole.professeur) {
       final allowed = _allowedIds ?? const <String>{};
-      return users
-          .where((u) => u.role != UserRole.eleve || allowed.contains(u.uid))
-          .toList();
+      return users.where((u) {
+        if (u.role == UserRole.eleve) return allowed.contains(u.uid);
+        if (u.role == UserRole.admin || u.role == UserRole.direction) {
+          return allowed.contains(u.uid);
+        }
+        return true;
+      }).toList();
     }
     if (widget.me.role == UserRole.parent) {
       final allowed = _allowedIds ?? const <String>{};
@@ -97,9 +108,11 @@ class _NouvelleConversationPageState
     if (widget.me.role == UserRole.admin ||
         widget.me.role == UserRole.direction) {
       final allowed = _allowedIds ?? const <String>{};
-      return users
-          .where((u) => u.role != UserRole.parent || allowed.contains(u.uid))
-          .toList();
+      return users.where((u) {
+        if (u.role == UserRole.parent) return allowed.contains(u.uid);
+        if (u.role == UserRole.professeur) return allowed.contains(u.uid);
+        return true;
+      }).toList();
     }
     return users;
   }
@@ -388,12 +401,12 @@ class _DirectList extends StatelessWidget {
                 me.role == UserRole.eleve
                     ? 'Aucun professeur disponible.\nContactez la Direction si votre classe n\'est pas encore assignée.'
                     : me.role == UserRole.professeur
-                        ? 'Aucun élève trouvé.\nSeuls les élèves de vos classes apparaissent ici.'
+                        ? 'Aucun contact disponible.\nSeuls vos élèves et la Direction de votre établissement apparaissent ici.'
                         : me.role == UserRole.parent
                             ? 'Aucune Direction disponible pour votre établissement.'
                             : (me.role == UserRole.admin ||
                                     me.role == UserRole.direction)
-                                ? 'Aucun parent trouvé pour votre établissement.'
+                                ? 'Aucun contact disponible.\nParents et professeurs de votre établissement apparaissent ici.'
                                 : 'Aucun utilisateur trouvé',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white38),
@@ -550,7 +563,9 @@ class _QuickGroupsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (me.role != UserRole.professeur && me.role != UserRole.admin) {
+    if (me.role != UserRole.professeur &&
+        me.role != UserRole.admin &&
+        me.role != UserRole.direction) {
       return const SizedBox.shrink();
     }
     return Column(
@@ -580,12 +595,13 @@ class _QuickGroupsSection extends StatelessWidget {
               onTap: () =>
                   _selectParents(context, classeNom: me.classeNom),
             ),
-          if (me.role == UserRole.admin)
+          if (me.role == UserRole.admin || me.role == UserRole.direction)
             _QuickChip(
               label: 'Tous les profs',
               icon: Icons.person_outline,
               color: _kPurple,
-              onTap: () => _selectByRole(context, 'professeur'),
+              onTap: () =>
+                  _selectByRole(context, 'professeur', schoolId: me.schoolId),
             ),
         ]),
         const SizedBox(height: 12),
@@ -594,7 +610,7 @@ class _QuickGroupsSection extends StatelessWidget {
   }
 
   Future<void> _selectByRole(BuildContext context, String role,
-      {String? classeNom}) async {
+      {String? classeNom, String? schoolId}) async {
     Query<Map<String, dynamic>> q = FirebaseFirestore.instance
         .collection('users')
         .where('role', isEqualTo: role);
@@ -604,9 +620,11 @@ class _QuickGroupsSection extends StatelessWidget {
     final snap = await q.get();
     for (final doc in snap.docs) {
       final u = UserModel.fromDoc(doc);
-      if (u.uid != me.uid && !selectedIds.contains(u.uid)) {
-        onToggle(u);
-      }
+      if (u.uid == me.uid || selectedIds.contains(u.uid)) continue;
+      // Filtrage schoolId côté client : voir note dans MessagerieService sur
+      // le backfill Phase 2 non effectué pour tous les comptes existants.
+      if (schoolId != null && u.schoolId != schoolId) continue;
+      onToggle(u);
     }
   }
 

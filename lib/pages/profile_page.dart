@@ -491,7 +491,13 @@ class _ProfilePageState extends State<ProfilePage> {
         _ActionTile(
           icon: Icons.logout,
           label: 'Se déconnecter',
-          onTap: () => FirebaseAuth.instance.signOut(),
+          onTap: () async {
+            // Voir home_page.dart : fixer le statut hors ligne avant
+            // signOut(), sinon SocialService.goOffline() ne retrouve plus
+            // l'utilisateur courant une fois déconnecté.
+            await SocialService.goOffline();
+            await FirebaseAuth.instance.signOut();
+          },
           color: Colors.redAccent,
         ),
       ],

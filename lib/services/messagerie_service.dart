@@ -236,6 +236,54 @@ class MessagerieService {
     return ids;
   }
 
+  // ── Autorisation Direction ↔ Professeur ──────────────────────────────────
+
+  /// UIDs des professeurs qu'un compte Direction est autorisé à contacter :
+  /// les professeurs du même établissement que lui.
+  static Future<Set<String>> professeursAutorisesPourDirection(
+      UserModel direction) async {
+    final ids = <String>{};
+    try {
+      final snap = await _db
+          .collection('users')
+          .where('role', isEqualTo: 'professeur')
+          .get();
+      for (final d in snap.docs) {
+        final u = UserModel.fromDoc(d);
+        if (u.schoolId == direction.schoolId) ids.add(d.id);
+      }
+    } catch (_) {}
+    return ids;
+  }
+
+  /// UIDs des comptes Direction qu'un professeur est autorisé à contacter :
+  /// les rôles admin/direction du même établissement que lui.
+  static Future<Set<String>> directionsAutoriseesPourProfesseur(
+      UserModel prof) async {
+    final ids = <String>{};
+    try {
+      final snap = await _db
+          .collection('users')
+          .where('role', isEqualTo: 'admin')
+          .get();
+      for (final d in snap.docs) {
+        final u = UserModel.fromDoc(d);
+        if (u.schoolId == prof.schoolId) ids.add(d.id);
+      }
+    } catch (_) {}
+    try {
+      final snap = await _db
+          .collection('users')
+          .where('role', isEqualTo: 'direction')
+          .get();
+      for (final d in snap.docs) {
+        final u = UserModel.fromDoc(d);
+        if (u.schoolId == prof.schoolId) ids.add(d.id);
+      }
+    } catch (_) {}
+    return ids;
+  }
+
   // ── Messages ──────────────────────────────────────────────────────────────
 
   static Stream<List<MessageModel>> messagesStream(String convId,
