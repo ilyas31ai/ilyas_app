@@ -113,6 +113,22 @@ class UserModel {
   final String? prenom;
   final String? adresse;
   final String? telephone;
+  final String? ville;
+
+  // Fiche élève étendue — renseignée manuellement ou via import PDF (OCR).
+  // Additif, voir [EleveAccountService.creerEleve].
+  final String? dateNaissance; // format 'AAAA-MM-JJ'
+  final String? sexe;          // 'M' | 'F'
+  final String? matricule;
+  final String? pereNom;
+  final String? pereTelephone;
+  final String? pereEmail;
+  final String? mereNom;
+  final String? mereTelephone;
+  final String? mereEmail;
+  final String? contactUrgenceNom;
+  final String? contactUrgenceTelephone;
+  final String? autresInfos;
 
   // Parent
   /// UIDs des élèves enfants (utilisé dans les règles Firestore)
@@ -152,6 +168,19 @@ class UserModel {
     this.prenom,
     this.adresse,
     this.telephone,
+    this.ville,
+    this.dateNaissance,
+    this.sexe,
+    this.matricule,
+    this.pereNom,
+    this.pereTelephone,
+    this.pereEmail,
+    this.mereNom,
+    this.mereTelephone,
+    this.mereEmail,
+    this.contactUrgenceNom,
+    this.contactUrgenceTelephone,
+    this.autresInfos,
     this.enfantIds = const [],
     this.enfantClasseIds = const [],
     this.statut = 'actif',
@@ -184,6 +213,19 @@ class UserModel {
       prenom: d['prenom'] as String?,
       adresse: d['adresse'] as String?,
       telephone: d['telephone'] as String?,
+      ville: d['ville'] as String?,
+      dateNaissance: d['dateNaissance'] as String?,
+      sexe: d['sexe'] as String?,
+      matricule: d['matricule'] as String?,
+      pereNom: d['pereNom'] as String?,
+      pereTelephone: d['pereTelephone'] as String?,
+      pereEmail: d['pereEmail'] as String?,
+      mereNom: d['mereNom'] as String?,
+      mereTelephone: d['mereTelephone'] as String?,
+      mereEmail: d['mereEmail'] as String?,
+      contactUrgenceNom: d['contactUrgenceNom'] as String?,
+      contactUrgenceTelephone: d['contactUrgenceTelephone'] as String?,
+      autresInfos: d['autresInfos'] as String?,
       enfantIds: List<String>.from(d['enfantIds'] as List? ?? []),
       enfantClasseIds: List<String>.from(d['enfantClasseIds'] as List? ?? []),
       statut: (d['statut'] as String?) ?? 'actif',
@@ -212,6 +254,20 @@ class UserModel {
         if (prenom != null) 'prenom': prenom,
         if (adresse != null) 'adresse': adresse,
         if (telephone != null) 'telephone': telephone,
+        if (ville != null) 'ville': ville,
+        if (dateNaissance != null) 'dateNaissance': dateNaissance,
+        if (sexe != null) 'sexe': sexe,
+        if (matricule != null) 'matricule': matricule,
+        if (pereNom != null) 'pereNom': pereNom,
+        if (pereTelephone != null) 'pereTelephone': pereTelephone,
+        if (pereEmail != null) 'pereEmail': pereEmail,
+        if (mereNom != null) 'mereNom': mereNom,
+        if (mereTelephone != null) 'mereTelephone': mereTelephone,
+        if (mereEmail != null) 'mereEmail': mereEmail,
+        if (contactUrgenceNom != null) 'contactUrgenceNom': contactUrgenceNom,
+        if (contactUrgenceTelephone != null)
+          'contactUrgenceTelephone': contactUrgenceTelephone,
+        if (autresInfos != null) 'autresInfos': autresInfos,
         if (enfantIds.isNotEmpty) 'enfantIds': enfantIds,
         if (enfantClasseIds.isNotEmpty) 'enfantClasseIds': enfantClasseIds,
         'statut': statut,
@@ -235,6 +291,19 @@ class UserModel {
     String? prenom,
     String? adresse,
     String? telephone,
+    String? ville,
+    String? dateNaissance,
+    String? sexe,
+    String? matricule,
+    String? pereNom,
+    String? pereTelephone,
+    String? pereEmail,
+    String? mereNom,
+    String? mereTelephone,
+    String? mereEmail,
+    String? contactUrgenceNom,
+    String? contactUrgenceTelephone,
+    String? autresInfos,
     List<String>? enfantIds,
     List<String>? enfantClasseIds,
     String? statut,
@@ -259,6 +328,20 @@ class UserModel {
         prenom: prenom ?? this.prenom,
         adresse: adresse ?? this.adresse,
         telephone: telephone ?? this.telephone,
+        ville: ville ?? this.ville,
+        dateNaissance: dateNaissance ?? this.dateNaissance,
+        sexe: sexe ?? this.sexe,
+        matricule: matricule ?? this.matricule,
+        pereNom: pereNom ?? this.pereNom,
+        pereTelephone: pereTelephone ?? this.pereTelephone,
+        pereEmail: pereEmail ?? this.pereEmail,
+        mereNom: mereNom ?? this.mereNom,
+        mereTelephone: mereTelephone ?? this.mereTelephone,
+        mereEmail: mereEmail ?? this.mereEmail,
+        contactUrgenceNom: contactUrgenceNom ?? this.contactUrgenceNom,
+        contactUrgenceTelephone:
+            contactUrgenceTelephone ?? this.contactUrgenceTelephone,
+        autresInfos: autresInfos ?? this.autresInfos,
         enfantIds: enfantIds ?? this.enfantIds,
         enfantClasseIds: enfantClasseIds ?? this.enfantClasseIds,
         statut: statut ?? this.statut,

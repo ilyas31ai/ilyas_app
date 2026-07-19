@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import '../models/classe_model.dart';
 import '../models/user_model.dart';
+import '../services/eleve_account_service.dart';
 import '../services/user_service.dart';
+import 'direction_import_eleve_pdf_page.dart';
 
 /// Hiérarchie scolaire : catégorie → niveaux.
 const Map<String, List<String>> _kNiveauxParCategorie = {
@@ -30,6 +30,65 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
   bool _repairing = false;
 
   // ── Création d'un compte élève ──────────────────────────────────────────────
+
+  /// Propose les deux parcours de création : saisie manuelle (dialog
+  /// existante) ou import automatique depuis un dossier PDF (OCR).
+  Future<void> _showAddEleveMenu(BuildContext context) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF161B22),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Ajouter un élève',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold)),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined, color: Color(0xFF2563EB)),
+              title: const Text('Saisie manuelle',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Remplir le formulaire vous-même',
+                  style: TextStyle(color: Colors.white38, fontSize: 12)),
+              onTap: () => Navigator.pop(ctx, 'manuel'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf_outlined,
+                  color: Color(0xFF16A34A)),
+              title: const Text('Importer depuis un PDF',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                  'Extraction automatique (OCR) depuis un dossier d\'inscription',
+                  style: TextStyle(color: Colors.white38, fontSize: 12)),
+              onTap: () => Navigator.pop(ctx, 'pdf'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (!context.mounted || choice == null) return;
+    if (choice == 'manuel') {
+      await _showAddEleveDialog(context);
+    } else if (choice == 'pdf') {
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(builder: (_) => const DirectionImportElevePdfPage()),
+      );
+    }
+  }
 
   Future<void> _showAddEleveDialog(BuildContext context) async {
     final prenomCtrl = TextEditingController();
@@ -374,10 +433,8 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
   }
 
   /// Crée un compte Firebase Auth + document Firestore pour un élève.
-  /// Utilise une application secondaire pour ne pas déconnecter l'admin.
-  /// Les écritures Firestore (users + classes) se font via le compte Direction
-  /// en batch atomique pour garantir la cohérence classe ↔ élèves.
-  /// Retourne null si succès, ou le message d'erreur.
+  /// Délègue à [EleveAccountService.creerEleve], partagée avec la page
+  /// d'import PDF pour que les deux parcours créent des comptes identiques.
   Future<String?> _createEleveCompte({
     required String prenom,
     required String nom,
@@ -390,101 +447,20 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
     String? classeNom,
     String? niveau,
     bool sendResetEmail = true,
-  }) async {
-    FirebaseApp? secondaryApp;
-    try {
-      secondaryApp = await Firebase.initializeApp(
-        name: 'eleve_${DateTime.now().millisecondsSinceEpoch}',
-        options: Firebase.app().options,
-      );
-
-      // Création du compte Auth via app secondaire (préserve la session admin)
-      final cred = await FirebaseAuth.instanceFor(app: secondaryApp)
-          .createUserWithEmailAndPassword(email: email, password: password);
-      final uid = cred.user!.uid;
-
-      // schoolId de la Direction courante — sans ce champ, le nouvel élève
-      // retombait sur kDefaultSchoolId (repli de UserModel.fromDoc) au lieu
-      // d'être rattaché au bon établissement en contexte multi-écoles.
-      final schoolId = await UserService.currentSchoolId();
-
-      final displayName = '$prenom $nom'.trim();
-      final data = <String, dynamic>{
-        'uid': uid,
-        'email': email,
-        'displayName': displayName,
-        'nom': nom,
-        'prenom': prenom,
-        'role': 'eleve',
-        'schoolId': schoolId,
-        'createdAt': FieldValue.serverTimestamp(),
-        'lastSeen': FieldValue.serverTimestamp(),
-        // Champs prof — toujours présents (vides si aucune classe/prof assigné)
-        'profId': '',
-        'profEmail': '',
-        'profDisplayName': '',
-        'profMatiere': '',
-      };
-      if (adresse != null && adresse.isNotEmpty) data['adresse'] = adresse;
-      if (telephone != null && telephone.isNotEmpty) data['telephone'] = telephone;
-      if (categorie != null && categorie.isNotEmpty) data['categorie'] = categorie;
-      if (niveau != null && niveau.isNotEmpty) data['niveau'] = niveau;
-      if (classeId != null && classeId.isNotEmpty) {
-        data['classeId'] = classeId;
-        if (classeNom != null && classeNom.isNotEmpty) data['classeNom'] = classeNom;
-
-        // Lecture des infos professeur depuis le document classe
-        try {
-          final classeDoc = await FirebaseFirestore.instance
-              .collection('classes')
-              .doc(classeId)
-              .get();
-          final cd = classeDoc.data() ?? {};
-          data['profId'] = cd['professeurId'] as String? ?? '';
-          data['profEmail'] = cd['professeurEmail'] as String? ?? '';
-          data['profDisplayName'] = cd['professeurDisplayName'] as String? ?? '';
-          data['profMatiere'] = cd['professeurMatiere'] as String? ?? '';
-        } catch (_) {}
-      }
-
-      // Batch atomique via Firestore admin (isDirection → accès complet)
-      final db = FirebaseFirestore.instance;
-      final batch = db.batch();
-      batch.set(db.collection('users').doc(uid), data);
-      if (classeId != null && classeId.isNotEmpty) {
-        batch.update(
-          db.collection('classes').doc(classeId),
-          {'eleveIds': FieldValue.arrayUnion([uid])},
-        );
-      }
-      await batch.commit();
-
-      if (sendResetEmail) {
-        await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      }
-
-      return null;
-    } on FirebaseAuthException catch (e) {
-      switch (e.code) {
-        case 'email-already-in-use':
-          return 'Un compte existe déjà avec cet email';
-        case 'invalid-email':
-          return 'Adresse email invalide';
-        case 'weak-password':
-          return 'Mot de passe trop faible (minimum 6 caractères)';
-        default:
-          return '[${e.code}] ${e.message ?? 'Erreur inconnue'}';
-      }
-    } catch (e) {
-      return 'Erreur : $e';
-    } finally {
-      try {
-        await FirebaseAuth.instanceFor(app: secondaryApp!).signOut();
-      } catch (_) {}
-      try {
-        await secondaryApp?.delete();
-      } catch (_) {}
-    }
+  }) {
+    return EleveAccountService.creerEleve(
+      prenom: prenom,
+      nom: nom,
+      email: email,
+      password: password,
+      adresse: adresse,
+      telephone: telephone,
+      categorie: categorie,
+      classeId: classeId,
+      classeNom: classeNom,
+      niveau: niveau,
+      sendResetEmail: sendResetEmail,
+    );
   }
 
   // ── Synchronisation données existantes ───────────────────────────────────────
@@ -737,7 +713,7 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF2563EB),
         tooltip: 'Ajouter un élève',
-        onPressed: () => _showAddEleveDialog(context),
+        onPressed: () => _showAddEleveMenu(context),
         child: const Icon(Icons.person_add_outlined, color: Colors.white),
       ),
       body: Column(
