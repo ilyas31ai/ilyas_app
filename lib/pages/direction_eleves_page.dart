@@ -66,7 +66,7 @@ class _DirectionElevesPageState extends State<DirectionElevesPage> {
             ListTile(
               leading: const Icon(Icons.picture_as_pdf_outlined,
                   color: Color(0xFF16A34A)),
-              title: const Text('Importer depuis un PDF',
+              title: const Text('Importer depuis un PDF ou une photo',
                   style: TextStyle(color: Colors.white)),
               subtitle: const Text(
                   'Extraction automatique (OCR) depuis un dossier d\'inscription',

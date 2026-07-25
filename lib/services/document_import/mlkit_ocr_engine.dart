@@ -18,8 +18,9 @@ class MlKitOcrEngine implements OcrEngine {
   @override
   Future<String> extractTextFromImage(Uint8List imageBytes) async {
     final dir = await getTemporaryDirectory();
+    final ext = _isJpeg(imageBytes) ? 'jpg' : 'png';
     final file = File(
-        '${dir.path}/ocr_${DateTime.now().microsecondsSinceEpoch}.png');
+        '${dir.path}/ocr_${DateTime.now().microsecondsSinceEpoch}.$ext');
     await file.writeAsBytes(imageBytes, flush: true);
     try {
       final input = InputImage.fromFilePath(file.path);
@@ -34,4 +35,11 @@ class MlKitOcrEngine implements OcrEngine {
 
   @override
   Future<void> dispose() => _recognizer.close();
+
+  /// Les photos prises à la caméra (`image_picker`) sont des JPEG alors que
+  /// les pages de PDF rasterisées ([PdfPageRenderer]) sont des PNG — le
+  /// décodeur natif se base surtout sur le contenu, mais on nomme le fichier
+  /// temporaire avec la bonne extension par cohérence.
+  static bool _isJpeg(Uint8List bytes) =>
+      bytes.length > 2 && bytes[0] == 0xFF && bytes[1] == 0xD8;
 }

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/classe_model.dart';
 import '../models/student_import_result.dart';
@@ -32,13 +33,14 @@ const _kRed = Color(0xFFDC2626);
 
 enum _Step { pick, processing, review, error }
 
-/// Import automatique d'un dossier élève depuis un PDF scanné (OCR local).
+/// Import automatique d'un dossier élève depuis un PDF scanné ou une photo
+/// (OCR local).
 ///
-/// Pipeline : sélection du PDF → [EleveDocumentImportService] (rendu des
-/// pages + OCR ML Kit + reconnaissance de champs) → formulaire de relecture
-/// pré-rempli (champs non reconnus mis en évidence) → création du compte
-/// élève via [EleveAccountService.creerEleve], la même logique que l'ajout
-/// manuel dans `direction_eleves_page.dart`.
+/// Pipeline : sélection du PDF ou capture caméra → [EleveDocumentImportService]
+/// (rendu des pages PDF ou photo directe + OCR ML Kit + reconnaissance de
+/// champs) → formulaire de relecture pré-rempli (champs non reconnus mis en
+/// évidence) → création du compte élève via [EleveAccountService.creerEleve],
+/// la même logique que l'ajout manuel dans `direction_eleves_page.dart`.
 class DirectionImportElevePdfPage extends StatefulWidget {
   const DirectionImportElevePdfPage({super.key});
 
@@ -113,15 +115,39 @@ class _DirectionImportElevePdfPageState
       return;
     }
 
+    await _runExtraction(
+      sourceName: file.name,
+      extract: () => _importService.extractFromPdf(Uint8List.fromList(bytes)),
+    );
+  }
+
+  Future<void> _captureAndExtract() async {
+    final photo = await ImagePicker()
+        .pickImage(source: ImageSource.camera, imageQuality: 90);
+    if (photo == null) return;
+    final bytes = await photo.readAsBytes();
+
+    await _runExtraction(
+      sourceName: photo.name,
+      extract: () => _importService.extractFromImages([bytes]),
+    );
+  }
+
+  /// Logique commune aux deux sources (PDF et photo) : bascule en état
+  /// "traitement", lance l'extraction OCR, puis passe à la relecture ou à
+  /// l'écran d'erreur.
+  Future<void> _runExtraction({
+    required String sourceName,
+    required Future<StudentImportResult> Function() extract,
+  }) async {
     setState(() {
       _step = _Step.processing;
-      _pdfName = file.name;
+      _pdfName = sourceName;
       _errorMessage = null;
     });
 
     try {
-      final extraction = await _importService.extractFromPdf(
-          Uint8List.fromList(bytes));
+      final extraction = await extract();
       if (!mounted) return;
       await _loadClasses();
       _fillControllers(extraction);
@@ -266,7 +292,7 @@ class _DirectionImportElevePdfPageState
       appBar: AppBar(
         backgroundColor: _kCard,
         elevation: 0,
-        title: const Text('Importer un élève (PDF)',
+        title: const Text('Importer un élève (PDF / photo)',
             style: TextStyle(
                 color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
       ),
@@ -298,7 +324,7 @@ class _DirectionImportElevePdfPageState
                   color: Colors.white, size: 36),
             ),
             const SizedBox(height: 20),
-            const Text('Importer un dossier d\'inscription (PDF)',
+            const Text('Importer un dossier d\'inscription',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
@@ -315,6 +341,19 @@ class _DirectionImportElevePdfPageState
               label: const Text('Choisir un PDF'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _kBlue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: _captureAndExtract,
+              icon: const Icon(Icons.camera_alt_outlined),
+              label: const Text('Prendre une photo'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kGreen,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
                 shape: RoundedRectangleBorder(
