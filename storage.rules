@@ -45,6 +45,12 @@ service firebase.storage {
       allow read:  if request.auth != null && (request.auth.uid == uid || isDirection());
     }
 
+    // Captures d'écran jointes aux demandes Support & Suggestions
+    match /support_screenshots/{uid}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == uid;
+      allow read:  if request.auth != null && (request.auth.uid == uid || isDirection());
+    }
+
     // Fallback : tout chemin non explicitement couvert ci-dessus est refusé.
     // Seule la Direction peut y accéder en cas de besoin de maintenance ponctuel.
     match /{allPaths=**} {

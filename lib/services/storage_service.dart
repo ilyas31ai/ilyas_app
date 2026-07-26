@@ -117,6 +117,28 @@ class StorageService {
     return null;
   }
 
+  /// Upload the optional screenshot attached to a support ticket.
+  /// Returns download URL or null on failure.
+  static Future<String?> uploadSupportScreenshot(
+      File file, String ticketId) async {
+    final uid = _uid;
+    if (uid.isEmpty) return null;
+    final token = _token();
+    final ext = file.path.split('.').last.toLowerCase();
+    final ref = _storage.ref().child('support_screenshots/$uid/$ticketId.$ext');
+    try {
+      final task = await ref.putFile(file, SettableMetadata(
+        customMetadata: {'firebaseStorageDownloadTokens': token},
+      ));
+      if (task.state == TaskState.success) {
+        final bucket = task.ref.bucket;
+        final encodedPath = Uri.encodeComponent(task.ref.fullPath);
+        return 'https://firebasestorage.googleapis.com/v0/b/$bucket/o/$encodedPath?alt=media&token=$token';
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Upload a voice message audio file.
   /// Returns download URL or null on failure.
   static Future<String?> uploadChatAudio(File file, String chatId) async {

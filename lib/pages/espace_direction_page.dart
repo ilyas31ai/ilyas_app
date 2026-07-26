@@ -24,6 +24,7 @@ import 'direction_bulletins_page.dart';
 import 'direction_bulletins_consulter_page.dart';
 import 'inscription_verification_page.dart';
 import 'messagerie_page.dart';
+import 'direction_support_page.dart';
 
 // Restreint l'Espace Direction aux rôles Direction
 // ([PermissionService.isDirection] : admin, direction, adminEtablissement,
@@ -246,6 +247,7 @@ class _DirectionHome extends StatelessWidget {
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const MessageriePage())),
               ),
+              _buildSupportCard(context),
               const SizedBox(height: 4),
               _buildSectionLabel('Gestion des enseignants'),
               const SizedBox(height: 8),
@@ -351,6 +353,98 @@ class _DirectionHome extends StatelessWidget {
                         horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF59E0B),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSupportCard(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('support_tickets')
+          .where('statut', isEqualTo: 'nouveau')
+          .snapshots(),
+      builder: (context, snap) {
+        final count = snap.data?.docs.length ?? 0;
+        return InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const DirectionSupportPage(),
+            ),
+          ),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+              color: const Color(0xFF161B22),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: count > 0
+                    ? const Color(0xFFD97706).withValues(alpha: 0.4)
+                    : Colors.white.withValues(alpha: 0.05),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2563EB), Color(0xFF0891B2)],
+                    ),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: const Icon(Icons.support_agent_outlined,
+                      color: Colors.white, size: 21),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Support & Suggestions',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Bugs, suggestions, questions et avis des utilisateurs',
+                        style: TextStyle(
+                          color: Colors.white38,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (count > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD97706),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(

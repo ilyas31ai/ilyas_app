@@ -70,6 +70,10 @@ dependencies:
   speech_to_text: 5.6.1
   google_mlkit_text_recognition: ^0.16.0
 
+  # ℹ️ APP / DEVICE INFO (module Support & Suggestions)
+  package_info_plus: ^8.0.0
+  device_info_plus: ^10.1.0
+
 dependency_overrides:
   speech_to_text:
     path: packages/speech_to_text

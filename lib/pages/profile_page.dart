@@ -489,6 +489,12 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         const SizedBox(height: 8),
         _ActionTile(
+          icon: Icons.support_agent_outlined,
+          label: 'Signaler un problème / Suggestion',
+          onTap: () => Navigator.pushNamed(context, '/support'),
+        ),
+        const SizedBox(height: 8),
+        _ActionTile(
           icon: Icons.logout,
           label: 'Se déconnecter',
           onTap: () async {

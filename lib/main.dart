@@ -68,6 +68,8 @@ import 'pages/direction_historique_remplacements_page.dart';
 import 'pages/direction_statistiques_page.dart';
 import 'pages/direction_stats_remplacements_page.dart';
 import 'pages/professeur_disponibilite_page.dart';
+import 'pages/support_form_page.dart';
+import 'pages/direction_support_page.dart';
 
 // 🏫 PRIMAIRE — écrans de production
 import 'pages/primaire_dashboard_page.dart';
@@ -428,6 +430,10 @@ class MyApp extends StatelessWidget {
         AppRoutes.directionStatistiques: (_) => const DirectionStatistiquesPage(),
         AppRoutes.directionBulletins: (_) => const DirectionBulletinsPage(),
         AppRoutes.directionBulletinsConsulter: (_) => const DirectionBulletinsConsulterPage(),
+        AppRoutes.directionSupport: (_) => const DirectionSupportPage(),
+
+        // ── Support & Suggestions — tous rôles ──────────────────────────────
+        AppRoutes.support: (_) => const SupportFormPage(),
 
         // ── Direction — disponibilités & remplacements ─────────────────────
         '/direction_disponibilites': (_) =>

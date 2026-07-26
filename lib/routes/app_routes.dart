@@ -20,6 +20,7 @@ class AppRoutes {
   static const espaceParent = '/espace_parent'; // → existant
   static const eleves = '/eleves'; // → existant (ElevesPage)
   static const leaderboard = '/leaderboard'; // → existant
+  static const support = '/support'; // Envoi bug/suggestion/question/avis — tous rôles
 
   // ── Maternelle ──────────────────────────────────────────────────────────────
   static const maternelleTableauBord = '/maternelle_tableau_bord';
@@ -127,6 +128,7 @@ class AppRoutes {
   static const directionBulletins = '/direction_bulletins';
   static const directionBulletinsConsulter = '/direction_bulletins_consulter';
   static const directionInviterEnseignant = '/direction_inviter_enseignant';
+  static const directionSupport = '/direction_support';
 
   /// Espace enseignant non rattaché à un établissement
   static const teacherLimited = '/teacher_limited';
