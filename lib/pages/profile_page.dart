@@ -5,12 +5,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/user_model.dart';
+import '../services/editeur_access_service.dart';
 import '../services/social_service.dart';
 import '../services/storage_service.dart';
 import '../services/user_service.dart';
 import '../widgets/shimmer_box.dart';
 import '../widgets/user_avatar.dart';
 import 'edit_profile_page.dart';
+import 'espace_editeur_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -494,6 +496,17 @@ class _ProfilePageState extends State<ProfilePage> {
           onTap: () => Navigator.pushNamed(context, '/support'),
         ),
         const SizedBox(height: 8),
+        if (EditeurAccessService.isAuthorized) ...[
+          _ActionTile(
+            icon: Icons.admin_panel_settings_outlined,
+            label: 'Espace Éditeur',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EspaceEditeurPage()),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
         _ActionTile(
           icon: Icons.logout,
           label: 'Se déconnecter',

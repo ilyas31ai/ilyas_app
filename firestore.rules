@@ -34,6 +34,13 @@ service cloud.firestore {
     function isEleve()      { return isAuth() && role() == 'eleve';      }
     function isParent()     { return isAuth() && role() == 'parent';     }
 
+    // Espace Éditeur (propriétaire SCOLARAI) : accès par liste blanche d'UID,
+    // volontairement indépendant du rôle Firestore — voir
+    // EditeurAccessService côté client (même liste, à garder synchronisée).
+    function isEditeurUid() {
+      return isAuth() && request.auth.uid in ['of6wqbqQCKdffN7E4N9Od8TZyGX2'];
+    }
+
     // Auth UIDs des enfants (stockés dans users/{parentUid}.enfantIds)
     function enfantIds() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid))
@@ -702,6 +709,15 @@ service cloud.firestore {
         request.resource.data.get('userId', '') == request.auth.uid &&
         request.resource.data.get('statut', '') == 'nouveau';
       allow update, delete: if isDirection();
+    }
+
+    // ── Espace Éditeur — abonnements & paiements (Phase future) ──────────────
+    // Structure préparée dès maintenant (voir SubscriptionModel) mais aucune
+    // UI ne l'exploite encore. Un document par établissement, id = schoolId.
+    // Volontairement PAS accessible à isDirection() : espace totalement
+    // séparé des établissements, réservé au propriétaire de la plateforme.
+    match /subscriptions/{schoolId} {
+      allow read, write: if isEditeurUid();
     }
 
     // ── Fallback : refuse tout accès non couvert ──────────────────────────────

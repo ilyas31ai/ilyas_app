@@ -21,6 +21,7 @@ class AppRoutes {
   static const eleves = '/eleves'; // → existant (ElevesPage)
   static const leaderboard = '/leaderboard'; // → existant
   static const support = '/support'; // Envoi bug/suggestion/question/avis — tous rôles
+  static const espaceEditeur = '/espace_editeur'; // Réservé UID propriétaire SCOLARAI
 
   // ── Maternelle ──────────────────────────────────────────────────────────────
   static const maternelleTableauBord = '/maternelle_tableau_bord';

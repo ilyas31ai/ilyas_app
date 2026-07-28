@@ -70,6 +70,7 @@ import 'pages/direction_stats_remplacements_page.dart';
 import 'pages/professeur_disponibilite_page.dart';
 import 'pages/support_form_page.dart';
 import 'pages/direction_support_page.dart';
+import 'pages/espace_editeur_page.dart';
 
 // 🏫 PRIMAIRE — écrans de production
 import 'pages/primaire_dashboard_page.dart';
@@ -434,6 +435,9 @@ class MyApp extends StatelessWidget {
 
         // ── Support & Suggestions — tous rôles ──────────────────────────────
         AppRoutes.support: (_) => const SupportFormPage(),
+
+        // ── Espace Éditeur — réservé au propriétaire SCOLARAI ───────────────
+        AppRoutes.espaceEditeur: (_) => const EspaceEditeurPage(),
 
         // ── Direction — disponibilités & remplacements ─────────────────────
         '/direction_disponibilites': (_) =>
