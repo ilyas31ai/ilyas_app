@@ -706,12 +706,16 @@ service cloud.firestore {
     // SupportService). L'auteur peut relire sa propre demande mais ne peut
     // pas la modifier après envoi : toute correction passe par la Direction.
     match /support_tickets/{id} {
-      allow read: if isDirection() ||
+      allow read: if isDirection() || isEditeurUid() ||
         (isAuth() && resource.data.get('userId', '') == request.auth.uid);
       allow create: if isAuth() &&
         request.resource.data.get('userId', '') == request.auth.uid &&
         request.resource.data.get('statut', '') == 'nouveau';
-      allow update, delete: if isDirection();
+      // Éditeur : mêmes droits de traitement que la Direction sur ce
+      // module (répondre, changer le statut — voir EditeurSupportPage qui
+      // réutilise SupportTicketDetailView), sans fusionner isEditeurUid()
+      // dans isDirection().
+      allow update, delete: if isDirection() || isEditeurUid();
     }
 
     // ── Espace Éditeur — abonnements & paiements (Phase future) ──────────────
