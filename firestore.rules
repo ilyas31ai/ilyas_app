@@ -38,7 +38,10 @@ service cloud.firestore {
     // volontairement indépendant du rôle Firestore — voir
     // EditeurAccessService côté client (même liste, à garder synchronisée).
     function isEditeurUid() {
-      return isAuth() && request.auth.uid in ['of6wqbqQCKdffN7E4N9Od8TZyGX2'];
+      return isAuth() && request.auth.uid in [
+        'of6wqbqQCKdffN7E4N9Od8TZyGX2', // ilyas31ai@outlook.fr — propriétaire SCOLARAI
+        'BClcAaJaPOaURt79hmT8dBfQ6M22'  // Compte Éditeur créé le 2026-08-01
+      ];
     }
 
     // Auth UIDs des enfants (stockés dans users/{parentUid}.enfantIds)
