@@ -82,8 +82,13 @@ service cloud.firestore {
 
     // ── Profils utilisateurs ─────────────────────────────────────────────────
     match /users/{userId} {
+      // isEditeurUid() : EditeurDashboardPage (EditeurStatsService) fait des
+      // requêtes d'agrégation (count()) + une liste triée sur `users`, tous
+      // établissements confondus — nécessite un accès en lecture à la
+      // collection, pas seulement au document propre.
       allow read: if isAuth() && (
-        isDirection() || isProfesseur() || isParent() || isEleve() || request.auth.uid == userId
+        isDirection() || isProfesseur() || isParent() || isEleve() ||
+        isEditeurUid() || request.auth.uid == userId
       );
 
       // Création : l'utilisateur crée son propre profil.
