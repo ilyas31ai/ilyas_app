@@ -161,6 +161,8 @@ class _HeaderBanner extends StatelessWidget {
       case UserRole.adminEtablissement:
       case UserRole.superAdmin:
         return 'Espace Direction';
+      case UserRole.editeur:
+        return 'Espace Éditeur';
     }
   }
 

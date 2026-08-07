@@ -19,6 +19,7 @@ enum UserRole {
   direction,
   adminEtablissement,
   superAdmin,
+  editeur,
 }
 
 extension UserRoleX on UserRole {
@@ -38,6 +39,8 @@ extension UserRoleX on UserRole {
         return 'Administrateur Établissement';
       case UserRole.superAdmin:
         return 'Super Administrateur';
+      case UserRole.editeur:
+        return 'Éditeur';
     }
   }
 
@@ -57,6 +60,8 @@ extension UserRoleX on UserRole {
         return 'adminEtablissement';
       case UserRole.superAdmin:
         return 'superAdmin';
+      case UserRole.editeur:
+        return 'editeur';
     }
   }
 
@@ -74,6 +79,8 @@ extension UserRoleX on UserRole {
         return UserRole.adminEtablissement;
       case 'superAdmin':
         return UserRole.superAdmin;
+      case 'editeur':
+        return UserRole.editeur;
       default:
         return UserRole.eleve;
     }

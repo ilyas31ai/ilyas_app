@@ -11,6 +11,9 @@ import 'direction_dashboard_page.dart';
 import 'espace_direction_page.dart';
 import 'professeur_eleves_page.dart';
 import 'espace_parent_page.dart';
+import 'editeur_dashboard_page.dart';
+import 'editeur_support_page.dart';
+import 'editeur_statistiques_page.dart';
 import '../models/permission_model.dart';
 import '../models/user_model.dart';
 import '../services/notification_service.dart';
@@ -62,13 +65,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
       // Mettre à jour la navigation uniquement si le rôle change.
       if (user.role != _role) {
-        final wasDirection = PermissionService.isDirection(_role);
-        final isDirection  = PermissionService.isDirection(user.role);
+        final oldCategory = _navCategory(_role);
+        final newCategory = _navCategory(user.role);
         setState(() {
           _role = user.role;
-          // Réinitialiser l'index si la catégorie change (Direction ↔ autre)
-          // pour éviter d'atterrir sur un onglet invalide.
-          if (wasDirection != isDirection) _index = 0;
+          // Réinitialiser l'index si la catégorie change (Direction ↔
+          // Éditeur ↔ autre) pour éviter d'atterrir sur un onglet invalide.
+          if (oldCategory != newCategory) _index = 0;
         });
       }
     });
@@ -107,6 +110,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   // ─── Configuration par rôle ───────────────────────────────────────────────
 
   bool get _isDirection => PermissionService.isDirection(_role);
+  bool get _isEditeur => _role == UserRole.editeur;
+
+  /// Catégorie de navigation (jeu d'onglets) — utilisée uniquement pour
+  /// détecter un changement de jeu d'onglets et réinitialiser `_index`.
+  int _navCategory(UserRole role) {
+    if (PermissionService.isDirection(role)) return 1;
+    if (role == UserRole.editeur) return 2;
+    return 0;
+  }
 
   List<Widget> get _pages {
     if (_isDirection) {
@@ -114,6 +126,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         HomePage(),
         DirectionDashboardPage(),
         EspaceDirectionPage(),
+        ProfilePage(),
+      ];
+    }
+    if (_isEditeur) {
+      // Espace Éditeur (propriétaire SCOLARAI) : uniquement les outils de
+      // supervision plateforme, aucune fonctionnalité élève.
+      return const [
+        EditeurDashboardPage(),
+        EditeurSupportPage(),
+        EditeurStatistiquesPage(),
         ProfilePage(),
       ];
     }
@@ -152,6 +174,30 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           icon: Icon(Icons.account_balance_outlined),
           activeIcon: Icon(Icons.account_balance),
           label: 'Gestion',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.person_outline),
+          activeIcon: Icon(Icons.person),
+          label: 'Profil',
+        ),
+      ];
+    }
+    if (_isEditeur) {
+      return const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.dashboard_outlined),
+          activeIcon: Icon(Icons.dashboard),
+          label: 'Tableau de bord',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.support_agent_outlined),
+          activeIcon: Icon(Icons.support_agent),
+          label: 'Support',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.bar_chart_outlined),
+          activeIcon: Icon(Icons.bar_chart),
+          label: 'Statistiques',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.person_outline),

@@ -141,6 +141,10 @@ class _ProfilePageState extends State<ProfilePage> {
         }
         final loading = snap.connectionState == ConnectionState.waiting;
         final profile = snap.data;
+        // L'Éditeur (supervision plateforme) n'a pas de scolarité : la
+        // gamification élève (stats amis/devoirs/score IA, badges) n'a pas
+        // de sens pour ce compte et reste masquée.
+        final isEditeur = profile?.role == UserRole.editeur;
         return Scaffold(
           backgroundColor: const Color(0xFF0D1117),
           body: SafeArea(
@@ -152,14 +156,18 @@ class _ProfilePageState extends State<ProfilePage> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
-                      _buildStatsRow(),
-                      const SizedBox(height: 20),
+                      if (!isEditeur) ...[
+                        _buildStatsRow(),
+                        const SizedBox(height: 20),
+                      ],
                       loading
                           ? _buildInfoShimmer()
                           : _buildInfoCard(profile),
                       const SizedBox(height: 20),
-                      _buildBadgesSection(),
-                      const SizedBox(height: 20),
+                      if (!isEditeur) ...[
+                        _buildBadgesSection(),
+                        const SizedBox(height: 20),
+                      ],
                       _buildActionsSection(context, profile),
                     ]),
                   ),
@@ -304,6 +312,8 @@ class _ProfilePageState extends State<ProfilePage> {
         return const Color(0xFFD97706);
       case UserRole.parent:
         return const Color(0xFFBE185D);
+      case UserRole.editeur:
+        return const Color(0xFF9333EA);
       default:
         return const Color(0xFF16A34A);
     }
@@ -457,6 +467,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildActionsSection(BuildContext context, UserModel? profile) {
     final isEleve = profile?.role == UserRole.eleve;
+    final isEditeur = profile?.role == UserRole.editeur;
     return Column(
       children: [
         if (profile != null)
@@ -483,12 +494,14 @@ class _ProfilePageState extends State<ProfilePage> {
             onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
           ),
         ],
-        const SizedBox(height: 8),
-        _ActionTile(
-          icon: Icons.hub_outlined,
-          label: 'SCOLAR AI Educative',
-          onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
-        ),
+        if (!isEditeur) ...[
+          const SizedBox(height: 8),
+          _ActionTile(
+            icon: Icons.hub_outlined,
+            label: 'SCOLAR AI Educative',
+            onTap: () => Navigator.pushNamed(context, '/scolar_connect'),
+          ),
+        ],
         const SizedBox(height: 8),
         _ActionTile(
           icon: Icons.support_agent_outlined,
