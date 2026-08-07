@@ -3,10 +3,8 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     function isDirection() {
-      return request.auth != null && (
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        request.auth.token.email == 'ilyas31ai@outlook.fr'
-      );
+      return request.auth != null &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // Photos de profil — seul le propriétaire peut écrire

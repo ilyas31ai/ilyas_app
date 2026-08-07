@@ -19,8 +19,7 @@ service cloud.firestore {
         role() == 'admin' ||
         role() == 'direction' ||
         role() == 'adminEtablissement' ||
-        role() == 'superAdmin' ||
-        request.auth.token.email == 'ilyas31ai@outlook.fr'
+        role() == 'superAdmin'
       );
     }
     function isProfesseur() { return isAuth() && role() == 'professeur'; }
@@ -39,8 +38,7 @@ service cloud.firestore {
     // EditeurAccessService côté client (même liste, à garder synchronisée).
     function isEditeurUid() {
       return isAuth() && request.auth.uid in [
-        'of6wqbqQCKdffN7E4N9Od8TZyGX2', // ilyas31ai@outlook.fr — propriétaire SCOLARAI
-        'BClcAaJaPOaURt79hmT8dBfQ6M22'  // Compte Éditeur créé le 2026-08-01
+        'BClcAaJaPOaURt79hmT8dBfQ6M22' // editeur.scolarai@gmail.com — compte Éditeur de production
       ];
     }
 

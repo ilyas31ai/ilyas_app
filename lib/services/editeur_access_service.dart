@@ -9,8 +9,7 @@ class EditeurAccessService {
   EditeurAccessService._();
 
   static const Set<String> _allowedUids = {
-    'of6wqbqQCKdffN7E4N9Od8TZyGX2', // ilyas31ai@outlook.fr — propriétaire SCOLARAI
-    'BClcAaJaPOaURt79hmT8dBfQ6M22', // Compte Éditeur créé le 2026-08-01
+    'BClcAaJaPOaURt79hmT8dBfQ6M22', // editeur.scolarai@gmail.com — compte Éditeur de production
   };
 
   /// true si l'utilisateur Firebase actuellement connecté figure dans la
