@@ -13,6 +13,8 @@ class EditProfilePage extends StatefulWidget {
 
 class _EditProfilePageState extends State<EditProfilePage> {
   late final TextEditingController _nameCtrl;
+  late final TextEditingController _prenomCtrl;
+  late final TextEditingController _nomCtrl;
   late final TextEditingController _bioCtrl;
   late final TextEditingController _matiereCtrl;
   String? _selectedNiveau;
@@ -30,6 +32,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.initState();
     _nameCtrl =
         TextEditingController(text: widget.profile.displayName);
+    _prenomCtrl =
+        TextEditingController(text: widget.profile.prenom ?? '');
+    _nomCtrl =
+        TextEditingController(text: widget.profile.nom ?? '');
     _bioCtrl =
         TextEditingController(text: widget.profile.bio ?? '');
     _matiereCtrl =
@@ -42,20 +48,32 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _prenomCtrl.dispose();
+    _nomCtrl.dispose();
     _bioCtrl.dispose();
     _matiereCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    final name = _nameCtrl.text.trim();
-    if (name.isEmpty) {
-      _snack('Le nom ne peut pas être vide');
-      return;
+    final isEditeur = widget.profile.role == UserRole.editeur;
+    String? name;
+    if (!isEditeur) {
+      name = _nameCtrl.text.trim();
+      if (name.isEmpty) {
+        _snack('Le nom ne peut pas être vide');
+        return;
+      }
     }
     setState(() => _saving = true);
 
-    final data = <String, dynamic>{'displayName': name};
+    final data = <String, dynamic>{};
+    if (isEditeur) {
+      data['prenom'] = _prenomCtrl.text.trim();
+      data['nom'] = _nomCtrl.text.trim();
+    } else {
+      data['displayName'] = name;
+    }
     final bio = _bioCtrl.text.trim();
     if (bio.isNotEmpty) {
       data['bio'] = bio;
@@ -145,14 +163,33 @@ class _EditProfilePageState extends State<EditProfilePage> {
             ),
             const SizedBox(height: 24),
 
-            _FieldLabel('Nom affiché'),
-            const SizedBox(height: 8),
-            _Field(
-              controller: _nameCtrl,
-              hint: 'Votre prénom ou pseudo',
-              icon: Icons.person_outline,
-            ),
-            const SizedBox(height: 20),
+            if (widget.profile.role == UserRole.editeur) ...[
+              _FieldLabel('Prénom'),
+              const SizedBox(height: 8),
+              _Field(
+                controller: _prenomCtrl,
+                hint: 'Votre prénom',
+                icon: Icons.person_outline,
+              ),
+              const SizedBox(height: 20),
+              _FieldLabel('Nom'),
+              const SizedBox(height: 8),
+              _Field(
+                controller: _nomCtrl,
+                hint: 'Votre nom',
+                icon: Icons.badge_outlined,
+              ),
+              const SizedBox(height: 20),
+            ] else ...[
+              _FieldLabel('Nom affiché'),
+              const SizedBox(height: 8),
+              _Field(
+                controller: _nameCtrl,
+                hint: 'Votre prénom ou pseudo',
+                icon: Icons.person_outline,
+              ),
+              const SizedBox(height: 20),
+            ],
 
             _FieldLabel('Bio'),
             const SizedBox(height: 8),
@@ -228,6 +265,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
         return const Color(0xFFD97706);
       case UserRole.parent:
         return const Color(0xFFBE185D);
+      case UserRole.editeur:
+        return const Color(0xFF9333EA);
       default:
         return const Color(0xFF16A34A);
     }

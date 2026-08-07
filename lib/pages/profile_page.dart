@@ -184,8 +184,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildHeader(
       BuildContext context, UserModel? profile, bool loading) {
-    final displayName = profile?.displayName ??
-        (_email.contains('@') ? _email.split('@').first : _email);
+    final isEditeur = profile?.role == UserRole.editeur;
+    final displayName = isEditeur
+        ? '${_placeholderOrValue(profile?.prenom, 'Prénom à renseigner')} '
+            '${_placeholderOrValue(profile?.nom, 'Nom à renseigner')}'
+        : (profile?.displayName ??
+            (_email.contains('@') ? _email.split('@').first : _email));
     final roleLabel = profile?.role.label ?? '…';
     final roleColor = _roleColor(profile?.role);
 
@@ -282,11 +286,13 @@ class _ProfilePageState extends State<ProfilePage> {
                       fontSize: 22,
                       fontWeight: FontWeight.bold),
                 ),
-          const SizedBox(height: 4),
-          Text(
-            _email,
-            style: const TextStyle(color: Colors.white38, fontSize: 12),
-          ),
+          if (!isEditeur) ...[
+            const SizedBox(height: 4),
+            Text(
+              _email,
+              style: const TextStyle(color: Colors.white38, fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -318,6 +324,9 @@ class _ProfilePageState extends State<ProfilePage> {
         return const Color(0xFF16A34A);
     }
   }
+
+  String _placeholderOrValue(String? value, String placeholder) =>
+      (value != null && value.trim().isNotEmpty) ? value.trim() : placeholder;
 
   // ─── Stats ────────────────────────────────────────────────────────────────
 
@@ -357,6 +366,7 @@ class _ProfilePageState extends State<ProfilePage> {
   // ─── Info Card ────────────────────────────────────────────────────────────
 
   Widget _buildInfoCard(UserModel? profile) {
+    final isEditeur = profile?.role == UserRole.editeur;
     final memberSince = profile?.createdAt != null
         ? _formatDate(profile!.createdAt!.toDate())
         : '—';
@@ -381,6 +391,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   fontWeight: FontWeight.w600,
                   fontSize: 15)),
           const SizedBox(height: 14),
+          if (isEditeur) ...[
+            _InfoRow(Icons.person_outline, 'Prénom',
+                _placeholderOrValue(profile?.prenom, 'Prénom à renseigner')),
+            const Divider(color: Color(0xFF21262D), height: 22),
+            _InfoRow(Icons.badge_outlined, 'Nom',
+                _placeholderOrValue(profile?.nom, 'Nom à renseigner')),
+            const Divider(color: Color(0xFF21262D), height: 22),
+          ],
           _InfoRow(Icons.email_outlined, 'Email', _email),
           if (classeNom != null && classeNom.isNotEmpty) ...[
             const Divider(color: Color(0xFF21262D), height: 22),
@@ -394,7 +412,11 @@ class _ProfilePageState extends State<ProfilePage> {
             const Divider(color: Color(0xFF21262D), height: 22),
             _InfoRow(Icons.book_outlined, 'Matière', matiere),
           ],
-          if (bio != null && bio.isNotEmpty) ...[
+          if (isEditeur) ...[
+            const Divider(color: Color(0xFF21262D), height: 22),
+            _InfoRow(Icons.info_outline, 'Bio',
+                _placeholderOrValue(bio, 'Ajoutez une biographie')),
+          ] else if (bio != null && bio.isNotEmpty) ...[
             const Divider(color: Color(0xFF21262D), height: 22),
             _InfoRow(Icons.info_outline, 'Bio', bio),
           ],
